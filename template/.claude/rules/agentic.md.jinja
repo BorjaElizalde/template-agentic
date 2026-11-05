@@ -29,6 +29,8 @@ Use standard git commands (`git status`, `git diff`, `git log`) without the `-C`
 
 **Memory:** .claude/memory/ is yours, .claude/agent-memory/<agent>/ the reviewers'; both commit on the branch and are reviewed in its PR. Any memory should earn its keep, write only when it is load-bearing and unrecoverable from the repo. No history, no framing against an earlier state, nothing the code or .claude/rules/ already says.
 
+**Files:** YAML files end in `.yaml`; `.yml` only where a tool requires that exact name.
+
 ## Optional agentic workflow
 
 Invoke `/agentic-flow` only when the user explicitly requests the agentic flow for the current

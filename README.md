@@ -8,9 +8,9 @@ workflow. A project applies it side by side with one stack layer (for example
 ## Apply and update
 
 ```bash
-uvx copier copy <template-url> .            # writes .copier-answers.agentic.yml
+uvx copier copy <template-url> .            # writes .copier-answers.agentic.yaml
 bash .claude/scripts/task.sh point-memory    # once per clone: Claude's auto memory → .claude/memory/
-uvx copier update -a .copier-answers.agentic.yml
+uvx copier update -a .copier-answers.agentic.yaml
 ```
 
 Every merge to `main` is a release: the `Build` workflow re-runs `make gate` on the merged result,
@@ -47,10 +47,12 @@ however the machine prefers, for example `alias claude-rc='caffeinate -i claude 
 
 ## What the project owns
 
-`CLAUDE.md`, `.claude/memory/MEMORY.md` and `.claude/release.md` are seeded once
-(`_skip_if_exists`): an update never touches them, and a first copy into an existing repository
-keeps the repository's own file. `CLAUDE.md` imports `@.claude/agentic.md`. Every other file
-belongs to this template: change it here, not in a project.
+`.claude/memory/MEMORY.md` and `.claude/release.md` are seeded once (`_skip_if_exists`): an
+update never touches them, and a first copy into an existing repository keeps the repository's
+own file. The project's `CLAUDE.md` is its own: the template never writes it, and its Product
+Stage is what the Judgment Guidelines in `.claude/rules/agentic.md` decide against. That rule
+file has no `paths:`, so Claude Code loads it in every session. Every other file belongs to this
+template: change it here, not in a project.
 
 ## One settings file for every stack
 

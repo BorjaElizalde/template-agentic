@@ -4,7 +4,7 @@
 #   refuse to edit tracked source in the PRIMARY working tree (the main checkout),
 #   on ANY branch. All feature work belongs in a linked worktree under
 #   WORKTREE_ROOT (../agentic.conf) — branching off in the main checkout and editing
-#   there is the anti-pattern this blocks (not just editing on a protected branch). See CLAUDE.md.
+#   there is the anti-pattern this blocks (not just editing on a protected branch). See .claude/rules/agentic.md.
 # Primary vs linked is detected structurally: a linked worktree's git-dir is
 # <common>/worktrees/<name>, so git-dir != git-common-dir; in the main checkout they are
 # equal. Holds on any branch and for the submodule repos (git-dir under .git/modules/<name>).
@@ -33,7 +33,7 @@ CD="$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null 
 [ -n "$GD" ] && [ -n "$CD" ] || exit 0
 if [ "$GD" = "$CD" ]; then
   BRANCH="$(git -C "$d" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  echo "Blocked: refusing to edit '$FILE_PATH' in the main checkout (branch '$BRANCH'). Feature work belongs in a linked worktree — start the task with /start-task and edit under $WORKTREE_ROOT/ (CLAUDE.md)." >&2
+  echo "Blocked: refusing to edit '$FILE_PATH' in the main checkout (branch '$BRANCH'). Feature work belongs in a linked worktree — start the task with /start-task and edit under $WORKTREE_ROOT/ (.claude/rules/agentic.md)." >&2
   exit 2
 fi
 exit 0

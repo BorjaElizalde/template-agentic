@@ -23,7 +23,10 @@ git -C "$D" init -q
 git -C "$D" add -A
 git -C "$D" -c user.name=t -c user.email=t@t commit -qm render
 
-expect "no Makefile or harness.mk left" bash -c "[ ! -e '$D/Makefile' ] && [ ! -e '$D/harness.mk' ]"
+expect "no Makefile, harness.mk or CLAUDE.md written" bash -c "[ ! -e '$D/Makefile' ] && [ ! -e '$D/harness.mk' ] && [ ! -e '$D/CLAUDE.md' ]"
+expect "the shared rules load without an import" test -f "$D/.claude/rules/agentic.md"
+expect "answers land in .copier-answers.agentic.yaml" test -f "$D/.copier-answers.agentic.yaml"
+expect "no .yml file in the template or the project" bash -c "[ -z \"\$(find '$ROOT' '$D' -name '*.yml' -not -path '*/.git/*')\" ]"
 expect "no Jinja left in rendered files" bash -c "! grep -rIl -e '{{' -e '{%' --exclude-dir=.git '$D'"
 expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf'"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
