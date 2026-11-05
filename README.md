@@ -9,7 +9,7 @@ workflow. A project applies it side by side with one stack layer (for example
 
 ```bash
 uvx copier copy <template-url> .            # writes .copier-answers.agentic.yml
-make point_memory                           # once per clone: Claude's auto memory → .claude/memory/
+bash .claude/scripts/task.sh point-memory    # once per clone: Claude's auto memory → .claude/memory/
 uvx copier update -a .copier-answers.agentic.yml
 ```
 
@@ -33,17 +33,24 @@ that the template's tests run directly.
 Every project works on the same three branches: feature PRs go into `develop`, and `/release`
 promotes `develop` to `staging` to `main` with merge commits. All three are protected.
 
-`make worktree issue=<n>` creates `<worktree_root>/<n>-<slug>/<repo>`, where `<repo>` is the main
-checkout's folder name. A task that spans repositories gets one issue folder holding each
-repository's worktree.
+## Tasks
+
+Every task, and every subagent session, is an issue with its own worktree and session; the
+worktree is the agent's workspace even for a research task. `/start-task` finds or creates the
+issue, creates `<worktree_root>/<n>-<slug>/<repo>` (`<repo>` is the main checkout's folder name,
+so a task that spans repositories gets one issue folder holding each repository's worktree), and
+opens the session, or resumes it. `/finish-task` closes the issue once its result is delivered,
+then the session, the worktree and the branch; it refuses while the branch has commits on no
+remote branch and in no merged PR, or the worktree has uncommitted or untracked files. Both run
+`.claude/scripts/task.sh`, so no repository needs a Makefile for them. Claude itself is started
+however the machine prefers, for example `alias claude-rc='caffeinate -i claude --remote-control'`.
 
 ## What the project owns
 
-`CLAUDE.md`, `Makefile`, `.claude/memory/MEMORY.md` and `.claude/release.md` are seeded once
+`CLAUDE.md`, `.claude/memory/MEMORY.md` and `.claude/release.md` are seeded once
 (`_skip_if_exists`): an update never touches them, and a first copy into an existing repository
-keeps the repository's own file. `CLAUDE.md` imports `@.claude/agentic.md`; the `Makefile`
-includes `harness.mk` and the stack's `stack.mk`. Every other file belongs to this template:
-change it here, not in a project.
+keeps the repository's own file. `CLAUDE.md` imports `@.claude/agentic.md`. Every other file
+belongs to this template: change it here, not in a project.
 
 ## One settings file for every stack
 
@@ -62,10 +69,10 @@ A stack layer supplies these fixed names. When one is missing, nothing runs in i
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}` from the stack's practice modules beside it. `lib.jq` provides `edit_context` and the text helpers. |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit/Write with the hook payload on stdin. |
 | `.claude/review-wave.md` | Names the plan reviewer, the review wave, the last pass, and the resolver for lint, format and type failures that `/agentic-flow` runs. |
-| `stack.mk` | Provides `make gate`, which `/gate` runs. |
+| `make gate` | The project's full validation, which `/gate` runs. The stack layer provides it in the Makefile it owns. |
 
 ## Develop
 
 `make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`issue.sh` suites. The `Gate` workflow runs the same target on every PR, and `Build` runs it again
+`task.sh` suites. The `Gate` workflow runs the same target on every PR, and `Build` runs it again
 on `main` before it tags.

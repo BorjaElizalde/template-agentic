@@ -23,9 +23,9 @@ premature abstractions. Always ask: "Can this be done more elegantly?"
 ## Git
 Use standard git commands (`git status`, `git diff`, `git log`) without the `-C` flag when working in this directory. The `-C` flag is unnecessary and triggers extra permission prompts.
 
-**Tasks:** every task is an issue in {{ issues_repo }}; one without an issue gets one first (`gh issue create -R {{ issues_repo }}`). When the user names a task loosely, find its number with `gh issue list -R {{ issues_repo }} --search`.
+**Tasks:** every task, and every subagent session, is an issue in {{ issues_repo }}. `/start-task` finds or creates the issue, creates its worktree at {{ worktree_root }}/<n>-<slug>/<repo> (a cross-repository task's worktrees share the issue folder), and opens its session in a new Terminal window, resuming one that exists. `/finish-task <n>` closes the issue once its result is delivered, then the session, the worktree and the branch. When the user names a task loosely, find its number with `gh issue list -R {{ issues_repo }} --search`.
 
-**Worktrees:** make worktree issue=<n> [type=fix] creates branch <type>/<n>-<slug> at {{ worktree_root }}/<n>-<slug>/<repo>, where <repo> is the main checkout's folder name, so a cross-repository task's worktrees share one issue folder; all feature work happens there, never in the main checkout. Never call EnterWorktree. make claude_subagent_session issue=<n> opens that task's session in a new Terminal window, resuming it when one exists; make close_claude_session issue=<n> exits it.
+**Worktrees:** all feature work happens in the task's worktree, never in the main checkout. Never call EnterWorktree.
 
 **Memory:** .claude/memory/ is yours, .claude/agent-memory/<agent>/ the reviewers'; both commit on the branch and are reviewed in its PR. Any memory should earn its keep, write only when it is load-bearing and unrecoverable from the repo. No history, no framing against an earlier state, nothing the code or .claude/rules/ already says.
 

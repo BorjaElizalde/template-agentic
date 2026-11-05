@@ -23,6 +23,7 @@ git -C "$D" init -q
 git -C "$D" add -A
 git -C "$D" -c user.name=t -c user.email=t@t commit -qm render
 
+expect "no Makefile or harness.mk left" bash -c "[ ! -e '$D/Makefile' ] && [ ! -e '$D/harness.mk' ]"
 expect "no Jinja left in rendered files" bash -c "! grep -rIl -e '{{' -e '{%' --exclude-dir=.git '$D'"
 expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf'"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
@@ -30,12 +31,12 @@ expect "every script parses" bash -c "for f in \$(find '$D' -name '*.sh'); do ba
 expect "bash-guard suite" bash "$D/.claude/hooks/bash-guard.test.sh"
 expect "practices protocol suite" bash "$D/.claude/hooks/practices/guard.test.sh"
 expect "memory checker suite" bash "$D/.claude/scripts/check-memory-staleness.test.sh"
-expect "issue.sh suite" bash "$D/scripts/issue.test.sh"
+expect "task.sh suite" bash "$D/.claude/scripts/task.test.sh"
 expect "seeded memory index is clean" bash "$D/.claude/scripts/check-memory-staleness.sh" "$D/.claude/memory"
-expect "issue.sh stays executable" test -x "$D/scripts/issue.sh"
-expect "point_memory targets this checkout" bash -c "make -s -C '$D' point_memory >/dev/null &&
+expect "point-memory targets this checkout" bash -c "bash '$D/.claude/scripts/task.sh' point-memory >/dev/null &&
   [ \"\$(jq -r .autoMemoryDirectory '$D/.claude/settings.local.json')\" = \"\$(cd '$D' && pwd -P)/.claude/memory\" ]"
 expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
+expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/start-task/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/finish-task/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/subagent-session-prompt.md"
 
 # The product names the template was extracted from; bracketed so this line never matches itself.

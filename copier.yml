@@ -5,7 +5,6 @@ _answers_file: .copier-answers.agentic.yml
 # Seeded once, then project-owned: updates skip them, and a first copy keeps an existing file.
 _skip_if_exists:
   - CLAUDE.md
-  - Makefile
   - .claude/memory/MEMORY.md
   - .claude/release.md
 
