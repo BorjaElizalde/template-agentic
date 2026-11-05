@@ -75,6 +75,13 @@ A stack layer supplies these fixed names. When one is missing, nothing runs in i
 
 ## Develop
 
+This repository works on two branches: feature PRs go into `develop`, and `/release` promotes
+`develop` to `main` with a merge commit, where `Build` tags the next version. Its own
+`.claude/skills/` carries `/commit`, `/gate` and `/pull-request` as rendered copies of the skills
+this template ships, with its own issues as the issues repository, plus `/release` for that
+promotion. Commits use the GitHub noreply address set in the clone's git config.
+
 `make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`task.sh` suites. The `Gate` workflow runs the same target on every PR, and `Build` runs it again
-on `main` before it tags.
+`task.sh` suites, and checks that the repository's own shared skills match a fresh render. The
+`Gate` workflow runs the same target on every PR into `develop` or `main`, and `Build` runs it
+again on `main` before it tags.
