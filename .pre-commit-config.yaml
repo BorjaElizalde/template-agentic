@@ -4,8 +4,8 @@ repos:
   - repo: local
     hooks:
       - id: render-self
-        name: re-render this repository's harness (make self)
-        entry: make self
+        name: re-render this repository's harness (make render)
+        entry: make render
         language: system
         files: ^template/
         pass_filenames: false

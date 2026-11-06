@@ -25,6 +25,7 @@ outside the project root), so an update runs without `--trust`.
 |---|---|
 | `issues_repo` | Where task issues live (`owner/name`): issue lookup, PR `Closes` lines, session prompt |
 | `worktree_root` | Folder for linked worktrees, relative to the main checkout |
+| `deploy_workflow` | The GitHub Actions workflow the merge into `main` starts, which `/release` waits for; empty for none |
 
 Repositories that share an issue tracker and a worktree folder give the same answers. Scripts read
 them from `.claude/agentic.conf`, the only rendered file they source, so they stay plain shell
@@ -56,12 +57,11 @@ machine prefers, for example `alias claude-rc='caffeinate -i claude --remote-con
 
 ## What the project owns
 
-`.claude/memory/MEMORY.md` and `.claude/release.md` are seeded once (`_skip_if_exists`): an
-update never touches them, and a first copy into an existing repository keeps the repository's
-own file. The project's `CLAUDE.md` is its own: the template never writes it, and its Product
-Stage is what the Judgment Guidelines in `.claude/rules/agentic.md` decide against. That rule
-file has no `paths:`, so Claude Code loads it in every session. Every other file belongs to this
-template: change it here, not in a project.
+`.claude/memory/MEMORY.md` is seeded once (`_skip_if_exists`): an update never touches it, and a
+first copy into an existing repository keeps the repository's own file. The project's `CLAUDE.md`
+is its own: the template never writes it, and its Product Stage is what the Judgment Guidelines in
+`.claude/rules/agentic.md` decide against. That rule file has no `paths:`, so Claude Code loads it
+in every session. Every other file belongs to this template: change it here, not in a project.
 
 ## One settings file for every stack
 
@@ -91,17 +91,17 @@ each branch to PRs with a passing `gate`, `staging` and `main` to merge commits 
 squashes. Commits use the GitHub noreply address set in the clone's git config.
 
 The repository is a project of its own template: `.claude/` holds the whole harness, rendered
-from the working tree with its own issues as the issues repository and the answers
-`.claude/agentic.conf` records, so work here runs the guards and skills every project gets. Being
-the source, it has no answers file for Copier or Renovate to update. Instead `make self` makes
-`.claude/` match a render of the working tree, leaving the paths this repository owns
-(`release.md`, which holds its release facts, the memory stores and the local settings). A
-pre-commit hook runs it on every commit that changes `template/` and stops the commit when it
-re-rendered something, so the re-render is staged with the change. Once per clone, run
-`uvx pre-commit install` and `bash .claude/skills/task/scripts/task.sh point-memory`.
+from the working tree with the answers `.claude/agentic.conf` records (its own issues as the
+issues repository, `Build` as its deploy workflow), so work here runs the guards and skills every
+project gets. Being the source, it has no answers file for Copier or Renovate to update. Instead
+`make render` makes `.claude/` match a render of the working tree, leaving the paths this
+repository owns (the memory stores and the local settings). A pre-commit hook runs it on every
+commit that changes `template/` and stops the commit when it re-rendered something, so the
+re-render is staged with the change. Once per clone, run `uvx pre-commit install` and
+`bash .claude/skills/task/scripts/task.sh point-memory`.
 
 `make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`task.sh` suites. It also runs `make self` on a copy of the working tree and fails when that
+`task.sh` suites. It also runs `make render` on a copy of the working tree and fails when that
 changes `.claude/`, for a commit made without the hook. The
 `Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
 checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
