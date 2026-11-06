@@ -13,7 +13,7 @@ bash .claude/skills/task/scripts/task.sh point-memory    # once per clone: Claud
 uvx copier update -a .copier-answers.agentic.yaml
 ```
 
-Every merge to `main` is a release: the `Build` workflow re-runs `make gate` on the merged result,
+Every merge to `main` is a release: the `Build` workflow re-runs the gate suite on the merged result,
 then tags the next `YYYYMMDD.N` version (a PEP 440 version, which Copier and Renovate order by).
 Projects take it as an update PR (Renovate's Copier manager, or `copier update` by hand). The
 template uses no unsafe Copier feature (Jinja extensions, migrations, tasks, or `_external_data`
@@ -100,10 +100,11 @@ commit that changes `template/` and stops the commit when it re-rendered somethi
 re-render is staged with the change. Once per clone, run `uvx pre-commit install` and
 `bash .claude/skills/task/scripts/task.sh point-memory`.
 
-`make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`task.sh` suites. It also runs `make render` on a copy of the working tree and fails when that
-changes `.claude/`, for a commit made without the hook. The
-`Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
+`make gate` runs `tests/render-and-test.sh`: it renders the template and runs the rendered guard,
+protocol, memory checker and `task.sh` suites. It also renders the working tree with the
+repository's own answers and fails when `.claude/` differs, for a commit made without the hook.
+The `Gate` workflow runs the same script on every PR into `develop`, `staging` or `main`, after it
 checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
-`bugfix/*` PR of one commit, from this repository's own branches. `Build` runs the gate again on
-`main` before it tags.
+`bugfix/*` PR of one commit, from this repository's own branches. `Build` runs it again on `main`
+before it tags. CI runs the script itself, never `make gate`, so a change that relaxes the local
+gate can't relax CI.

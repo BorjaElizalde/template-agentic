@@ -46,18 +46,23 @@ expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
-# This repository is a project of its own template: on a copy of the working tree, make render
-# (which the pre-commit hook runs on every commit that changes template/) must leave .claude/ as it is.
-mkdir -p "$OUT/self"
-(cd "$ROOT" && tar --exclude .git -cf - .) | tar -xf - -C "$OUT/self"
+# This repository is a project of its own template: .claude/ must match a render of the working tree
+# with the answers agentic.conf records, except the paths the repository owns. The check renders on
+# its own, not through make render, so a change to that target can't make it pass.
 harness_in_step() {
-  local drift
-  make -s -C "$OUT/self" render >/dev/null || return 1
+  local p drift
+  (. "$ROOT/.claude/agentic.conf" && uvx --quiet copier copy --quiet --defaults \
+    --data "issues_repo=$ISSUES_REPO" --data "worktree_root=$WORKTREE_ROOT" \
+    --data "deploy_workflow=$DEPLOY_WORKFLOW" "$OUT/src" "$OUT/self") || return 1
+  for p in memory agent-memory settings.local.json; do
+    rm -rf "$OUT/self/.claude/$p"
+    [ ! -e "$ROOT/.claude/$p" ] || cp -R "$ROOT/.claude/$p" "$OUT/self/.claude/$p"
+  done
   drift="$(diff -rq "$ROOT/.claude" "$OUT/self/.claude")" && return 0
   sed "s#$OUT/self#render#g; s#$ROOT#repository#g; s/^/FAIL /" <<<"$drift"
   return 1
 }
-expect "this repository's harness is in step with the template (make render changes nothing)" harness_in_step
+expect "this repository's harness is in step with the template" harness_in_step
 
 # The product names the template was extracted from; bracketed so this line never matches itself.
 expect "no product name in the template" bash -c "! grep -rIil -E 'fire[b]rain|monar[d]it|aer[i]s|truela[y]er' --exclude-dir=.git --exclude=.git '$ROOT'"
