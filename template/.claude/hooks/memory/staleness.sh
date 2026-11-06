@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
-# check-memory-staleness.sh - deterministic memory-vs-code check.
+# staleness.sh - deterministic memory-vs-code check.
 #
 # Scope is mechanical and exhaustive on purpose: does every cited path resolve, does every link
 # land, is anything untracked, are there secrets. Judging whether a memory is USEFUL - fluff,
 # duplication, whether it earns its place - belongs to memory-cleaner, which can read for
 # meaning. A regex cannot.
 #
-# Usage: check-memory-staleness.sh <store-dir> [<store-dir> ...]
+# Usage: staleness.sh <store-dir> [<store-dir> ...]
 # Exit: 0 = no hard findings, 1 = hard findings, 2 = bad usage
 
 set -uo pipefail

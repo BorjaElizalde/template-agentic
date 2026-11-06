@@ -122,7 +122,7 @@ counts: the mechanism is usually real and the explanation attached to it usually
 
 ## Evidence
 
-`bash .claude/scripts/check-memory-staleness.sh <store>` is your deterministic floor, exhaustive
+`bash .claude/hooks/memory/staleness.sh <store>` is your deterministic floor, exhaustive
 where it applies: dead paths, dead `[[links]]`, dead index entries, index shape, missing or invalid
 type, secrets, untracked files. Run it before and after. It reports mechanical faults only — it
 cannot tell you whether a note deserves to exist, which is the whole of your job.

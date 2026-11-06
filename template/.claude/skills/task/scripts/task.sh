@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
-# The task lifecycle behind /start-task and /finish-task: one issue, one worktree, one session.
+# The task lifecycle behind /task:start and /task:finish: one issue, one worktree, one session.
 set -euo pipefail
 
 usage="usage: task.sh start <issue> [type] | finish <issue> | point-memory"
 
 CALLER=$(pwd -P)
-cd "$(dirname "$0")/../.."
+cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 CHECKOUT=$(pwd -P)
 # Worktree paths resolve from the main checkout, the first entry git lists, even when this runs in
 # a worktree. Its folder name names this repository's worktree inside each issue's folder, so a

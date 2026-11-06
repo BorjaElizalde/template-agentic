@@ -33,7 +33,7 @@ CD="$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null 
 [ -n "$GD" ] && [ -n "$CD" ] || exit 0
 if [ "$GD" = "$CD" ]; then
   BRANCH="$(git -C "$d" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  echo "Blocked: refusing to edit '$FILE_PATH' in the main checkout (branch '$BRANCH'). Feature work belongs in a linked worktree — start the task with /start-task and edit under $WORKTREE_ROOT/ (.claude/rules/agentic.md)." >&2
+  echo "Blocked: refusing to edit '$FILE_PATH' in the main checkout (branch '$BRANCH'). Feature work belongs in a linked worktree — start the task with /task:start and edit under $WORKTREE_ROOT/ (.claude/rules/agentic.md)." >&2
   exit 2
 fi
 exit 0
