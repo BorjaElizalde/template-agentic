@@ -43,12 +43,13 @@ expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/tas
 expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
 expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
+expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
 # This repository's own commit, gate, pull-request and release skills are rendered copies for
 # itself: a render with its own answers must reproduce them exactly.
 SELF="$(git -C "$ROOT" remote get-url origin | sed -E 's#^(git@github\.com:|https://github\.com/)##; s#\.git$##')"
-uvx --quiet copier copy --quiet --defaults --data "issues_repo=$SELF" "$OUT/src" "$OUT/self"
+uvx --quiet copier copy --quiet --defaults --data "issues_repo=$SELF" --data deploy_workflow=Build "$OUT/src" "$OUT/self"
 expect "this repository's shared skills match a fresh render" bash -c "for s in commit gate pull-request release; do diff -r '$OUT/self/.claude/skills/'\$s '$ROOT/.claude/skills/'\$s || exit 1; done"
 
 # The product names the template was extracted from; bracketed so this line never matches itself.
