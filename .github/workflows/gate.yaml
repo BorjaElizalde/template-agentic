@@ -2,7 +2,7 @@ name: Gate
 
 on:
   pull_request:
-    branches: [main]
+    branches: [develop, main]
 
 concurrency:
   group: gate-${{ github.head_ref || github.ref }}

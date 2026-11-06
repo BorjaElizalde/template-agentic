@@ -39,11 +39,14 @@ Every task, and every subagent session, is an issue with its own worktree and se
 worktree is the agent's workspace even for a research task. `/start-task` finds or creates the
 issue, creates `<worktree_root>/<n>-<slug>/<repo>` (`<repo>` is the main checkout's folder name,
 so a task that spans repositories gets one issue folder holding each repository's worktree), and
-opens the session, or resumes it. `/finish-task` closes the issue once its result is delivered,
-then the session, the worktree and the branch; it refuses while the branch has commits on no
-remote branch and in no merged PR, or the worktree has uncommitted or untracked files. Both run
-`.claude/scripts/task.sh`, so no repository needs a Makefile for them. Claude itself is started
-however the machine prefers, for example `alias claude-rc='caffeinate -i claude --remote-control'`.
+opens the session. On an issue that already has work it picks that work up: its worktree, else its
+branch (left without a worktree, or pushed from another clone), and its session, brought to the
+front while it runs and resumed when it doesn't. `/finish-task` closes the issue once its result
+is delivered, then the session, the worktree and the branch; it refuses while the branch has
+commits on no remote branch and in no merged PR, or the worktree has uncommitted or untracked
+files. Both run `.claude/scripts/task.sh`, so no repository needs a Makefile for them. Claude
+itself is started however the machine prefers, for example
+`alias claude-rc='caffeinate -i claude --remote-control'`.
 
 ## What the project owns
 
@@ -75,6 +78,13 @@ A stack layer supplies these fixed names. When one is missing, nothing runs in i
 
 ## Develop
 
+This repository works on two branches: feature PRs go into `develop`, and `/release` promotes
+`develop` to `main` with a merge commit, where `Build` tags the next version. Its own
+`.claude/skills/` carries `/commit`, `/gate` and `/pull-request` as rendered copies of the skills
+this template ships, with its own issues as the issues repository, plus `/release` for that
+promotion. Commits use the GitHub noreply address set in the clone's git config.
+
 `make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`task.sh` suites. The `Gate` workflow runs the same target on every PR, and `Build` runs it again
-on `main` before it tags.
+`task.sh` suites, and checks that the repository's own shared skills match a fresh render. The
+`Gate` workflow runs the same target on every PR into `develop` or `main`, and `Build` runs it
+again on `main` before it tags.

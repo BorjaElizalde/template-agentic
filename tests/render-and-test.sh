@@ -42,6 +42,12 @@ expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/task
 expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/start-task/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/finish-task/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/subagent-session-prompt.md"
 
+# This repository's own commit, gate and pull-request skills are rendered copies for itself: a render
+# with its own answers must reproduce them exactly.
+SELF="$(git -C "$ROOT" remote get-url origin | sed -E 's#^(git@github\.com:|https://github\.com/)##; s#\.git$##')"
+uvx --quiet copier copy --quiet --defaults --data "issues_repo=$SELF" "$OUT/src" "$OUT/self"
+expect "this repository's shared skills match a fresh render" bash -c "for s in commit gate pull-request; do diff -r '$OUT/self/.claude/skills/'\$s '$ROOT/.claude/skills/'\$s || exit 1; done"
+
 # The product names the template was extracted from; bracketed so this line never matches itself.
 expect "no product name in the template" bash -c "! grep -rIil -E 'fire[b]rain|monar[d]it|aer[i]s|truela[y]er' --exclude-dir=.git --exclude=.git '$ROOT'"
 
