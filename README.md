@@ -9,7 +9,7 @@ workflow. A project applies it side by side with one stack layer (for example
 
 ```bash
 uvx copier copy <template-url> .            # writes .copier-answers.agentic.yaml
-bash .claude/scripts/task.sh point-memory    # once per clone: Claude's auto memory → .claude/memory/
+bash .claude/skills/task/scripts/task.sh point-memory    # once per clone: Claude's auto memory → .claude/memory/
 uvx copier update -a .copier-answers.agentic.yaml
 ```
 
@@ -31,22 +31,28 @@ them from `.claude/agentic.conf`, the only rendered file they source, so they st
 that the template's tests run directly.
 
 Every project works on the same three branches: feature PRs go into `develop`, and `/release`
-promotes `develop` to `staging` to `main` with merge commits. All three are protected.
+promotes `develop` to `staging` to `main` with merge commits. All three are protected, and
+`develop` is the default branch: GitHub links a PR's `Closes` line to its issue only on a PR into
+the default branch.
 
 ## Tasks
 
 Every task, and every subagent session, is an issue with its own worktree and session; the
-worktree is the agent's workspace even for a research task. `/start-task` finds or creates the
+worktree is the agent's workspace even for a research task. `/task:start` finds or creates the
 issue, creates `<worktree_root>/<n>-<slug>/<repo>` (`<repo>` is the main checkout's folder name,
 so a task that spans repositories gets one issue folder holding each repository's worktree), and
 opens the session. On an issue that already has work it picks that work up: its worktree, else its
 branch (left without a worktree, or pushed from another clone), and its session, brought to the
-front while it runs and resumed when it doesn't. `/finish-task` closes the issue once its result
+front while it runs and resumed when it doesn't. `/task:finish` closes the issue once its result
 is delivered, then the session, the worktree and the branch; it refuses while the branch has
 commits on no remote branch and in no merged PR, or the worktree has uncommitted or untracked
-files. Both run `.claude/scripts/task.sh`, so no repository needs a Makefile for them. Claude
-itself is started however the machine prefers, for example
-`alias claude-rc='caffeinate -i claude --remote-control'`.
+files.
+
+Both are skills of one plugin, `.claude/skills/task/`, so they share its `scripts/task.sh`
+through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a Makefile for them. Claude Code loads a
+plugin under `.claude/skills/` in place, with no install and no settings entry, from the folder a
+session starts in: the main checkout, or a task's worktree. Claude itself is started however the
+machine prefers, for example `alias claude-rc='caffeinate -i claude --remote-control'`.
 
 ## What the project owns
 
@@ -71,20 +77,26 @@ A stack layer supplies these fixed names. When one is missing, nothing runs in i
 
 | File | Contract |
 |---|---|
-| `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}` from the stack's practice modules beside it. `lib.jq` provides `edit_context` and the text helpers. |
+| `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit/Write with the hook payload on stdin. |
 | `.claude/review-wave.md` | Names the plan reviewer, the review wave, the last pass, and the resolver for lint, format and type failures that `/agentic-flow` runs. |
 | `make gate` | The project's full validation, which `/gate` runs. The stack layer provides it in the Makefile it owns. |
 
 ## Develop
 
-This repository works on two branches: feature PRs go into `develop`, and `/release` promotes
-`develop` to `main` with a merge commit, where `Build` tags the next version. Its own
-`.claude/skills/` carries `/commit`, `/gate` and `/pull-request` as rendered copies of the skills
-this template ships, with its own issues as the issues repository, plus `/release` for that
-promotion. Commits use the GitHub noreply address set in the clone's git config.
+This repository works on the same three branches as every project. Feature PRs squash into
+`develop`; `/release` merges `develop` into `staging` and `staging` into `main`, where `Build`
+tags the next version; a `bugfix/` branch of one commit merges into `staging`. Rulesets hold
+each branch to PRs with a passing `gate`, `staging` and `main` to merge commits and `develop` to
+squashes. Its own
+`.claude/skills/` carries `/commit`, `/gate`, `/pull-request` and `/release` as rendered copies
+of the skills this template ships, with its own issues as the issues repository, and
+`.claude/release.md` holds its release facts. Commits use the GitHub noreply address set in the
+clone's git config.
 
 `make gate` renders the template and runs the rendered guard, protocol, memory checker and
 `task.sh` suites, and checks that the repository's own shared skills match a fresh render. The
-`Gate` workflow runs the same target on every PR into `develop` or `main`, and `Build` runs it
-again on `main` before it tags.
+`Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
+checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
+`bugfix/*` PR of one commit, from this repository's own branches. `Build` runs the gate again on
+`main` before it tags.

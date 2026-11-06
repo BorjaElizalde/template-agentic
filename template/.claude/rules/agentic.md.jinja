@@ -23,7 +23,7 @@ premature abstractions. Always ask: "Can this be done more elegantly?"
 ## Git
 Use standard git commands (`git status`, `git diff`, `git log`) without the `-C` flag when working in this directory. The `-C` flag is unnecessary and triggers extra permission prompts.
 
-**Tasks:** every task, and every subagent session, is an issue in {{ issues_repo }}. `/start-task` finds or creates the issue, creates its worktree at {{ worktree_root }}/<n>-<slug>/<repo> (a cross-repository task's worktrees share the issue folder), and opens its session in a new Terminal window, resuming one that exists. `/finish-task <n>` closes the issue once its result is delivered, then the session, the worktree and the branch. When the user names a task loosely, find its number with `gh issue list -R {{ issues_repo }} --search`.
+**Tasks:** every task, and every subagent session, is an issue in {{ issues_repo }}. `/task:start` finds or creates the issue, creates its worktree at {{ worktree_root }}/<n>-<slug>/<repo> (a cross-repository task's worktrees share the issue folder), and opens its session in a new Terminal window, resuming one that exists. `/task:finish <n>` closes the issue once its result is delivered, then the session, the worktree and the branch. When the user names a task loosely, find its number with `gh issue list -R {{ issues_repo }} --search`.
 
 **Worktrees:** all feature work happens in the task's worktree, never in the main checkout. Never call EnterWorktree.
 

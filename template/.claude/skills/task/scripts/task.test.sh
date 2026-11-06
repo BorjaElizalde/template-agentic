@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
-# Regression suite for task.sh. Run from any checkout: bash .claude/scripts/task.test.sh
+# Regression suite for task.sh. Run from any checkout: bash .claude/skills/task/scripts/task.test.sh
 # Two clones of one throwaway origin, named backend and frontend, stand in for two repositories.
 # Stub gh answers issue state and title and merged PRs from files under $TASK_TEST_STATE; stub
 # osascript logs the sessions it would open, close or bring to the front; stub ps and lsof report a
@@ -13,7 +13,7 @@ export TASK_TEST_STATE="$WORK/state"
 export CLAUDE_CONFIG_DIR="$WORK/claude"
 pass=0; fail=0
 
-mkdir -p "$WORK/bin" "$TASK_TEST_STATE" "$WORK/seed/.claude/scripts" "$WORK/repos"
+mkdir -p "$WORK/bin" "$TASK_TEST_STATE" "$WORK/seed/.claude/skills/task/scripts" "$WORK/repos"
 cat >"$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$1 $2" in
@@ -53,7 +53,7 @@ chmod +x "$WORK/bin/gh" "$WORK/bin/osascript" "$WORK/bin/ps" "$WORK/bin/lsof"
 export PATH="$WORK/bin:$PATH"
 echo CLOSED >"$TASK_TEST_STATE/issue-5"
 
-cp "$HERE/task.sh" "$WORK/seed/.claude/scripts/"
+cp "$HERE/task.sh" "$WORK/seed/.claude/skills/task/scripts/"
 printf 'ISSUES_REPO=acme/tasks\nWORKTREE_ROOT=../worktrees\n' >"$WORK/seed/.claude/agentic.conf"
 printf 'settings.local.json\n' >"$WORK/seed/.claude/.gitignore"
 git init -q -b develop "$WORK/seed"
@@ -69,7 +69,7 @@ check() {  # check <desc> <command...>
   if "${@:2}" >/dev/null 2>&1; then pass=$((pass+1)); echo "PASS $1"
   else fail=$((fail+1)); echo "FAIL $1"; fi
 }
-task() { bash "$1/.claude/scripts/task.sh" "${@:2}"; }
+task() { bash "$1/.claude/skills/task/scripts/task.sh" "${@:2}"; }
 branch_of() { git -C "$1" rev-parse --abbrev-ref HEAD; }
 memory_of() { jq -r .autoMemoryDirectory "$1/.claude/settings.local.json"; }
 sessions() { grep -c -F "$1" "$TASK_TEST_STATE/osascript.log"; }
@@ -80,7 +80,7 @@ transcript() {  # leaves the transcript a claude session in folder $1 writes
 }
 refuses() {  # refuses <desc> <reason pattern> <checkout> <task.sh args...>: fails, and says why
   local out
-  if out="$(bash "$3/.claude/scripts/task.sh" "${@:4}" 2>&1)"; then fail=$((fail+1)); echo "FAIL $1 (it ran)"
+  if out="$(bash "$3/.claude/skills/task/scripts/task.sh" "${@:4}" 2>&1)"; then fail=$((fail+1)); echo "FAIL $1 (it ran)"
   elif grep -qE -- "$2" <<<"$out"; then pass=$((pass+1)); echo "PASS $1"
   else fail=$((fail+1)); echo "FAIL $1 (wrong reason: $out)"; fi
 }
@@ -154,7 +154,7 @@ check "the last one removes the issue folder"  test ! -e "$ISSUE42"
 echo "-- finish: never from inside the worktree it removes"
 echo CLOSED >"$TASK_TEST_STATE/issue-7"
 commit "$ISSUE7/backend"
-check "not from a shell inside it"             bash -c "cd '$ISSUE7/backend' && bash '$BACKEND/.claude/scripts/task.sh' finish 7 2>&1 | grep -q 'from outside its worktree'"
+check "not from a shell inside it"             bash -c "cd '$ISSUE7/backend' && bash '$BACKEND/.claude/skills/task/scripts/task.sh' finish 7 2>&1 | grep -q 'from outside its worktree'"
 refuses "not through its own copy of task.sh"    "main checkout's"     "$ISSUE7/backend" finish 7
 refuses "its unpushed commit blocks it"          'push them first'      "$BACKEND" finish 7
 echo fix/7-second-task >"$TASK_TEST_STATE/merged"

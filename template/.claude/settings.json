@@ -48,7 +48,7 @@
         "matcher": "Bash",
         "hooks": [
           { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/bash-guard.sh\"" },
-          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/memory-policy-guard.sh\"" }
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/memory/guard.sh\"" }
         ]
       },
       {
@@ -64,7 +64,7 @@
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           { "type": "command", "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/hooks/stack/format.sh\"; [ ! -f \"$f\" ] || bash \"$f\"" },
-          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/memory-policy-guard.sh\"" }
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/memory/guard.sh\"" }
         ]
       }
     ]
