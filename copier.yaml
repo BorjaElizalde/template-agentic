@@ -5,6 +5,7 @@ _answers_file: .copier-answers.agentic.yaml
 # Seeded once, then project-owned: updates skip them, and a first copy keeps an existing file.
 _skip_if_exists:
   - .claude/memory/MEMORY.md
+  - renovate.json
 
 issues_repo:
   type: str

@@ -57,8 +57,11 @@ machine prefers, for example `alias claude-rc='caffeinate -i claude --remote-con
 
 ## What the project owns
 
-`.claude/memory/MEMORY.md` is seeded once (`_skip_if_exists`): an update never touches it, and a
-first copy into an existing repository keeps the repository's own file. The project's `CLAUDE.md`
+`.claude/memory/MEMORY.md` and `renovate.json` are seeded once (`_skip_if_exists`): an update
+never touches them, and a first copy into an existing repository keeps the repository's own file.
+The seeded `renovate.json` keeps Renovate's github-actions manager off the template's CI files, so
+their action pins arrive only in the template's update PR; a repository that keeps its own file
+adds the same `ignorePaths`. The project's `CLAUDE.md`
 is its own: the template never writes it, and its Product Stage is what the Judgment Guidelines in
 `.claude/rules/agentic.md` decide against. That rule file has no `paths:`, so Claude Code loads it
 in every session. Every other file belongs to this template: change it here, not in a project.
@@ -71,16 +74,27 @@ key to different values, so a line one stack needs is inert in the others: a Typ
 never calls `pip`, and an empty `VIRTUAL_ENV` changes nothing there. A new stack adds its lines
 here.
 
+## CI
+
+`.github/workflows/gate.yaml` runs on every PR into `develop`, `staging` or `main`. It first
+checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
+`bugfix/*` PR of one commit, from the repository's own branches. Then it runs the stack layer's
+checks. Rulesets require its `gate` check on all three branches, and `/release` waits for it on
+each promotion PR.
+
 ## Plug-in points for a stack layer
 
-A stack layer supplies these fixed names. When one is missing, nothing runs in its place.
+A stack layer supplies these fixed names. When one is missing, nothing runs in its place, except
+the CI checks: the `Gate` workflow fails without them, so a project never gets a CI that checks
+nothing.
 
 | File | Contract |
 |---|---|
+| `.github/actions/stack-gate/action.yaml` | The composite action the `Gate` workflow runs on every PR into `develop`, `staging` or `main`, after its PR-source check and the checkout. It calls the stack's tools directly, never `make gate`, so a change that relaxes the local gate can't relax CI. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit/Write with the hook payload on stdin. |
 | `.claude/review-wave.md` | Names the plan reviewer, the review wave, the last pass, and the resolver for lint, format and type failures that `/agentic-flow` runs. |
-| `make gate` | The project's full validation, which `/gate` runs. The stack layer provides it in the Makefile it owns. |
+| `make gate` | The project's full local validation, which `/gate` runs. The stack layer provides it. |
 
 ## Develop
 
