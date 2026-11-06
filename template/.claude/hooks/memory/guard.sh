@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
 # Memory guard. One script, one policy, two moments — both inside Claude's own hook layer, so the
-# checker under .claude/scripts is never reached from a build target or from CI.
+# checker beside it is never reached from a build target or from CI.
 #
 #   PostToolUse  Edit|Write|MultiEdit  -> payload carries tool_input.file_path
 #                                checks the store just written; tells the WRITER what it broke.
@@ -34,8 +34,8 @@
 set -u
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "${HOOK_DIR}/../.." && pwd)}"
-CHECKER="$PROJECT_DIR/.claude/scripts/check-memory-staleness.sh"
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "${HOOK_DIR}/../../.." && pwd)}"
+CHECKER="$HOOK_DIR/staleness.sh"
 
 # The repo a directory belongs to, worktrees collapsed onto their main checkout. Empty when the
 # directory is not in git, or does not exist.

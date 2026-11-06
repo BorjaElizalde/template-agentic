@@ -1,28 +1,22 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
-# Table-driven regression suite for check-memory-staleness.sh and the memory-policy-guard hook
-# that reports it. Run from any repo checkout: bash .claude/scripts/check-memory-staleness.test.sh
+# Table-driven regression suite for staleness.sh and the guard hook that reports it. Run from any
+# repo checkout: bash .claude/hooks/memory/guard.test.sh
 #
 # Fixtures are a throwaway git repo with fake memory stores, so the suite never depends on the
 # real stores' contents.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-CHECKER="$HERE/check-memory-staleness.sh"
-HOOK="$HERE/../hooks/memory-policy-guard.sh"
+CHECKER="$HERE/staleness.sh"
+HOOK="$HERE/guard.sh"
 pass=0; fail=0
 
 FIX="$(mktemp -d)"
 trap 'rm -rf "$FIX"' EXIT
 
 mkdir -p "$FIX/app/api/mcp/tools" "$FIX/tools" "$FIX/.github/workflows" \
-         "$FIX/.claude/memory" "$FIX/.claude/agent-memory/some-agent" \
-         "$FIX/.claude/scripts" "$FIX/.claude/hooks"
-# The hook resolves the checker through CLAUDE_PROJECT_DIR, so the fixture needs both scripts in
-# place. Without this the hook exits 2 because the checker is MISSING, which looks identical to
-# exit 2 for findings and makes the hook cases pass for the wrong reason.
-cp "$CHECKER" "$FIX/.claude/scripts/"
-cp "$HOOK" "$FIX/.claude/hooks/"
+         "$FIX/.claude/memory" "$FIX/.claude/agent-memory/some-agent"
 : > "$FIX/app/config.py"
 : > "$FIX/app/api/mcp/tools/items.py"
 : > "$FIX/tools/prepare_db.py"

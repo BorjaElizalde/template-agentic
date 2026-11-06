@@ -9,7 +9,7 @@ workflow. A project applies it side by side with one stack layer (for example
 
 ```bash
 uvx copier copy <template-url> .            # writes .copier-answers.agentic.yaml
-bash .claude/scripts/task.sh point-memory    # once per clone: Claude's auto memory → .claude/memory/
+bash .claude/skills/task/scripts/task.sh point-memory    # once per clone: Claude's auto memory → .claude/memory/
 uvx copier update -a .copier-answers.agentic.yaml
 ```
 
@@ -36,17 +36,21 @@ promotes `develop` to `staging` to `main` with merge commits. All three are prot
 ## Tasks
 
 Every task, and every subagent session, is an issue with its own worktree and session; the
-worktree is the agent's workspace even for a research task. `/start-task` finds or creates the
+worktree is the agent's workspace even for a research task. `/task:start` finds or creates the
 issue, creates `<worktree_root>/<n>-<slug>/<repo>` (`<repo>` is the main checkout's folder name,
 so a task that spans repositories gets one issue folder holding each repository's worktree), and
 opens the session. On an issue that already has work it picks that work up: its worktree, else its
 branch (left without a worktree, or pushed from another clone), and its session, brought to the
-front while it runs and resumed when it doesn't. `/finish-task` closes the issue once its result
+front while it runs and resumed when it doesn't. `/task:finish` closes the issue once its result
 is delivered, then the session, the worktree and the branch; it refuses while the branch has
 commits on no remote branch and in no merged PR, or the worktree has uncommitted or untracked
-files. Both run `.claude/scripts/task.sh`, so no repository needs a Makefile for them. Claude
-itself is started however the machine prefers, for example
-`alias claude-rc='caffeinate -i claude --remote-control'`.
+files.
+
+Both are skills of one plugin, `.claude/skills/task/`, so they share its `scripts/task.sh`
+through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a Makefile for them. Claude Code loads a
+plugin under `.claude/skills/` in place, with no install and no settings entry, from the folder a
+session starts in: the main checkout, or a task's worktree. Claude itself is started however the
+machine prefers, for example `alias claude-rc='caffeinate -i claude --remote-control'`.
 
 ## What the project owns
 

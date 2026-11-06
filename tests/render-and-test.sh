@@ -30,16 +30,18 @@ expect "no .yml file in the template or the project" bash -c "[ -z \"\$(find '$R
 expect "no Jinja left in rendered files" bash -c "! grep -rIl -e '{{' -e '{%' --exclude-dir=.git '$D'"
 expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf'"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
+expect "the task plugin's manifest names it task" bash -c "[ \"\$(jq -r .name '$D/.claude/skills/task/.claude-plugin/plugin.json')\" = task ]"
+expect "no .claude/scripts folder is rendered" test ! -e "$D/.claude/scripts"
 expect "every script parses" bash -c "for f in \$(find '$D' -name '*.sh'); do bash -n \"\$f\" || exit 1; done"
 expect "bash-guard suite" bash "$D/.claude/hooks/bash-guard.test.sh"
 expect "practices protocol suite" bash "$D/.claude/hooks/practices/guard.test.sh"
-expect "memory checker suite" bash "$D/.claude/scripts/check-memory-staleness.test.sh"
-expect "task.sh suite" bash "$D/.claude/scripts/task.test.sh"
-expect "seeded memory index is clean" bash "$D/.claude/scripts/check-memory-staleness.sh" "$D/.claude/memory"
-expect "point-memory targets this checkout" bash -c "bash '$D/.claude/scripts/task.sh' point-memory >/dev/null &&
+expect "memory checker suite" bash "$D/.claude/hooks/memory/guard.test.sh"
+expect "task.sh suite" bash "$D/.claude/skills/task/scripts/task.test.sh"
+expect "seeded memory index is clean" bash "$D/.claude/hooks/memory/staleness.sh" "$D/.claude/memory"
+expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/task/scripts/task.sh' point-memory >/dev/null &&
   [ \"\$(jq -r .autoMemoryDirectory '$D/.claude/settings.local.json')\" = \"\$(cd '$D' && pwd -P)/.claude/memory\" ]"
 expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
-expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/start-task/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/finish-task/SKILL.md'"
+expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/subagent-session-prompt.md"
 
 # This repository's own commit, gate, pull-request and release skills are rendered copies for
