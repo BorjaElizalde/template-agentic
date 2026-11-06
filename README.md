@@ -78,13 +78,18 @@ A stack layer supplies these fixed names. When one is missing, nothing runs in i
 
 ## Develop
 
-This repository works on two branches: feature PRs go into `develop`, and `/release` promotes
-`develop` to `main` with a merge commit, where `Build` tags the next version. Its own
-`.claude/skills/` carries `/commit`, `/gate` and `/pull-request` as rendered copies of the skills
-this template ships, with its own issues as the issues repository, plus `/release` for that
-promotion. Commits use the GitHub noreply address set in the clone's git config.
+This repository works on the same three branches as every project. Feature PRs squash into
+`develop`; `/release` merges `develop` into `staging` and `staging` into `main`, where `Build`
+tags the next version; a `bugfix/` branch squashes into `staging`. Rulesets hold each branch to
+PRs with a passing `gate`, `main` to merge commits and `develop` to squashes. Its own
+`.claude/skills/` carries `/commit`, `/gate`, `/pull-request` and `/release` as rendered copies
+of the skills this template ships, with its own issues as the issues repository, and
+`.claude/release.md` holds its release facts. Commits use the GitHub noreply address set in the
+clone's git config.
 
 `make gate` renders the template and runs the rendered guard, protocol, memory checker and
 `task.sh` suites, and checks that the repository's own shared skills match a fresh render. The
-`Gate` workflow runs the same target on every PR into `develop` or `main`, and `Build` runs it
-again on `main` before it tags.
+`Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
+checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or
+`bugfix/*`, from this repository's own branches. `Build` runs the gate again on `main` before it
+tags.
