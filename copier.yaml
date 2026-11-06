@@ -20,3 +20,8 @@ deploy_workflow:
   type: str
   help: GitHub Actions workflow the merge into main starts, which /release waits for; empty for none
   default: ""
+
+agent_merges:
+  type: bool
+  help: Let the agent squash-merge its own PR into develop once every check on its head, gate among them, has passed
+  default: false
