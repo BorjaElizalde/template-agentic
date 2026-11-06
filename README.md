@@ -25,6 +25,7 @@ outside the project root), so an update runs without `--trust`.
 |---|---|
 | `issues_repo` | Where task issues live (`owner/name`): issue lookup, PR `Closes` lines, session prompt |
 | `worktree_root` | Folder for linked worktrees, relative to the main checkout |
+| `deploy_workflow` | The GitHub Actions workflow the merge into `main` starts, which `/release` waits for; empty for none |
 
 Repositories that share an issue tracker and a worktree folder give the same answers. Scripts read
 them from `.claude/agentic.conf`, the only rendered file they source, so they stay plain shell
@@ -56,12 +57,11 @@ machine prefers, for example `alias claude-rc='caffeinate -i claude --remote-con
 
 ## What the project owns
 
-`.claude/memory/MEMORY.md` and `.claude/release.md` are seeded once (`_skip_if_exists`): an
-update never touches them, and a first copy into an existing repository keeps the repository's
-own file. The project's `CLAUDE.md` is its own: the template never writes it, and its Product
-Stage is what the Judgment Guidelines in `.claude/rules/agentic.md` decide against. That rule
-file has no `paths:`, so Claude Code loads it in every session. Every other file belongs to this
-template: change it here, not in a project.
+`.claude/memory/MEMORY.md` is seeded once (`_skip_if_exists`): an update never touches it, and a
+first copy into an existing repository keeps the repository's own file. The project's `CLAUDE.md`
+is its own: the template never writes it, and its Product Stage is what the Judgment Guidelines in
+`.claude/rules/agentic.md` decide against. That rule file has no `paths:`, so Claude Code loads it
+in every session. Every other file belongs to this template: change it here, not in a project.
 
 ## One settings file for every stack
 
@@ -90,9 +90,8 @@ tags the next version; a `bugfix/` branch of one commit merges into `staging`. R
 each branch to PRs with a passing `gate`, `staging` and `main` to merge commits and `develop` to
 squashes. Its own
 `.claude/skills/` carries `/commit`, `/gate`, `/pull-request` and `/release` as rendered copies
-of the skills this template ships, with its own issues as the issues repository, and
-`.claude/release.md` holds its release facts. Commits use the GitHub noreply address set in the
-clone's git config.
+of the skills this template ships, with its own issues as the issues repository and `Build` as
+its deploy workflow. Commits use the GitHub noreply address set in the clone's git config.
 
 `make gate` renders the template and runs the rendered guard, protocol, memory checker and
 `task.sh` suites, and checks that the repository's own shared skills match a fresh render. The
