@@ -3,7 +3,7 @@ name: pull-request
 description: Use when committed and validated feature-branch work is ready for a PR into `develop`.
 model: haiku
 effort: high
-allowed-tools: Bash(git branch:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git fetch origin develop:*), Bash(git diff:*), Bash(git log:*), Bash(git push:*), Bash(gh pr list:*), Bash(gh pr create:*)
+allowed-tools: Bash(git branch:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git fetch origin develop:*), Bash(git diff:*), Bash(git log:*), Bash(git push:*), Bash(gh pr list:*), Bash(gh pr create:*){% if agent_merges %}, Bash(gh pr checks:*), Bash(gh pr view:*), Bash(gh pr merge:*){% endif %}
 ---
 
 ## Branch context
@@ -25,4 +25,14 @@ allowed-tools: Bash(git branch:*), Bash(git rev-parse:*), Bash(git status:*), Ba
    title (≤72 characters) and `Summary`, `Changes`, and `Test plan` sections. State that `/gate`
    passes. When the branch is named `<type>/<n>-<slug>`, add `Closes {{ issues_repo }}#<n>`: task
    issues live in that repo.
+{%- if agent_merges %}
+6. This project lets the agent merge its own PR into `develop` (`agent_merges`). Wait for its
+   checks with `gh pr checks <n> --watch`; on a failed or cancelled check, stop and report it. When
+   every check has passed, read the head they ran on, `gh pr view <n> --json headRefOid --jq
+   .headRefOid`, and merge that head only: `gh pr merge <n> --squash --match-head-commit <sha>`.
+   The guard blocks the merge unless the PR is this repository's, the merge is a squash pinned to
+   the current head, and every check on it has passed with `gate` among them.
+7. Return the PR URL and the merge result.
+{%- else %}
 6. Return the PR URL.
+{%- endif %}

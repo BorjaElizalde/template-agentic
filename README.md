@@ -26,6 +26,7 @@ outside the project root), so an update runs without `--trust`.
 | `issues_repo` | Where task issues live (`owner/name`): issue lookup, PR `Closes` lines, session prompt |
 | `worktree_root` | Folder for linked worktrees, relative to the main checkout |
 | `deploy_workflow` | The GitHub Actions workflow the merge into `main` starts, which `/release` waits for; empty for none |
+| `agent_merges` | Whether the agent may squash-merge its own PR into `develop` once every check on its head, `gate` among them, has passed (default `false`: the owner merges). For a repository whose plan has no rulesets, the guard is then the only place `gate` is enforced |
 
 Repositories that share an issue tracker and a worktree folder give the same answers. Scripts read
 them from `.claude/agentic.conf`, the only rendered file they source, so they stay plain shell

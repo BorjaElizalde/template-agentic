@@ -11,5 +11,6 @@ render:
 	  mkdir "$$tmp/src" && tar --exclude .git -cf - . | tar -xf - -C "$$tmp/src" && \
 	  uvx --quiet copier copy --quiet --defaults --data "issues_repo=$$ISSUES_REPO" \
 	    --data "worktree_root=$$WORKTREE_ROOT" --data "deploy_workflow=$$DEPLOY_WORKFLOW" \
+	    --data "agent_merges=$${AGENT_MERGES:-false}" \
 	    "$$tmp/src" "$$tmp/out" && \
 	  rsync -a --delete $(OWNED) "$$tmp/out/.claude/" .claude/
