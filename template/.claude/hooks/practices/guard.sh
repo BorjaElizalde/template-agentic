@@ -7,9 +7,9 @@
 # Each practice module exposes check($ctx) over the edit_context in lib.jq. The strongest level
 # wins:
 #   stop   -> exit 2, stderr to Claude, the edit is refused until fixed
-#   ask    -> permission prompt: the owner approves or rejects the edit
 #   remind -> additionalContext: the edit goes on through the normal permission flow and Claude
 #             gets the short note next to its result
+# No practice asks the owner: an unattended session counts a permission prompt as a refusal.
 # Messages are short fixed text; the rules files are never loaded. jq only, no grep (ugrep shim,
 # see bash-guard.sh). Fails OPEN without a registry, for files of no kind, outside a git repo, for
 # git-ignored files, and on any jq error.
@@ -43,8 +43,7 @@ VERDICT="$(jq -c -L "$HERE" --arg old_file "$OLD_FILE" --arg rel "$REL" --arg ki
 
   edit_context($old_file; $rel) as $ctx
   | [registry::practices($ctx; $kind)]
-  | {stop: map(select(.level == "stop") | .text), ask: map(select(.level == "ask") | .text),
-     remind: map(select(.level == "remind") | .text)}
+  | {stop: map(select(.level == "stop") | .text), remind: map(select(.level == "remind") | .text)}
 ' <<<"$PAYLOAD" 2>/dev/null)" || exit 0
 
 STOP="$(jq -r '.stop | join("\n\n")' <<<"$VERDICT")"
@@ -54,11 +53,7 @@ if [ -n "$STOP" ]; then
 fi
 
 jq '
-  if (.ask | length) > 0 then
-    {hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "ask",
-                          permissionDecisionReason: (.ask | join("\n"))}}
-  elif (.remind | length) > 0 then
-    {hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: (.remind | join("\n"))}}
-  else empty end
+  select(.remind | length > 0)
+  | {hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: (.remind | join("\n"))}}
 ' <<<"$VERDICT"
 exit 0

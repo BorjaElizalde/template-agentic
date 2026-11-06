@@ -248,7 +248,7 @@ if [[ "$COMMAND" =~ $RE_COMMIT ]]; then
   CD="$(git -C "$DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
   if [ -n "$GD" ] && [ "$GD" = "$CD" ]; then
     CB="$(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-    block "committing in the main checkout (branch '$CB'). Feature work belongs in a linked worktree — start the task with /start-task (.claude/rules/agentic.md)."
+    block "committing in the main checkout (branch '$CB'). Feature work belongs in a linked worktree — start the task with /task:start (.claude/rules/agentic.md)."
   fi
 fi
 
