@@ -31,7 +31,9 @@ them from `.claude/agentic.conf`, the only rendered file they source, so they st
 that the template's tests run directly.
 
 Every project works on the same three branches: feature PRs go into `develop`, and `/release`
-promotes `develop` to `staging` to `main` with merge commits. All three are protected.
+promotes `develop` to `staging` to `main` with merge commits. All three are protected, and
+`develop` is the default branch: GitHub links a PR's `Closes` line to its issue only on a PR into
+the default branch.
 
 ## Tasks
 
@@ -75,7 +77,7 @@ A stack layer supplies these fixed names. When one is missing, nothing runs in i
 
 | File | Contract |
 |---|---|
-| `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}` from the stack's practice modules beside it. `lib.jq` provides `edit_context` and the text helpers. |
+| `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit/Write with the hook payload on stdin. |
 | `.claude/review-wave.md` | Names the plan reviewer, the review wave, the last pass, and the resolver for lint, format and type failures that `/agentic-flow` runs. |
 | `make gate` | The project's full validation, which `/gate` runs. The stack layer provides it in the Makefile it owns. |

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
-# Regression suite for the guard's protocol: registry lookup, verdict levels, fail-open paths.
-# Run from any checkout: bash .claude/hooks/practices/guard.test.sh
-# The guard runs from a copy beside a fixture registry whose single practice turns the words STOP,
-# ASK and REMIND on an added line into that level, so no stack practice is involved.
-# Expect 2 = stopped, A = asks the owner, R = goes on with a reminder, 0 = silent.
+# Regression suite for the guard's protocol (registry lookup, verdict levels, fail-open paths) and
+# for the reason form in lib.jq. Run from any checkout: bash .claude/hooks/practices/guard.test.sh
+# The guard runs from a copy beside a fixture registry whose single practice turns the words STOP
+# and REMIND on an added line into that level, and stops a SKIP: line whose text after it is not
+# a reason in the form, so no stack practice is involved.
+# Expect 2 = stopped, R = goes on with a reminder, 0 = silent.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(mktemp -d)"; NOGIT="$(mktemp -d)"
@@ -24,8 +25,9 @@ def kind($path): if $path | endswith(".txt") then "text" else null end;
 def practices($ctx; $kind):
   $ctx.added[].line
   | (if has("STOP") then {level: "stop", text: "stopped"} else empty end),
-    (if has("ASK") then {level: "ask", text: "asked"} else empty end),
-    (if has("REMIND") then {level: "remind", text: "reminded"} else empty end);
+    (if has("REMIND") then {level: "remind", text: "reminded"} else empty end),
+    (if has("SKIP:") and (sub(".*SKIP:\\s*"; "") | reason_form | not) then
+       {level: "stop", text: reason_steps("skipping"; "the skip"; "acme-lint")} else empty end);
 EOF
 }
 
@@ -33,10 +35,7 @@ check() {  # check <want> <desc> <payload>
   local out code got
   out="$(bash "$GUARD" <<<"$3" 2>/dev/null)"; code=$?
   got="$code"
-  if [ "$code" -eq 0 ]; then
-    [[ "$out" == *'"ask"'* ]] && got=A
-    [[ "$out" == *additionalContext* ]] && got=R
-  fi
+  [ "$code" -eq 0 ] && [[ "$out" == *additionalContext* ]] && got=R
   if [ "$got" = "$1" ]; then pass=$((pass+1)); echo "PASS ($got) $2"
   else fail=$((fail+1)); echo "FAIL (want $1, got $got) $2"; fi
 }
@@ -50,11 +49,22 @@ check 0 "STOP with no registry"           "$(write "$REPO/a.txt" "STOP")"
 registry
 echo "-- verdict levels"
 check 2 "added STOP"                      "$(write "$REPO/a.txt" "STOP")"
-check A "added ASK"                       "$(write "$REPO/a.txt" "ASK")"
 check R "added REMIND"                    "$(write "$REPO/a.txt" "REMIND")"
 check 0 "nothing to report"               "$(write "$REPO/a.txt" "fine")"
-check 2 "stop beats ask and remind"       "$(write "$REPO/a.txt" $'ASK\nSTOP\nREMIND')"
-check A "ask beats remind"                "$(write "$REPO/a.txt" $'REMIND\nASK')"
+check 2 "stop beats remind"               "$(write "$REPO/a.txt" $'REMIND\nSTOP')"
+
+echo "-- the reason form: a why, then one Tried ..., but ... sentence per alternative"
+TRIED='Tried the fix the rule gives, but it breaks the callers.'
+check 0 "a why and a Tried sentence"      "$(write "$REPO/a.txt" "SKIP: the loader defines it. $TRIED")"
+check 0 "two Tried sentences"             "$(write "$REPO/a.txt" "SKIP: the loader defines it. $TRIED Tried a stub, but it drifts.")"
+check 2 "a why, no Tried sentence"        "$(write "$REPO/a.txt" "SKIP: the loader defines it")"
+check 2 "Tried with no but"               "$(write "$REPO/a.txt" "SKIP: the loader defines it. Tried importing it.")"
+check 2 "Tried with no why before it"     "$(write "$REPO/a.txt" "SKIP: $TRIED")"
+check 2 "a second Tried with no but"      "$(write "$REPO/a.txt" "SKIP: the loader defines it. $TRIED Tried a stub.")"
+out="$(bash "$GUARD" <<<"$(write "$REPO/a.txt" "SKIP: no reason")" 2>&1 >/dev/null)"
+if [[ "$out" == *"tool's docs (acme-lint)"* && "$out" == *"Tried <alternative>, but <why it was discarded>"* ]]
+then pass=$((pass+1)); echo "PASS the stop names the stack's tools and spells out the form"
+else fail=$((fail+1)); echo "FAIL the stop names the stack's tools and spells out the form"; fi
 
 echo "-- only added lines are judged"
 printf 'STOP\nold\n' >"$REPO/b.txt"
