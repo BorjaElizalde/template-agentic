@@ -28,7 +28,7 @@ expect "the shared rules load without an import" test -f "$D/.claude/rules/agent
 expect "answers land in .copier-answers.agentic.yaml" test -f "$D/.copier-answers.agentic.yaml"
 expect "no .yml file in the template or the project" bash -c "[ -z \"\$(find '$ROOT' '$D' -name '*.yml' -not -path '*/.git/*')\" ]"
 expect "no Jinja left in rendered files" bash -c "! grep -rIl -e '{{' -e '{%' --exclude-dir=.git '$D'"
-expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf'"
+expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf' && grep -qx 'DEPLOY_WORKFLOW=' '$D/.claude/agentic.conf'"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
 expect "the task plugin's manifest names it task" bash -c "[ \"\$(jq -r .name '$D/.claude/skills/task/.claude-plugin/plugin.json')\" = task ]"
 expect "no .claude/scripts folder is rendered" test ! -e "$D/.claude/scripts"
@@ -46,11 +46,18 @@ expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
-# This repository's own commit, gate, pull-request and release skills are rendered copies for
-# itself: a render with its own answers must reproduce them exactly.
-SELF="$(git -C "$ROOT" remote get-url origin | sed -E 's#^(git@github\.com:|https://github\.com/)##; s#\.git$##')"
-uvx --quiet copier copy --quiet --defaults --data "issues_repo=$SELF" --data deploy_workflow=Build "$OUT/src" "$OUT/self"
-expect "this repository's shared skills match a fresh render" bash -c "for s in commit gate pull-request release; do diff -r '$OUT/self/.claude/skills/'\$s '$ROOT/.claude/skills/'\$s || exit 1; done"
+# This repository is a project of its own template: on a copy of the working tree, make render
+# (which the pre-commit hook runs on every commit that changes template/) must leave .claude/ as it is.
+mkdir -p "$OUT/self"
+(cd "$ROOT" && tar --exclude .git -cf - .) | tar -xf - -C "$OUT/self"
+harness_in_step() {
+  local drift
+  make -s -C "$OUT/self" render >/dev/null || return 1
+  drift="$(diff -rq "$ROOT/.claude" "$OUT/self/.claude")" && return 0
+  sed "s#$OUT/self#render#g; s#$ROOT#repository#g; s/^/FAIL /" <<<"$drift"
+  return 1
+}
+expect "this repository's harness is in step with the template (make render changes nothing)" harness_in_step
 
 # The product names the template was extracted from; bracketed so this line never matches itself.
 expect "no product name in the template" bash -c "! grep -rIil -E 'fire[b]rain|monar[d]it|aer[i]s|truela[y]er' --exclude-dir=.git --exclude=.git '$ROOT'"

@@ -88,13 +88,21 @@ This repository works on the same three branches as every project. Feature PRs s
 `develop`; `/release` merges `develop` into `staging` and `staging` into `main`, where `Build`
 tags the next version; a `bugfix/` branch of one commit merges into `staging`. Rulesets hold
 each branch to PRs with a passing `gate`, `staging` and `main` to merge commits and `develop` to
-squashes. Its own
-`.claude/skills/` carries `/commit`, `/gate`, `/pull-request` and `/release` as rendered copies
-of the skills this template ships, with its own issues as the issues repository and `Build` as
-its deploy workflow. Commits use the GitHub noreply address set in the clone's git config.
+squashes. Commits use the GitHub noreply address set in the clone's git config.
+
+The repository is a project of its own template: `.claude/` holds the whole harness, rendered
+from the working tree with the answers `.claude/agentic.conf` records (its own issues as the
+issues repository, `Build` as its deploy workflow), so work here runs the guards and skills every
+project gets. Being the source, it has no answers file for Copier or Renovate to update. Instead
+`make render` makes `.claude/` match a render of the working tree, leaving the paths this
+repository owns (the memory stores and the local settings). A pre-commit hook runs it on every
+commit that changes `template/` and stops the commit when it re-rendered something, so the
+re-render is staged with the change. Once per clone, run `uvx pre-commit install` and
+`bash .claude/skills/task/scripts/task.sh point-memory`.
 
 `make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`task.sh` suites, and checks that the repository's own shared skills match a fresh render. The
+`task.sh` suites. It also runs `make render` on a copy of the working tree and fails when that
+changes `.claude/`, for a commit made without the hook. The
 `Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
 checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
 `bugfix/*` PR of one commit, from this repository's own branches. `Build` runs the gate again on
