@@ -5,7 +5,6 @@ _answers_file: .copier-answers.agentic.yaml
 # Seeded once, then project-owned: updates skip them, and a first copy keeps an existing file.
 _skip_if_exists:
   - .claude/memory/MEMORY.md
-  - .claude/release.md
 
 issues_repo:
   type: str
@@ -15,3 +14,8 @@ worktree_root:
   type: str
   help: Folder for linked worktrees, relative to the main checkout
   default: ../worktrees
+
+deploy_workflow:
+  type: str
+  help: GitHub Actions workflow the merge into main starts, which /release waits for; empty for none
+  default: ""
