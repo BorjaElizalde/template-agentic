@@ -88,14 +88,18 @@ This repository works on the same three branches as every project. Feature PRs s
 `develop`; `/release` merges `develop` into `staging` and `staging` into `main`, where `Build`
 tags the next version; a `bugfix/` branch of one commit merges into `staging`. Rulesets hold
 each branch to PRs with a passing `gate`, `staging` and `main` to merge commits and `develop` to
-squashes. Its own
-`.claude/skills/` carries `/commit`, `/gate`, `/pull-request` and `/release` as rendered copies
-of the skills this template ships, with its own issues as the issues repository, and
-`.claude/release.md` holds its release facts. Commits use the GitHub noreply address set in the
-clone's git config.
+squashes. Commits use the GitHub noreply address set in the clone's git config.
+
+The repository is a project of its own template: `.claude/` holds the whole harness, rendered
+from the working tree with its own issues as the issues repository and the answers
+`.claude/agentic.conf` records, so work here runs the guards and skills every project gets. Being
+the source, it has no answers file for Copier or Renovate to update: after a change under
+`template/`, `make self` re-renders the harness in the same PR. `.claude/release.md` holds its
+release facts. Once per clone, run `bash .claude/skills/task/scripts/task.sh point-memory`.
 
 `make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`task.sh` suites, and checks that the repository's own shared skills match a fresh render. The
+`task.sh` suites. It also checks that this repository's `.claude/` and a fresh render hold the
+same files with the same content, apart from `release.md` and the memory store. The
 `Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
 checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
 `bugfix/*` PR of one commit, from this repository's own branches. `Build` runs the gate again on

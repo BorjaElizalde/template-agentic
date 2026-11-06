@@ -45,11 +45,26 @@ expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R a
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
-# This repository's own commit, gate, pull-request and release skills are rendered copies for
-# itself: a render with its own answers must reproduce them exactly.
-SELF="$(git -C "$ROOT" remote get-url origin | sed -E 's#^(git@github\.com:|https://github\.com/)##; s#\.git$##')"
-uvx --quiet copier copy --quiet --defaults --data "issues_repo=$SELF" "$OUT/src" "$OUT/self"
-expect "this repository's shared skills match a fresh render" bash -c "for s in commit gate pull-request release; do diff -r '$OUT/self/.claude/skills/'\$s '$ROOT/.claude/skills/'\$s || exit 1; done"
+# This repository is a project of its own template, with the answers .claude/agentic.conf records:
+# its .claude/ and a fresh render of the working tree must hold the same files with the same
+# content, apart from the ones a project owns (the seeded release.md and the memory store).
+. "$ROOT/.claude/agentic.conf"
+uvx --quiet copier copy --quiet --defaults --data "issues_repo=$ISSUES_REPO" \
+  --data "worktree_root=$WORKTREE_ROOT" "$OUT/src" "$OUT/self"
+owned() { sed '/^\.claude\/memory\//d; /^\.claude\/release\.md$/d' | sort; }
+self_matches_render() {
+  local rendered present f status=0
+  rendered="$(cd "$OUT/self" && find .claude -type f | owned)"
+  present="$(git -C "$ROOT" ls-files --cached --others --exclude-standard .claude | owned)"
+  comm -23 <(echo "$rendered") <(echo "$present") | sed 's/^/FAIL missing here: /'
+  comm -13 <(echo "$rendered") <(echo "$present") | sed 's/^/FAIL no longer rendered, delete it: /'
+  [ "$rendered" = "$present" ] || status=1
+  for f in $rendered; do
+    [ ! -f "$ROOT/$f" ] || cmp -s "$OUT/self/$f" "$ROOT/$f" || { echo "FAIL $f differs from the render"; status=1; }
+  done
+  return "$status"
+}
+expect "this repository's harness matches a fresh render (make self re-renders it)" self_matches_render
 
 # The product names the template was extracted from; bracketed so this line never matches itself.
 expect "no product name in the template" bash -c "! grep -rIil -E 'fire[b]rain|monar[d]it|aer[i]s|truela[y]er' --exclude-dir=.git --exclude=.git '$ROOT'"
