@@ -39,11 +39,14 @@ Every task, and every subagent session, is an issue with its own worktree and se
 worktree is the agent's workspace even for a research task. `/start-task` finds or creates the
 issue, creates `<worktree_root>/<n>-<slug>/<repo>` (`<repo>` is the main checkout's folder name,
 so a task that spans repositories gets one issue folder holding each repository's worktree), and
-opens the session, or resumes it. `/finish-task` closes the issue once its result is delivered,
-then the session, the worktree and the branch; it refuses while the branch has commits on no
-remote branch and in no merged PR, or the worktree has uncommitted or untracked files. Both run
-`.claude/scripts/task.sh`, so no repository needs a Makefile for them. Claude itself is started
-however the machine prefers, for example `alias claude-rc='caffeinate -i claude --remote-control'`.
+opens the session. On an issue that already has work it picks that work up: its worktree, else its
+branch (left without a worktree, or pushed from another clone), and its session, brought to the
+front while it runs and resumed when it doesn't. `/finish-task` closes the issue once its result
+is delivered, then the session, the worktree and the branch; it refuses while the branch has
+commits on no remote branch and in no merged PR, or the worktree has uncommitted or untracked
+files. Both run `.claude/scripts/task.sh`, so no repository needs a Makefile for them. Claude
+itself is started however the machine prefers, for example
+`alias claude-rc='caffeinate -i claude --remote-control'`.
 
 ## What the project owns
 
