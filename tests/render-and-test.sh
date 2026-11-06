@@ -45,26 +45,18 @@ expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R a
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
-# This repository is a project of its own template, with the answers .claude/agentic.conf records:
-# its .claude/ and a fresh render of the working tree must hold the same files with the same
-# content, apart from the ones a project owns (the seeded release.md and the memory store).
-. "$ROOT/.claude/agentic.conf"
-uvx --quiet copier copy --quiet --defaults --data "issues_repo=$ISSUES_REPO" \
-  --data "worktree_root=$WORKTREE_ROOT" "$OUT/src" "$OUT/self"
-owned() { sed '/^\.claude\/memory\//d; /^\.claude\/release\.md$/d' | sort; }
-self_matches_render() {
-  local rendered present f status=0
-  rendered="$(cd "$OUT/self" && find .claude -type f | owned)"
-  present="$(git -C "$ROOT" ls-files --cached --others --exclude-standard .claude | owned)"
-  comm -23 <(echo "$rendered") <(echo "$present") | sed 's/^/FAIL missing here: /'
-  comm -13 <(echo "$rendered") <(echo "$present") | sed 's/^/FAIL no longer rendered, delete it: /'
-  [ "$rendered" = "$present" ] || status=1
-  for f in $rendered; do
-    [ ! -f "$ROOT/$f" ] || cmp -s "$OUT/self/$f" "$ROOT/$f" || { echo "FAIL $f differs from the render"; status=1; }
-  done
-  return "$status"
+# This repository is a project of its own template: on a copy of the working tree, make self (which
+# the pre-commit hook runs on every commit that changes template/) must leave .claude/ as it is.
+mkdir -p "$OUT/self"
+(cd "$ROOT" && tar --exclude .git -cf - .) | tar -xf - -C "$OUT/self"
+harness_in_step() {
+  local drift
+  make -s -C "$OUT/self" self >/dev/null || return 1
+  drift="$(diff -rq "$ROOT/.claude" "$OUT/self/.claude")" && return 0
+  sed "s#$OUT/self#render#g; s#$ROOT#repository#g; s/^/FAIL /" <<<"$drift"
+  return 1
 }
-expect "this repository's harness matches a fresh render (make self re-renders it)" self_matches_render
+expect "this repository's harness is in step with the template (make self changes nothing)" harness_in_step
 
 # The product names the template was extracted from; bracketed so this line never matches itself.
 expect "no product name in the template" bash -c "! grep -rIil -E 'fire[b]rain|monar[d]it|aer[i]s|truela[y]er' --exclude-dir=.git --exclude=.git '$ROOT'"

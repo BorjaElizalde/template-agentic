@@ -93,13 +93,16 @@ squashes. Commits use the GitHub noreply address set in the clone's git config.
 The repository is a project of its own template: `.claude/` holds the whole harness, rendered
 from the working tree with its own issues as the issues repository and the answers
 `.claude/agentic.conf` records, so work here runs the guards and skills every project gets. Being
-the source, it has no answers file for Copier or Renovate to update: after a change under
-`template/`, `make self` re-renders the harness in the same PR. `.claude/release.md` holds its
-release facts. Once per clone, run `bash .claude/skills/task/scripts/task.sh point-memory`.
+the source, it has no answers file for Copier or Renovate to update. Instead `make self` makes
+`.claude/` match a render of the working tree, leaving the paths this repository owns
+(`release.md`, which holds its release facts, the memory stores and the local settings). A
+pre-commit hook runs it on every commit that changes `template/` and stops the commit when it
+re-rendered something, so the re-render is staged with the change. Once per clone, run
+`uvx pre-commit install` and `bash .claude/skills/task/scripts/task.sh point-memory`.
 
 `make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`task.sh` suites. It also checks that this repository's `.claude/` and a fresh render hold the
-same files with the same content, apart from `release.md` and the memory store. The
+`task.sh` suites. It also runs `make self` on a copy of the working tree and fails when that
+changes `.claude/`, for a commit made without the hook. The
 `Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
 checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
 `bugfix/*` PR of one commit, from this repository's own branches. `Build` runs the gate again on

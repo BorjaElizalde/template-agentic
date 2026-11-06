@@ -1,0 +1,11 @@
+# A commit that changes template/ re-renders this repository's own harness; when that changes
+# .claude/, pre-commit stops the commit so the re-render is staged with it.
+repos:
+  - repo: local
+    hooks:
+      - id: render-self
+        name: re-render this repository's harness (make self)
+        entry: make self
+        language: system
+        files: ^template/
+        pass_filenames: false

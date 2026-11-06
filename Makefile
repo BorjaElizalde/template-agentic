@@ -3,10 +3,12 @@
 gate:
 	@bash tests/render-and-test.sh
 
-# Re-render this repository's own harness; Copier's answers file names the temp source, so drop it.
+OWNED := --exclude /memory/ --exclude /agent-memory/ --exclude /release.md --exclude /settings.local.json
+
+# Make .claude/ match a render of the working tree, except the paths this repository owns.
 self:
-	@. .claude/agentic.conf && src="$$(mktemp -d)" && \
-	  tar --exclude .git -cf - . | tar -xf - -C "$$src" && \
-	  uvx --quiet copier copy --quiet --defaults --overwrite --data "issues_repo=$$ISSUES_REPO" \
-	    --data "worktree_root=$$WORKTREE_ROOT" "$$src" . && \
-	  rm -rf "$$src" .copier-answers.agentic.yaml
+	@. .claude/agentic.conf && tmp="$$(mktemp -d)" && trap 'rm -rf "$$tmp"' EXIT && \
+	  mkdir "$$tmp/src" && tar --exclude .git -cf - . | tar -xf - -C "$$tmp/src" && \
+	  uvx --quiet copier copy --quiet --defaults --data "issues_repo=$$ISSUES_REPO" \
+	    --data "worktree_root=$$WORKTREE_ROOT" "$$tmp/src" "$$tmp/out" && \
+	  rsync -a --delete $(OWNED) "$$tmp/out/.claude/" .claude/
