@@ -38,6 +38,12 @@ issue_worktree() {
 		END { exit !found }'
 }
 
+# The <type>/<issue>-<slug> branch an earlier start made: a local one first, else one only on origin.
+issue_branch() {
+	git for-each-ref --format='%(refname:lstrip=-2)' "refs/heads/*/$1-*" "refs/remotes/origin/*/$1-*" |
+		awk 'NR == 1 { print } END { exit NR == 0 }'
+}
+
 has_session_transcript() {
 	ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$(printf '%s' "$1" | tr -c 'a-zA-Z0-9' '-')"/*.jsonl >/dev/null 2>&1
 }
@@ -63,12 +69,10 @@ point_memory() {
 	mv "$settings.tmp" "$settings"
 }
 
+# open_session <worktree> <name> [--continue]
 open_session() {
-	local worktree=$1 name=$2 resume=
-	# claude --continue refuses to start where no session exists yet.
-	if has_session_transcript "$worktree"; then resume=--continue; fi
 	# exec: claude replaces the window's shell, so Terminal can close the window when claude exits.
-	osascript - "$worktree" "$name" "$resume" \
+	osascript - "$1" "$2" "${3:-}" \
 		"$MAIN/.claude/subagent-session-settings.json" "$MAIN/.claude/subagent-session-prompt.md" >/dev/null <<'APPLESCRIPT'
 on run {worktree, sessionName, resumeFlag, settingsFile, promptFile}
 	tell application "Terminal"
@@ -79,9 +83,10 @@ end run
 APPLESCRIPT
 }
 
-close_session() {
-	osascript - "$1" <<'APPLESCRIPT'
-on run {sessionTty}
+# session_tab <tty> exit|focus: ends the session in that Terminal tab, or brings the tab to the front.
+session_tab() {
+	osascript - "$1" "$2" >/dev/null <<'APPLESCRIPT'
+on run {sessionTty, action}
 	tell application "Terminal"
 		-- claude sets the window title itself, so the tab is found by its tty.
 		repeat with w in windows
@@ -92,8 +97,14 @@ on run {sessionTty}
 			end try
 			repeat with t in windowTabs
 				if tty of t is sessionTty then
-					-- do script ends the text with the carriage return that Enter sends.
-					do script "/exit" in t
+					if action is "exit" then
+						-- do script ends the text with the carriage return that Enter sends.
+						do script "/exit" in t
+					else
+						set selected of t to true
+						set index of w to 1
+						activate
+					end if
 					return
 				end if
 			end repeat
@@ -125,21 +136,31 @@ unshipped() {
 	return 0
 }
 
+# Picks up whatever the issue already has: its worktree, else its branch, and its session.
 start_task() {
-	local issue=$1 type=$2 view title short slug worktree branch
+	local issue=$1 type=$2 view title short slug worktree branch name tty
 	view=$(issue_view "$issue") || die "no issue $issue in $ISSUES_REPO"
 	title=${view#* }
 	[ "${view%% *}" = OPEN ] || die "issue $issue is ${view%% *}: a task starts from an open issue"
 	short=$(short_title "$title")
+	# A worktree whose folder was deleted by hand still holds its branch until git forgets it.
+	git worktree prune
 	if worktree=$(issue_worktree "$issue"); then
 		echo "✓ worktree exists: $worktree"
 	else
-		slug=$(tr '[:upper:]' '[:lower:]' <<<"$short" | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//')
-		branch=$type/$issue-$slug
-		worktree=$WORKTREE_ROOT/$issue-$slug/$REPO_NAME
-		git fetch origin develop -q
-		mkdir -p "$(dirname "$worktree")"
-		git worktree add -q -b "$branch" "$worktree" origin/develop
+		git fetch origin -q
+		if branch=$(issue_branch "$issue"); then
+			worktree=$WORKTREE_ROOT/${branch#*/}/$REPO_NAME
+			mkdir -p "$(dirname "$worktree")"
+			# A branch only on origin comes back as a local branch tracking it.
+			git worktree add -q "$worktree" "$branch"
+		else
+			slug=$(tr '[:upper:]' '[:lower:]' <<<"$short" | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//')
+			branch=$type/$issue-$slug
+			worktree=$WORKTREE_ROOT/$issue-$slug/$REPO_NAME
+			mkdir -p "$(dirname "$worktree")"
+			git worktree add -q -b "$branch" "$worktree" origin/develop
+		fi
 		worktree=$(cd "$worktree" && pwd -P)
 		# Seed the gitignored files git worktree add can't carry, never overwriting one.
 		cp -n .env* "$worktree"/ 2>/dev/null || true
@@ -148,8 +169,18 @@ start_task() {
 	fi
 	point_memory "$MAIN"
 	point_memory "$worktree"
-	open_session "$worktree" "#$issue $REPO_NAME: $short"
-	echo "✓ session open: #$issue $REPO_NAME: $short"
+	name="#$issue $REPO_NAME: $short"
+	if tty=$(session_tty "$worktree"); then
+		session_tab "$tty" focus
+		echo "✓ session already running, brought to the front: $name"
+	elif has_session_transcript "$worktree"; then
+		# claude --continue refuses to start where no session exists yet.
+		open_session "$worktree" "$name" --continue
+		echo "✓ session resumed: $name"
+	else
+		open_session "$worktree" "$name"
+		echo "✓ session opened: $name"
+	fi
 }
 
 finish_task() {
@@ -167,7 +198,7 @@ finish_task() {
 		die "branch $branch has commits on no remote branch and in no merged PR: push them first"
 	fi
 	if tty=$(session_tty "$worktree"); then
-		close_session "$tty"
+		session_tab "$tty" exit
 		session_exits "$worktree" || die "the session in $worktree did not exit; close it, then finish again"
 	fi
 	git worktree remove "$worktree" ||
