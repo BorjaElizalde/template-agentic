@@ -105,6 +105,7 @@ check "it branches off origin/develop"         git -C "$ISSUE42/backend" merge-b
 check "its memory points at itself"            test "$(memory_of "$ISSUE42/backend")" = "$ISSUE42/backend/.claude/memory"
 check "the main checkout's memory points at it" test "$(memory_of "$BACKEND")" = "$BACKEND/.claude/memory"
 check "its session opens with the issue name"  test "$(sessions '#42 backend: Name make close_claude_session in')" -eq 1
+check "with a first prompt that reads its issue" bash -c "tail -n 1 '$TASK_TEST_STATE/osascript.log' | grep -qF 'gh issue view 42 -R acme/tasks --comments'"
 check "starting again resumes, creates nothing" task "$BACKEND" start 42
 check "the session opens a second time"        test "$(sessions '#42 backend:')" -eq 2
 check "both fresh: no transcript exists yet"   bash -c "! grep -q -- --continue '$TASK_TEST_STATE/osascript.log'"
@@ -119,6 +120,7 @@ echo "-- start: an existing issue picks up its session"
 transcript "$ISSUE42/backend"
 check "a session with a transcript"            task "$BACKEND" start 42
 check "resumes it with --continue"             bash -c "tail -n 1 '$TASK_TEST_STATE/osascript.log' | grep -q -- ' --continue '"
+check "and the same first prompt"              bash -c "tail -n 1 '$TASK_TEST_STATE/osascript.log' | grep -qF 'Work on issue #42 in acme/tasks.'"
 echo "$ISSUE42/backend" >"$TASK_TEST_STATE/running"
 check "a running session"                      task "$BACKEND" start 42
 check "is brought to the front"                test "$(last_osascript)" = "- /dev/ttys042 focus"
