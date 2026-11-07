@@ -22,6 +22,7 @@ case "$1 $2" in
       42) title="Name make close_claude_session in backend CLAUDE.md" ;;
       7) title="Second task" ;;
       5) title="Already done" ;;
+      8|9|10|11) title="Task $3" ;;
       *) exit 1 ;;
     esac
     echo "$(cat "$TASK_TEST_STATE/issue-$3" 2>/dev/null || echo OPEN) $title" ;;
@@ -89,6 +90,9 @@ refuses() {  # refuses <desc> <reason pattern> <checkout> <task.sh args...>: fai
   else fail=$((fail+1)); echo "FAIL $1 (wrong reason: $out)"; fi
 }
 commit() { git -C "$1" -c user.name=t -c user.email=t@t commit -q --allow-empty -m work; }
+run_in() {  # run_in <folder> <task.sh args...>: its own task.sh, run from inside it; output in $WORK/out
+  (cd "$1" && bash .claude/skills/task/scripts/task.sh "${@:2}") >"$WORK/out" 2>&1
+}
 
 ISSUE42="$WORK/repos/worktrees/42-name-make-close-claude-session-in"
 ISSUE7="$WORK/repos/worktrees/7-second-task"
@@ -168,6 +172,36 @@ refuses "its unpushed commit blocks it"          'push them first'      "$BACKEN
 echo fix/7-second-task >"$TASK_TEST_STATE/merged"
 check "a merged PR covers a squash-merged branch" task "$BACKEND" finish 7
 check "its worktree is gone"                   test ! -e "$ISSUE7/backend"
+
+echo "-- sweep: a start first finishes every task whose issue is closed"
+ISSUE8="$WORK/repos/worktrees/8-task-8"
+ISSUE9="$WORK/repos/worktrees/9-task-9"
+ISSUE10="$WORK/repos/worktrees/10-task-10"
+check "backend starts issue 8"                 task "$BACKEND" start 8
+check "and issue 9"                            task "$BACKEND" start 9
+echo CLOSED >"$TASK_TEST_STATE/issue-8"
+echo CLOSED >"$TASK_TEST_STATE/issue-9"
+echo notes >"$ISSUE8/backend/notes.md"
+check "a start goes on past a refused finish"  run_in "$BACKEND" start 10
+check "and opens its own session"              test "$(sessions '#10 backend:')" -eq 1
+check "it finished the closed task"            test ! -e "$ISSUE9"
+check "and removed its branch"                 bash -c "! git -C '$BACKEND' rev-parse -q --verify feat/9-task-9"
+check "it reported the refusal"                grep -q 'untracked files' "$WORK/out"
+check "and kept the refused worktree"          test -f "$ISSUE8/backend/notes.md"
+
+echo "-- sweep: a bare finish"
+rm "$ISSUE8/backend/notes.md"
+check "a sweep runs on its own"                run_in "$BACKEND" sweep
+check "it finished the closed task"            test ! -e "$ISSUE8"
+check "it left the open task alone"            test -d "$ISSUE10/backend"
+check "without a word about it"                bash -c "! grep -q 'issue 10' '$WORK/out'"
+
+echo "-- sweep: from inside a task worktree"
+echo CLOSED >"$TASK_TEST_STATE/issue-10"
+check "a start from the task's own session"    run_in "$ISSUE10/backend" start 11
+check "starts its issue"                       test -d "$WORK/repos/worktrees/11-task-11/backend"
+check "past the finish of its own worktree"    grep -q 'from outside its worktree' "$WORK/out"
+check "which stays"                            test -d "$ISSUE10/backend"
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"

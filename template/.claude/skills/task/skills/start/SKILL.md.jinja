@@ -15,10 +15,12 @@ The same steps start a new task and pick up an existing one.
    also say where its result goes: a PR, or a comment on the issue.
 2. Pick the branch type: `feat`, `fix`, `refactor` or `chore` for a change, `research` for a task
    whose result is an answer. It names a new branch only: an issue that has a branch keeps it.
-3. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" start <n> <type>`. It picks up what the
-   issue already has:
+3. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" start <n> <type>`. It first finishes every
+   task whose issue is closed, as a bare `/task:finish` does. Then it picks up what the issue
+   already has:
    - its worktree, else its branch (left without a worktree, or pushed from another clone), else
      a new branch from `origin/develop`;
    - its running session, brought to the front and never opened twice, else its last session,
      resumed, else a new one.
-4. Return the issue URL, the worktree path, the session name, and what the script picked up.
+4. Return the issue URL, the worktree path, the session name, what the script picked up, and the
+   tasks it finished or refused to finish.

@@ -3,7 +3,7 @@
 # The task lifecycle behind /task:start and /task:finish: one issue, one worktree, one session.
 set -euo pipefail
 
-usage="usage: task.sh start <issue> [type] | finish <issue> | point-memory"
+usage="usage: task.sh start <issue> [type] | finish <issue> | sweep | point-memory"
 
 CALLER=$(pwd -P)
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -146,8 +146,7 @@ start_task() {
 	title=${view#* }
 	[ "${view%% *}" = OPEN ] || die "issue $issue is ${view%% *}: a task starts from an open issue"
 	short=$(short_title "$title")
-	# A worktree whose folder was deleted by hand still holds its branch until git forgets it.
-	git worktree prune
+	sweep
 	if worktree=$(issue_worktree "$issue"); then
 		echo "✓ worktree exists: $worktree"
 	else
@@ -210,9 +209,26 @@ finish_task() {
 	echo "✓ issue $issue finished: session closed, worktree and branch $branch removed"
 }
 
+# Finishes every task worktree of this checkout whose issue is closed: a PR merged on GitHub closes
+# its issue, but nothing finishes its task. Open issues are skipped without a word.
+sweep() {
+	local issue view
+	# A worktree whose folder was deleted by hand still holds its branch until git forgets it.
+	git worktree prune
+	for issue in $(git worktree list --porcelain | sed -En 's|^branch refs/heads/[^/]+/([0-9]+)-.*|\1|p'); do
+		view=$(issue_view "$issue") || continue
+		[ "${view%% *}" = CLOSED ] || continue
+		# A refusal exits, so each finish runs as a task.sh of its own: a refusal is reported and the
+		# sweep goes on. From the caller's folder, $0 resolves and finish sees a sweep from inside
+		# the worktree it would remove.
+		(cd "$CALLER" && bash "$0" finish "$issue") || true
+	done
+}
+
 case ${1:-} in
 start) [ $# -ge 2 ] || die "$usage"; start_task "$2" "${3:-feat}" ;;
 finish) [ $# -ge 2 ] || die "$usage"; finish_task "$2" ;;
+sweep) sweep ;;
 point-memory) point_memory "$CHECKOUT" && echo "✓ auto memory points at $CHECKOUT/.claude/memory" ;;
 *) die "$usage" ;;
 esac
