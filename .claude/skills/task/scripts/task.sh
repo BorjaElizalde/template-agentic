@@ -69,14 +69,18 @@ point_memory() {
 	mv "$settings.tmp" "$settings"
 }
 
-# open_session <worktree> <name> [--continue]
+# open_session <worktree> <name> <issue> [--continue]
 open_session() {
-	# exec leaves claude the tab's only process, so the tab is empty once claude exits.
-	osascript - "$1" "$2" "${3:-}" \
-		"$MAIN/.claude/skills/task/session/settings.json" "$MAIN/.claude/skills/task/session/prompt.md" >/dev/null <<'APPLESCRIPT'
-on run {worktree, sessionName, resumeFlag, settingsFile, promptFile}
+	# A session opened without a first prompt waits at an empty input, so this one sends it to its
+	# issue. One prompt serves a new session and a resumed one.
+	local first="Work on issue #$3 in $ISSUES_REPO. Read it with its comments: gh issue view $3 -R $ISSUES_REPO --comments. Carry it out until it is done as the issue says; if this session already worked on it, go on from where it stopped."
+	# exec leaves claude the tab's only process, so the tab is empty once claude exits. The first
+	# prompt comes after -n: --disallowed-tools takes every value up to the next option.
+	osascript - "$1" "$2" "${4:-}" \
+		"$MAIN/.claude/skills/task/session/settings.json" "$MAIN/.claude/skills/task/session/prompt.md" "$first" >/dev/null <<'APPLESCRIPT'
+on run {worktree, sessionName, resumeFlag, settingsFile, promptFile, firstPrompt}
 	tell application "Terminal"
-		do script "cd " & quoted form of worktree & " && exec claude " & resumeFlag & " --settings " & quoted form of settingsFile & " --append-system-prompt-file " & quoted form of promptFile & " --disallowed-tools AskUserQuestion -n " & quoted form of sessionName
+		do script "cd " & quoted form of worktree & " && exec claude " & resumeFlag & " --settings " & quoted form of settingsFile & " --append-system-prompt-file " & quoted form of promptFile & " --disallowed-tools AskUserQuestion -n " & quoted form of sessionName & " " & quoted form of firstPrompt
 		activate
 	end tell
 end run
@@ -177,10 +181,10 @@ start_task() {
 		echo "✓ session already running, brought to the front: $name"
 	elif has_session_transcript "$worktree"; then
 		# claude --continue refuses to start where no session exists yet.
-		open_session "$worktree" "$name" --continue
+		open_session "$worktree" "$name" "$issue" --continue
 		echo "✓ session resumed: $name"
 	else
-		open_session "$worktree" "$name"
+		open_session "$worktree" "$name" "$issue"
 		echo "✓ session opened: $name"
 	fi
 }
