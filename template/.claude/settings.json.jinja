@@ -25,6 +25,9 @@
       "Bash(gh pr edit:*)",
       "Bash(gh pr status:*)",
       "Bash(gh pr ready:*)",
+{%- if agent_merges %}
+      "Bash(gh pr merge:*)",
+{%- endif %}
       "Bash(gh issue create:*)",
       "Bash(gh issue list:*)",
       "Bash(gh issue view:*)"

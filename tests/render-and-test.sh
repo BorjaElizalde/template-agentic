@@ -38,6 +38,9 @@ expect "with agent_merges the pull-request skill merges a pinned squash" bash -c
   grep -qF 'gh pr merge <n> --squash --match-head-commit <sha>' '$AM/.claude/skills/pull-request/SKILL.md' &&
   grep -qF 'Bash(gh pr merge:*)' '$AM/.claude/skills/pull-request/SKILL.md'"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
+MERGE_ALLOWED='any(.permissions.allow[]; . == "Bash(gh pr merge:*)")'
+expect "by default settings.json leaves gh pr merge to a prompt" jq -e "$MERGE_ALLOWED | not" "$D/.claude/settings.json"
+expect "with agent_merges settings.json allows gh pr merge" jq -e "$MERGE_ALLOWED" "$AM/.claude/settings.json"
 GATE="$D/.github/workflows/gate.yaml"
 expect "the Gate workflow is a valid workflow" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows "$GATE"
 expect "the Gate workflow runs the stack's checks, never make" bash -c "
