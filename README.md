@@ -48,7 +48,9 @@ branch (left without a worktree, or pushed from another clone), and its session,
 front while it runs and resumed when it doesn't. `/task:finish` closes the issue once its result
 is delivered, then the session, the worktree and the branch; it refuses while the branch has
 commits on no remote branch and in no merged PR, or the worktree has uncommitted or untracked
-files.
+files. Given no issue, `/task:finish` finishes every task whose issue is closed, and
+`/task:start` does the same first: a PR merged on GitHub closes its issue, and the next start
+finishes its task.
 
 Both are skills of one plugin, `.claude/skills/task/`, so they share its `scripts/task.sh`
 through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a Makefile for them. Claude Code loads a
