@@ -3,7 +3,7 @@
 # Regression suite for task.sh. Run from any checkout: bash .claude/skills/task/scripts/task.test.sh
 # Two clones of one throwaway origin, named backend and frontend, stand in for two repositories.
 # Stub gh answers issue state and title and merged PRs from files under $TASK_TEST_STATE; stub
-# osascript logs the sessions it would open, close or bring to the front; stub ps and lsof report a
+# osascript logs the sessions it would open, end or bring to the front; stub ps and lsof report a
 # claude process running in the folder named in $TASK_TEST_STATE/running.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -36,8 +36,12 @@ cat >"$WORK/bin/osascript" <<'EOF'
 #!/usr/bin/env bash
 cat >/dev/null
 printf '%s\n' "$*" >>"$TASK_TEST_STATE/osascript.log"
-# The session in a tab told to exit stops.
-[ "${3:-}" = exit ] && rm -f "$TASK_TEST_STATE/running"
+# The session in a tab told to exit stops and its window closes. While $TASK_TEST_STATE/stuck exists
+# the session never stops, and the script fails as session_tab's does after 30 seconds.
+if [ "${3:-}" = exit ]; then
+  [ ! -f "$TASK_TEST_STATE/stuck" ] || exit 1
+  rm -f "$TASK_TEST_STATE/running"
+fi
 exit 0
 EOF
 cat >"$WORK/bin/ps" <<'EOF'
@@ -140,11 +144,15 @@ rm "$ISSUE42/backend/notes.md"
 commit "$ISSUE42/backend"
 refuses "unpushed commits block it"              'push them first'      "$BACKEND" finish 42
 git -C "$ISSUE42/backend" push -q origin HEAD 2>/dev/null
+echo "$ISSUE42/backend" >"$TASK_TEST_STATE/running"
+touch "$TASK_TEST_STATE/stuck"
+refuses "a session that never exits blocks it"    'did not exit'         "$BACKEND" finish 42
+check "and the worktree stays"                 test -d "$ISSUE42/backend"
+rm "$TASK_TEST_STATE/stuck"
 
 echo "-- finish: closed issue, nothing unshipped"
-echo "$ISSUE42/backend" >"$TASK_TEST_STATE/running"
 check "a pushed branch finishes"               task "$BACKEND" finish 42
-check "its running session was told to exit"   grep -qx -- '- /dev/ttys042 exit' "$TASK_TEST_STATE/osascript.log"
+check "its session ended and its window closed" test "$(sessions '/dev/ttys042 exit')" -eq 2
 check "its worktree is gone"                   test ! -e "$ISSUE42/backend"
 check "its local branch is gone"               bash -c "! git -C '$BACKEND' rev-parse -q --verify feat/42-name-make-close-claude-session-in"
 check "the issue folder stays for frontend"    test -d "$ISSUE42/frontend"

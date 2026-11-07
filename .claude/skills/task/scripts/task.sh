@@ -71,7 +71,7 @@ point_memory() {
 
 # open_session <worktree> <name> [--continue]
 open_session() {
-	# exec: claude replaces the window's shell, so Terminal can close the window when claude exits.
+	# exec leaves claude the tab's only process, so the tab is empty once claude exits.
 	osascript - "$1" "$2" "${3:-}" \
 		"$MAIN/.claude/skills/task/session/settings.json" "$MAIN/.claude/skills/task/session/prompt.md" >/dev/null <<'APPLESCRIPT'
 on run {worktree, sessionName, resumeFlag, settingsFile, promptFile}
@@ -83,7 +83,8 @@ end run
 APPLESCRIPT
 }
 
-# session_tab <tty> exit|focus: ends the session in that Terminal tab, or brings the tab to the front.
+# session_tab <tty> exit|focus: ends the session in that Terminal tab and closes its window, or brings
+# the tab to the front.
 session_tab() {
 	osascript - "$1" "$2" >/dev/null <<'APPLESCRIPT'
 on run {sessionTty, action}
@@ -100,6 +101,18 @@ on run {sessionTty, action}
 					if action is "exit" then
 						-- do script ends the text with the carriage return that Enter sends.
 						do script "/exit" in t
+						-- By id: w is the window's place in the front-to-back order, which can change.
+						set sessionWindow to contents of w
+						-- A profile that closes the window when its shell exits can close it between
+						-- any two of these lines.
+						repeat 30 times
+							try
+								if (count (processes of t)) is 0 then close sessionWindow
+							end try
+							if not (exists sessionWindow) then return
+							delay 1
+						end repeat
+						error "the tab on " & sessionTty & " still runs a process after 30 seconds"
 					else
 						set selected of t to true
 						set index of w to 1
@@ -113,16 +126,6 @@ on run {sessionTty, action}
 	error "no Terminal tab on " & sessionTty
 end run
 APPLESCRIPT
-}
-
-# Whether the session in worktree $1 exits within 30 seconds.
-session_exits() {
-	local _
-	for _ in $(seq 30); do
-		session_tty "$1" >/dev/null || return 0
-		sleep 1
-	done
-	return 1
 }
 
 # Whether branch $1 holds commits that exist nowhere else. They are safe when there are none beyond
@@ -198,8 +201,7 @@ finish_task() {
 		die "branch $branch has commits on no remote branch and in no merged PR: push them first"
 	fi
 	if tty=$(session_tty "$worktree"); then
-		session_tab "$tty" exit
-		session_exits "$worktree" || die "the session in $worktree did not exit; close it, then finish again"
+		session_tab "$tty" exit || die "the session in $worktree did not exit; close it, then finish again"
 	fi
 	git worktree remove "$worktree" ||
 		die "$worktree has uncommitted or untracked files: commit them, or move what matters to the PR or the issue"
