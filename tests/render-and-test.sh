@@ -19,6 +19,9 @@ expect() {  # expect <desc> <command...>; a failure prints the command's own lin
 
 D="$OUT/project"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks "$OUT/src" "$D"
+T="$OUT/trunk"
+uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data branch_model=trunk \
+  --data agent_merges=true "$OUT/src" "$T"
 git -C "$D" init -q
 git -C "$D" add -A
 git -C "$D" -c user.name=t -c user.email=t@t commit -qm render
@@ -28,8 +31,8 @@ expect "the shared rules load without an import" test -f "$D/.claude/rules/agent
 expect "answers land in .copier-answers.agentic.yaml" test -f "$D/.copier-answers.agentic.yaml"
 expect "no .yml file in the template or the project" bash -c "[ -z \"\$(find '$ROOT' '$D' -name '*.yml' -not -path '*/.git/*')\" ]"
 # GitHub's own expressions, ${{ }}, are not Jinja.
-expect "no Jinja left in rendered files" bash -c "! grep -rIl -E '(^|[^\$])\\{\\{|\\{%' --exclude-dir=.git '$D'"
-expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf' && grep -qx 'DEPLOY_WORKFLOW=' '$D/.claude/agentic.conf' && grep -qx 'AGENT_MERGES=false' '$D/.claude/agentic.conf'"
+expect "no Jinja left in rendered files" bash -c "! grep -rIl -E '(^|[^\$])\\{\\{|\\{%' --exclude-dir=.git '$D' '$T'"
+expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf' && grep -qx 'BRANCH_MODEL=release' '$D/.claude/agentic.conf' && grep -qx 'BASE_BRANCH=develop' '$D/.claude/agentic.conf' && grep -qx 'DEPLOY_WORKFLOW=' '$D/.claude/agentic.conf' && grep -qx 'AGENT_MERGES=false' '$D/.claude/agentic.conf'"
 expect "by default the pull-request skill leaves the merge to the owner" bash -c "! grep -q 'gh pr merge' '$D/.claude/skills/pull-request/SKILL.md'"
 AM="$OUT/agent-merges"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data agent_merges=true "$OUT/src" "$AM"
@@ -45,10 +48,30 @@ GATE="$D/.github/workflows/gate.yaml"
 expect "the Gate workflow is a valid workflow" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows "$GATE"
 expect "the Gate workflow runs the stack's checks, never make" bash -c "
   grep -qx '      - uses: ./.github/actions/stack-gate' '$GATE' && ! grep -v '^[[:space:]]*#' '$GATE' | grep -qw make"
+expect "the Gate workflow checks the source of a PR into any of the three branches" bash -c "
+  grep -qxF '    branches: [develop, staging, main]' '$GATE' && grep -qF 'BASE: \${{ github.base_ref }}' '$GATE'"
 expect "renovate.json is valid Renovate config" uvx --quiet check-jsonschema --schemafile https://docs.renovatebot.com/renovate-schema.json "$D/renovate.json"
 expect "Renovate leaves the template's CI files to the update PR" jq -e '.["github-actions"].ignorePaths as $p
   | any($p[]; . == ".github/workflows/gate.yaml") and any($p[]; . == ".github/actions/stack-gate/**")' "$D/renovate.json"
 expect "the release skill doesn't say CI runs make gate" bash -c "! grep -q 'make gate' '$D/.claude/skills/release/SKILL.md'"
+
+# The trunk model, rendered with agent_merges: feature PRs go into main, and the agent merges them.
+TGATE="$T/.github/workflows/gate.yaml"
+expect "trunk: the answers record the model and no deploy workflow" bash -c "
+  grep -qx 'branch_model: trunk' '$T/.copier-answers.agentic.yaml' && ! grep -q deploy_workflow '$T/.copier-answers.agentic.yaml'"
+expect "trunk: agentic.conf names main the base branch" bash -c "
+  grep -qx 'BRANCH_MODEL=trunk' '$T/.claude/agentic.conf' && grep -qx 'BASE_BRANCH=main' '$T/.claude/agentic.conf'"
+expect "trunk: the Gate workflow is a valid workflow" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows "$TGATE"
+expect "trunk: the Gate workflow runs on PRs into main, with no source step" bash -c "
+  grep -qxF '    branches: [main]' '$TGATE' && [ \"\$(grep -c '^      - ' '$TGATE')\" -eq 2 ] &&
+  grep -qx '      - uses: ./.github/actions/stack-gate' '$TGATE'"
+expect "trunk: no /release" test ! -e "$T/.claude/skills/release"
+expect "trunk: /pull-request opens its PR on main and merges a pinned squash" bash -c "
+  grep -qF 'gh pr create --base main' '$T/.claude/skills/pull-request/SKILL.md' &&
+  grep -qF 'gh pr merge <n> --squash --match-head-commit <sha>' '$T/.claude/skills/pull-request/SKILL.md'"
+expect "trunk: no skill or agent sends work to develop" bash -c "
+  ! grep -rqE --include='*.md' 'origin/develop|base develop|develop\.\.\.|into .develop' '$T/.claude/skills' '$T/.claude/agents'"
+expect "trunk: with agent_merges settings.json allows gh pr merge" jq -e "$MERGE_ALLOWED" "$T/.claude/settings.json"
 X="$OUT/existing"
 mkdir -p "$X"
 printf '{"extends": ["config:base"]}\n' >"$X/renovate.json"

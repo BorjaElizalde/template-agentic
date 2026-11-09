@@ -22,7 +22,7 @@ case "$1 $2" in
       42) title="Name make close_claude_session in backend CLAUDE.md" ;;
       7) title="Second task" ;;
       5) title="Already done" ;;
-      8|9|10|11) title="Task $3" ;;
+      8|9|10|11|12) title="Task $3" ;;
       *) exit 1 ;;
     esac
     echo "$(cat "$TASK_TEST_STATE/issue-$3" 2>/dev/null || echo OPEN) $title" ;;
@@ -59,11 +59,17 @@ export PATH="$WORK/bin:$PATH"
 echo CLOSED >"$TASK_TEST_STATE/issue-5"
 
 cp "$HERE/task.sh" "$WORK/seed/.claude/skills/task/scripts/"
-printf 'ISSUES_REPO=acme/tasks\nWORKTREE_ROOT=../worktrees\n' >"$WORK/seed/.claude/agentic.conf"
+conf() { printf 'ISSUES_REPO=acme/tasks\nWORKTREE_ROOT=../worktrees\nBASE_BRANCH=%s\n' "$1" >"$WORK/seed/.claude/agentic.conf"; }
+conf develop
 printf 'settings.local.json\n' >"$WORK/seed/.claude/.gitignore"
 git init -q -b develop "$WORK/seed"
 git -C "$WORK/seed" add -A
 git -C "$WORK/seed" -c user.name=t -c user.email=t@t commit -qm seed
+# main is one commit ahead of develop: the one that makes a checkout of it a trunk project's.
+git -C "$WORK/seed" switch -q -c main
+conf main
+git -C "$WORK/seed" -c user.name=t -c user.email=t@t commit -qam trunk
+git -C "$WORK/seed" switch -q develop
 git clone -q --bare "$WORK/seed" "$WORK/origin.git"
 git clone -q "$WORK/origin.git" "$WORK/repos/backend"
 git clone -q "$WORK/origin.git" "$WORK/repos/frontend"
@@ -204,6 +210,15 @@ check "a start from the task's own session"    run_in "$ISSUE10/backend" start 1
 check "starts its issue"                       test -d "$WORK/repos/worktrees/11-task-11/backend"
 check "past the finish of its own worktree"    grep -q 'from outside its worktree' "$WORK/out"
 check "which stays"                            test -d "$ISSUE10/backend"
+
+echo "-- trunk: a task branches off main, and is judged against it"
+TRUNK="$WORK/trunk/backend"
+ISSUE12="$WORK/trunk/worktrees/12-task-12"
+git clone -q -b main "$WORK/origin.git" "$TRUNK"
+check "a trunk checkout starts issue 12"       task "$TRUNK" start 12
+check "it branches off origin/main"            git -C "$ISSUE12/backend" merge-base --is-ancestor origin/main HEAD
+echo CLOSED >"$TASK_TEST_STATE/issue-12"
+check "with nothing beyond main, it finishes"  task "$TRUNK" finish 12
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"

@@ -15,8 +15,8 @@ the steps that need no reviewer.
    inheriting their decisions. End with **Assumptions** and **Tradeoffs**.
 3. If there is a plan, spawn the plan reviewer with its exact path. Resolve Must-Change findings
    before implementation.
-4. Implement, invoke `/gate`, invoke `/simplify develop...HEAD`, then invoke `/gate` again.
-5. Commit with `/commit`; push and open the `develop` PR with `/pull-request` before review.
+4. Implement, invoke `/gate`, invoke `/simplify {{ base_branch }}...HEAD`, then invoke `/gate` again.
+5. Commit with `/commit`; push and open the `{{ base_branch }}` PR with `/pull-request` before review.
 6. Spawn the review wave with the explicit branch range, as `.claude/review-wave.md` describes.
    Add `memory-cleaner` when memory changed. Wait for every report.
 7. Apply findings under the Judgment Guidelines and explain the decisions. Escalate rejected
@@ -37,4 +37,4 @@ the steps that need no reviewer.
 - Fix pre-existing blockers and small issues on the surface changed; report unrelated issues
   without expanding scope.
 - This invocation authorizes the workflow's subagents, commits, push, and PR for this task.
-- Finish only when `/gate` and PR CI pass on a PR into `develop`.
+- Finish only when `/gate` and PR CI pass on a PR into `{{ base_branch }}`.

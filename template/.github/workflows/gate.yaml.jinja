@@ -3,10 +3,10 @@ name: Gate
 
 on:
   pull_request:
-    branches: [develop, staging, main]
+    branches: [{{ "develop, staging, main" if branch_model == "release" else base_branch }}]
 
 concurrency:
-  group: gate-${{ github.head_ref || github.ref }}
+  group: gate-{% raw %}${{ github.head_ref || github.ref }}{% endraw %}
   cancel-in-progress: true
 
 jobs:
@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+{%- if branch_model == "release" %}{% raw %}
       # Rulesets can't limit a PR's source or size, so the gate does; a branch name can't hold a colon.
       - name: Check the PR's source and commits
         env:
@@ -32,6 +33,7 @@ jobs:
           esac
           [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ] ||
             { echo "::error::$BASE takes PRs from this repository's own branches, not from $HEAD_REPO."; exit 1; }
+{%- endraw %}{% endif %}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       # The stack layer's checks, each tool called directly. A project's CI never runs make gate,
       # so a change that relaxes the local gate can't relax CI.

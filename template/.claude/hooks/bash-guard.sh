@@ -6,9 +6,10 @@
 #   * block force-push to a protected branch (allow --force-with-lease)
 #   * block switching to an EXISTING branch (allow `-c/-b` new branch + file restore)
 #   * block direct push to a protected branch
-#   * block merging a PR into a protected branch, except the promotion hops develop→staging and
-#     staging→main as merge commits, and, in a project that answered agent_merges, its own PR into
-#     develop as a squash pinned to a head whose every check has passed; block the API merge routes
+#   * block merging a PR into a protected branch, except, in the release model, the promotion hops
+#     develop→staging and staging→main as merge commits, and, in a project that answered
+#     agent_merges, its own PR into the base branch (develop, or main in the trunk model) as a
+#     squash pinned to a head whose every check has passed; block the API merge routes
 #   * block committing in the primary working tree / main checkout (any branch) — worktree workflow
 #   * block skipping the commit hooks: --no-verify, commit -n, SKIP=/HUSKY= env, core.hooksPath
 # Protected branches: develop, staging, main. Nothing lands on them without the owner.
@@ -23,13 +24,18 @@ set -u
 
 COMMAND="$(jq -r '.tool_input.command // empty' 2>/dev/null || true)"
 
-# The project's agent_merges answer, from the agentic.conf beside .claude/hooks. Read line by line,
-# never sourced, so the guard runs no code but its own.
+# The project's branch model, base branch and agent_merges answer, from the agentic.conf beside
+# .claude/hooks. Read line by line, never sourced, so the guard runs no code but its own. Without
+# them, no PR merges into a protected branch.
 HERE="$(cd "$(dirname "$0")" && pwd)"
-AGENT_MERGES=false
+BRANCH_MODEL="" BASE_BRANCH="" AGENT_MERGES=false
 if [ -f "$HERE/../agentic.conf" ]; then
   while IFS= read -r line || [ -n "$line" ]; do
-    case "$line" in AGENT_MERGES=*) AGENT_MERGES="${line#AGENT_MERGES=}" ;; esac
+    case "$line" in
+      BRANCH_MODEL=*) BRANCH_MODEL="${line#BRANCH_MODEL=}" ;;
+      BASE_BRANCH=*) BASE_BRANCH="${line#BASE_BRANCH=}" ;;
+      AGENT_MERGES=*) AGENT_MERGES="${line#AGENT_MERGES=}" ;;
+    esac
   done <"$HERE/../agentic.conf"
 fi
 
@@ -112,21 +118,22 @@ own_repo() {
   printf '%s\n' "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]'
 }
 
-# In a project that answered agent_merges, may the agent merge this PR into develop? It reads the
-# caller's lookup and flags. Every condition must hold, else MERGE_WHY names the first that fails.
+# In a project that answered agent_merges, may the agent merge this PR into the base branch? It
+# reads the caller's lookup and flags. Every condition must hold, else MERGE_WHY names the first
+# that fails.
 agent_may_merge() {
   local own
   own="$(own_repo)"
   if [ -z "$own" ] || [ "$prrepo" != "$own" ]; then
-    MERGE_WHY="merging a PR of '$prrepo' into develop. This project lets the agent merge only its own repository's PRs${own:+ ($own)}: leave this merge to the owner."
+    MERGE_WHY="merging a PR of '$prrepo' into $base. This project lets the agent merge only its own repository's PRs${own:+ ($own)}: leave this merge to the owner."
   elif [ "$squash" = 0 ] || [ "$merge" = 1 ] || [ "$rebase" = 1 ]; then
-    MERGE_WHY="merging into develop without --squash as the only strategy: develop takes squash merges."
+    MERGE_WHY="merging into $base without --squash as the only strategy: $base takes squash merges."
   elif [ "$auto" = 1 ] || [ "$admin" = 1 ]; then
-    MERGE_WHY="merging into develop with --auto or --admin, which merge without the checks the guard read. Wait for the checks, then merge with --squash --match-head-commit <sha>."
+    MERGE_WHY="merging into $base with --auto or --admin, which merge without the checks the guard read. Wait for the checks, then merge with --squash --match-head-commit <sha>."
   elif [ "$match" != "$oid" ]; then
-    MERGE_WHY="merging into develop without pinning the head the checks ran on: pass --match-head-commit $oid, the PR's head, so a later push cannot land unchecked."
+    MERGE_WHY="merging into $base without pinning the head the checks ran on: pass --match-head-commit $oid, the PR's head, so a later push cannot land unchecked."
   elif [ "$verdict" != green ]; then
-    MERGE_WHY="merging into develop before every check on $oid has passed with gate among them ($verdict). Wait with 'gh pr checks <n> --watch', then merge."
+    MERGE_WHY="merging into $base before every check on $oid has passed with gate among them ($verdict). Wait with 'gh pr checks <n> --watch', then merge."
   else
     return 0
   fi
@@ -140,9 +147,10 @@ truthy() { case "$1" in 1|t|T|true|TRUE|True) return 0 ;; *) return 1 ;; esac; }
 # PR is looked up, and a failed lookup blocks. The words are read on `bare`, where a quoted value
 # is one `_` word, so a flag's value is never taken for the PR. A short-flag cluster is read
 # letter by letter, as gh reads it: a letter that takes a value (A, b, F, t, R) takes the rest of
-# the cluster, or the next word when it ends the cluster, so `-tsubject` holds no `s` flag. A
-# promotion passes only with --merge as its one strategy: a squash or rebase gives the target
-# commits the source never had. With agent_merges, agent_may_merge decides a PR into develop.
+# the cluster, or the next word when it ends the cluster, so `-tsubject` holds no `s` flag. In the
+# release model, a promotion passes only with --merge as its one strategy: a squash or rebase gives
+# the target commits the source never had. With agent_merges, agent_may_merge decides a PR into
+# the base branch.
 segment_merges_protected() {
   local bare="$1" i=0 pr="" repo="" merge=0 squash=0 rebase=0 auto=0 admin=0 match="" out
   local base head oid prrepo verdict word letters c
@@ -200,14 +208,16 @@ segment_merges_protected() {
     return 0
   fi
   [[ "$base" =~ $RE_PROT_BRANCH ]] || return 1
-  case "$head>$base" in
-    "develop>staging"|"staging>main")
-      [ "$merge" = 1 ] && [ "$squash" = 0 ] && [ "$rebase" = 0 ] && return 1
-      MERGE_WHY="merging the promotion $head → $base without --merge as its one strategy. A squash or rebase gives $base commits $head never had, so the branches drift apart and the next promotion conflicts."
-      return 0
-      ;;
-  esac
-  if [ "$base" = develop ] && [ "$AGENT_MERGES" = true ]; then
+  if [ "$BRANCH_MODEL" = release ]; then
+    case "$head>$base" in
+      "develop>staging"|"staging>main")
+        [ "$merge" = 1 ] && [ "$squash" = 0 ] && [ "$rebase" = 0 ] && return 1
+        MERGE_WHY="merging the promotion $head → $base without --merge as its one strategy. A squash or rebase gives $base commits $head never had, so the branches drift apart and the next promotion conflicts."
+        return 0
+        ;;
+    esac
+  fi
+  if [ "$base" = "$BASE_BRANCH" ] && [ "$AGENT_MERGES" = true ]; then
     agent_may_merge && return 1
     return 0
   fi

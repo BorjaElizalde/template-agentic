@@ -25,17 +25,20 @@ outside the project root), so an update runs without `--trust`.
 |---|---|
 | `issues_repo` | Where task issues live (`owner/name`): issue lookup, PR `Closes` lines, session prompt |
 | `worktree_root` | Folder for linked worktrees, relative to the main checkout |
-| `deploy_workflow` | The GitHub Actions workflow the merge into `main` starts, which `/release` waits for; empty for none |
-| `agent_merges` | Whether the agent may squash-merge its own PR into `develop` once every check on its head, `gate` among them, has passed (default `false`: the owner merges). With it, `settings.json` allows `gh pr merge` and `bash-guard.sh` decides every merge; for a repository whose plan has no rulesets, the guard is then the only place `gate` is enforced |
+| `branch_model` | `release` (default) or `trunk`: the branches work moves through, below. It sets the base branch, the one feature PRs go into: `develop` in `release`, `main` in `trunk` |
+| `deploy_workflow` | Asked only in `release`: the GitHub Actions workflow the merge into `main` starts, which `/release` waits for; empty for none |
+| `agent_merges` | Whether the agent may squash-merge its own PR into the base branch once every check on its head, `gate` among them, has passed (default `false`: the owner merges). With it, `settings.json` allows `gh pr merge` and `bash-guard.sh` decides every merge; for a repository whose plan has no rulesets, the guard is then the only place `gate` is enforced |
 
 Repositories that share an issue tracker and a worktree folder give the same answers. Scripts read
 them from `.claude/agentic.conf`, the only rendered file they source, so they stay plain shell
-that the template's tests run directly.
+that the template's tests run directly. It also records the base branch as `BASE_BRANCH`, so no
+script derives it from the branch model.
 
-Every project works on the same three branches: feature PRs go into `develop`, and `/release`
+A `release` project works on three branches: feature PRs go into `develop`, and `/release`
 promotes `develop` to `staging` to `main` with merge commits. All three are protected, and
 `develop` is the default branch: GitHub links a PR's `Closes` line to its issue only on a PR into
-the default branch.
+the default branch. A `trunk` project, one with nothing to deploy, works on `main` alone: feature
+PRs squash into it, and it has no `/release`. `main` is protected and is the default branch.
 
 ## Tasks
 
@@ -79,11 +82,12 @@ here.
 
 ## CI
 
-`.github/workflows/gate.yaml` runs on every PR into `develop`, `staging` or `main`. It first
-checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
-`bugfix/*` PR of one commit, from the repository's own branches. Then it runs the stack layer's
-checks. Rulesets require its `gate` check on all three branches, and `/release` waits for it on
-each promotion PR.
+`.github/workflows/gate.yaml` runs on every PR into a protected branch. In `release`, those are
+`develop`, `staging` and `main`, and it first checks where the PR comes from: `main` takes
+`staging`, and `staging` takes `develop` or a `bugfix/*` PR of one commit, from the repository's
+own branches. In `trunk`, it runs on PRs into `main` and checks no source. Then it runs the stack
+layer's checks. Rulesets require its `gate` check on every protected branch, and `/release`
+waits for it on each promotion PR.
 
 ## Plug-in points for a stack layer
 
@@ -93,7 +97,7 @@ nothing.
 
 | File | Contract |
 |---|---|
-| `.github/actions/stack-gate/action.yaml` | The composite action the `Gate` workflow runs on every PR into `develop`, `staging` or `main`, after its PR-source check and the checkout. It calls the stack's tools directly, never `make gate`, so a change that relaxes the local gate can't relax CI. |
+| `.github/actions/stack-gate/action.yaml` | The composite action the `Gate` workflow runs on every PR into a protected branch, after the checkout and, in `release`, its PR-source check. It calls the stack's tools directly, never `make gate`, so a change that relaxes the local gate can't relax CI. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit/Write with the hook payload on stdin. |
 | `.claude/review-wave.md` | Names the plan reviewer, the review wave, the last pass, and the resolver for lint, format and type failures that `/agentic-flow` runs. |
@@ -101,7 +105,7 @@ nothing.
 
 ## Develop
 
-This repository works on the same three branches as every project. Feature PRs squash into
+This repository uses the `release` model and its three branches. Feature PRs squash into
 `develop`; `/release` merges `develop` into `staging` and `staging` into `main`, where `Build`
 tags the next version; a `bugfix/` branch of one commit merges into `staging`. Rulesets hold
 each branch to PRs with a passing `gate`, `staging` and `main` to merge commits and `develop` to
@@ -109,18 +113,17 @@ squashes. Commits use the GitHub noreply address set in the clone's git config.
 
 The repository is a project of its own template: `.claude/` holds the whole harness, rendered
 from the working tree with the answers `.claude/agentic.conf` records (its own issues as the
-issues repository, `Build` as its deploy workflow), so work here runs the guards and skills every
-project gets. Being the source, it has no answers file for Copier or Renovate to update. Instead
-`make render` makes `.claude/` match a render of the working tree, leaving the paths this
-repository owns (the memory stores and the local settings). A pre-commit hook runs it on every
-commit that changes `template/` and stops the commit when it re-rendered something, so the
-re-render is staged with the change. Once per clone, run `uvx pre-commit install` and
-`bash .claude/skills/task/scripts/task.sh point-memory`.
+issues repository, the `release` model, `Build` as its deploy workflow), so work here runs the
+guards and skills every project gets. Being the source, it has no answers file for Copier or
+Renovate to update. Instead `make render` makes `.claude/` match a render of the working tree,
+leaving the paths this repository owns (the memory stores and the local settings). A pre-commit
+hook runs it on every commit that changes `template/` and stops the commit when it re-rendered
+something, so the re-render is staged with the change. Once per clone, run
+`uvx pre-commit install` and `bash .claude/skills/task/scripts/task.sh point-memory`.
 
-`make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`task.sh` suites. It also runs `make render` on a copy of the working tree and fails when that
-changes `.claude/`, for a commit made without the hook. The
-`Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
-checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
-`bugfix/*` PR of one commit, from this repository's own branches. `Build` runs the gate again on
-`main` before it tags.
+`make gate` renders the template in both branch models and runs the rendered guard, protocol,
+memory checker and `task.sh` suites. It also runs `make render` on a copy of the working tree and
+fails when that changes `.claude/`, for a commit made without the hook. The `Gate` workflow runs
+the same target on every PR into `develop`, `staging` or `main`, after it checks where the PR comes
+from: `main` takes `staging`, and `staging` takes `develop` or a `bugfix/*` PR of one commit, from
+this repository's own branches. `Build` runs the gate again on `main` before it tags.

@@ -133,7 +133,7 @@ The caller names one of two:
 
 - **Diff-scoped** — the memories this branch touches: `git diff --name-only <range> -- .claude/`
   **and** `git status --short -- .claude/`, where `<range>` is the range your prompt names, and
-  `origin/develop...HEAD` only when it names none — a stacked branch has a different base. You run
+  `origin/{{ base_branch }}...HEAD` only when it names none — a stacked branch has a different base. You run
   before the wave's memories are committed, so the notes most needing judgement are usually the
   uncommitted ones; a range alone can
   resolve to nothing while they sit there. An empty scope means the range you were given is wrong —

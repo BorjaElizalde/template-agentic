@@ -22,7 +22,7 @@ The same steps start a new task and pick up an existing one.
    task whose issue is closed, as a bare `/task:finish` does. Then it picks up what the issue
    already has:
    - its worktree, else its branch (left without a worktree, or pushed from another clone), else
-     a new branch from `origin/develop`;
+     a new branch from `origin/{{ base_branch }}`;
    - its running session, brought to the front and never opened twice, else its last session,
      resumed, else a new one.
 

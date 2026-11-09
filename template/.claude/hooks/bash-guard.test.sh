@@ -46,36 +46,44 @@ case "$pr" in
   15) pr_json main feat/x "$GATE" ;;
   16) pr_json staging bugfix/x "$GATE" ;;
   "") pr_json feat/x fix/y "$GATE" ;;
-  # The opt-in cases' PRs into develop, each with its checks.
-  21) pr_json develop feat/x "$GATE,$(run docs COMPLETED SKIPPED),$(ctx legacy/ci SUCCESS)" ;;
-  22) pr_json develop feat/x "$(run gate IN_PROGRESS '')" ;;
-  23) pr_json develop feat/x "$(run lint COMPLETED SUCCESS)" ;;
-  24) pr_json develop feat/x "$GATE,$(run test COMPLETED FAILURE)" ;;
-  25) pr_json develop feat/x "$GATE,$(ctx legacy/ci PENDING)" ;;
-  26) pr_json develop feat/x "" ;;
+  # The opt-in cases' PRs into $PR_BASE, the base branch of the model whose cases run, each with
+  # its checks.
+  21) pr_json "$PR_BASE" feat/x "$GATE,$(run docs COMPLETED SKIPPED),$(ctx legacy/ci SUCCESS)" ;;
+  22) pr_json "$PR_BASE" feat/x "$(run gate IN_PROGRESS '')" ;;
+  23) pr_json "$PR_BASE" feat/x "$(run lint COMPLETED SUCCESS)" ;;
+  24) pr_json "$PR_BASE" feat/x "$GATE,$(run test COMPLETED FAILURE)" ;;
+  25) pr_json "$PR_BASE" feat/x "$GATE,$(ctx legacy/ci PENDING)" ;;
+  26) pr_json "$PR_BASE" feat/x "" ;;
+  27) pr_json "$PR_BASE" feat/x "$GATE,$(run test COMPLETED '')" ;;
   *) exit 1 ;;
 esac
 EOF
 chmod +x "$STUB/gh"
 export PATH="$STUB:$PATH"
 
-# The guard reads agent_merges from the agentic.conf beside its folder, and its own repository from
-# its checkout's origin. Each copy below runs beside a fixture answer, so the cases never depend on
-# the answers this project was rendered with.
-fixture() {  # fixture <dir> <agent_merges> [<origin>]
+# The guard reads the branch model, the base branch and agent_merges from the agentic.conf beside
+# its folder, and its own repository from its checkout's origin. Each copy below runs beside a
+# fixture answer, so the cases never depend on the answers this project was rendered with.
+base_of() { if [ "$1" = trunk ]; then echo main; else echo develop; fi; }
+fixture() {  # fixture <dir> <branch_model> <agent_merges> [<origin>]
   mkdir -p "$1/.claude/hooks"
   cp "$SRC" "$1/.claude/hooks/bash-guard.sh"
-  printf 'AGENT_MERGES=%s\n' "$2" >"$1/.claude/agentic.conf"
+  printf 'BRANCH_MODEL=%s\nBASE_BRANCH=%s\nAGENT_MERGES=%s\n' "$2" "$(base_of "$2")" "$3" >"$1/.claude/agentic.conf"
   git init -q "$1"
-  [ -z "${3:-}" ] || git -C "$1" remote add origin "$3"
+  [ -z "${4:-}" ] || git -C "$1" remote add origin "$4"
 }
-fixture "$STUB/off" false https://github.com/Acme/App.git
-fixture "$STUB/on" true https://github.com/Acme/App.git
-fixture "$STUB/on-ssh" true git@github.com:acme/app.git
-fixture "$STUB/on-no-origin" true
+fixture "$STUB/release-off" release false https://github.com/Acme/App.git
+fixture "$STUB/release-on" release true https://github.com/Acme/App.git
+fixture "$STUB/release-on-ssh" release true git@github.com:acme/app.git
+fixture "$STUB/release-on-no-origin" release true
+fixture "$STUB/trunk-off" trunk false https://github.com/Acme/App.git
+fixture "$STUB/trunk-on" trunk true https://github.com/Acme/App.git
+mkdir -p "$STUB/no-conf/.claude/hooks"
+cp "$SRC" "$STUB/no-conf/.claude/hooks/bash-guard.sh"
 git init -q "$STUB/other"
 git -C "$STUB/other" remote add origin https://github.com/other/app.git
-GUARD="$STUB/off/.claude/hooks/bash-guard.sh"
+GUARD="$STUB/release-off/.claude/hooks/bash-guard.sh"
+export PR_BASE=develop
 
 # The guard blocks a commit in a main checkout, so the folder a case runs in decides its verdict.
 # Every case runs in $STUB, which is no repo; the main-checkout cases name their repo with cd.
@@ -91,12 +99,13 @@ guard_case() {  # guard_case <guard> <want> <desc> <command>
   else fail=$((fail+1)); echo "FAIL (want $exp, got $got) $desc :: $cmd"; fi
 }
 t() { guard_case "$GUARD" "$@"; }
-t_on() { guard_case "$STUB/on/.claude/hooks/bash-guard.sh" "$@"; }
+# The opt-in cases run on the guard of the model named in $model, whose PRs go into $PR_BASE.
+t_on() { guard_case "$STUB/$model-on/.claude/hooks/bash-guard.sh" "$1" "$model: $2" "$3"; }
 says() {  # says <phrase> <desc> <command>: the opt-in guard blocks, naming <phrase>
   local out
-  out="$(cd "$STUB" && jq -n --arg c "$3" '{tool_input:{command:$c}}' | bash "$STUB/on/.claude/hooks/bash-guard.sh" 2>&1)"
-  if [[ "$out" == *"$1"* ]]; then pass=$((pass+1)); echo "PASS (says) $2"
-  else fail=$((fail+1)); echo "FAIL (want '$1') $2 :: $out"; fi
+  out="$(cd "$STUB" && jq -n --arg c "$3" '{tool_input:{command:$c}}' | bash "$STUB/$model-on/.claude/hooks/bash-guard.sh" 2>&1)"
+  if [[ "$out" == *"$1"* ]]; then pass=$((pass+1)); echo "PASS (says) $model: $2"
+  else fail=$((fail+1)); echo "FAIL (want '$1') $model: $2 :: $out"; fi
 }
 
 echo "-- protected pushes (must block)"
@@ -156,47 +165,70 @@ t 0 "promotion with -m and an attached subject"         'gh pr merge 12 -m -tsub
 t 0 "promotion with --merge=true"                       'gh pr merge 12 --merge=true'
 t 2 "promotion with --merge=false"                      'gh pr merge 12 --merge=false'
 
-echo "-- agent_merges: the agent's own PR into develop, squashed, pinned to a head whose every check"
-echo "   passed with gate among them (PR 21 green; 22 gate running; 23 no gate; 24 a check failed;"
-echo "   25 a status pending; 26 no checks; 16 bugfix→staging)"
-t_on 0 "own green PR, squash, pinned head"   "gh pr merge 21 --squash --match-head-commit $H"
-t_on 0 "pin given with ="                    "gh pr merge 21 --squash --match-head-commit=$H"
-t_on 0 "short -s in a cluster with -d"       "gh pr merge 21 -sd --match-head-commit $H"
-t_on 0 "own repo named with -R, any case"    "gh pr merge 21 -R Acme/App --squash --match-head-commit $H"
+guard_case "$STUB/no-conf/.claude/hooks/bash-guard.sh" 2 "without agentic.conf, a promotion is the owner's" 'gh pr merge 12 --merge'
+
+# Each model runs the same cases on its own PRs into its base branch.
+for model in release trunk; do
+  export PR_BASE; PR_BASE="$(base_of "$model")"
+  echo "-- agent_merges, $model: the agent's own PR into $PR_BASE, squashed, pinned to a head whose"
+  echo "   every check passed with gate among them (PR 21 green; 22 gate running; 23 no gate; 24 a"
+  echo "   check failed; 25 a status pending; 26 no checks; 27 a check completed with no conclusion;"
+  echo "   16 bugfix→staging)"
+  t_on 0 "own green PR, squash, pinned head"   "gh pr merge 21 --squash --match-head-commit $H"
+  t_on 0 "pin given with ="                    "gh pr merge 21 --squash --match-head-commit=$H"
+  t_on 0 "short -s in a cluster with -d"       "gh pr merge 21 -sd --match-head-commit $H"
+  t_on 0 "own repo named with -R, any case"    "gh pr merge 21 -R Acme/App --squash --match-head-commit $H"
+  t_on 2 "no pin"                              'gh pr merge 21 --squash'
+  t_on 2 "pin to another commit"               'gh pr merge 21 --squash --match-head-commit 2222222222222222222222222222222222222222'
+  t_on 2 "a merge commit"                      "gh pr merge 21 --merge --match-head-commit $H"
+  t_on 2 "a rebase"                            "gh pr merge 21 --rebase --match-head-commit $H"
+  t_on 2 "--auto"                              "gh pr merge 21 --squash --auto --match-head-commit $H"
+  t_on 2 "--admin"                             "gh pr merge 21 --squash --admin --match-head-commit $H"
+  t_on 2 "gate still running"                  "gh pr merge 22 --squash --match-head-commit $H"
+  t_on 2 "no gate among the checks"            "gh pr merge 23 --squash --match-head-commit $H"
+  t_on 2 "a check failed"                      "gh pr merge 24 --squash --match-head-commit $H"
+  t_on 2 "a status still pending"              "gh pr merge 25 --squash --match-head-commit $H"
+  t_on 2 "no checks at all"                    "gh pr merge 26 --squash --match-head-commit $H"
+  # An empty conclusion is not a pass, even on a check that says it completed.
+  t_on 2 "a check completed with no conclusion" "gh pr merge 27 --squash --match-head-commit $H"
+  t_on 2 "another repository named with -R"    "gh pr merge 21 -R other/app --squash --match-head-commit $H"
+  t_on 2 "another repository after cd"         "cd $STUB/other && gh pr merge 21 --squash --match-head-commit $H"
+  t_on 2 "bugfix into staging stays the owner's" "gh pr merge 16 --squash --match-head-commit $H"
+  t_on 2 "REST merge route still blocks"       'gh api -X PUT repos/acme/app/pulls/21/merge'
+  says "--match-head-commit $H" "a missing pin names the head to pin" 'gh pr merge 21 --squash'
+  says "$PR_BASE takes squash merges" "a merge commit is refused in the base branch's name" "gh pr merge 21 --merge --match-head-commit $H"
+  says "a-check-not-passed" "a failed check is named in the verdict" "gh pr merge 24 --squash --match-head-commit $H"
+  says "a-check-not-passed" "a check with no conclusion is named in the verdict" "gh pr merge 27 --squash --match-head-commit $H"
+  says "only its own repository" "another repository is named as not this project's" "gh pr merge 21 -R other/app --squash --match-head-commit $H"
+  t_on 2 "a rebase whose attached subject holds an s"     "gh pr merge 21 -r -tsubject --match-head-commit $H"
+  t_on 2 "a squash and a rebase both"                     "gh pr merge 21 --squash --rebase --match-head-commit $H"
+  t_on 2 "--squash=false"                                 "gh pr merge 21 --squash=false --rebase --match-head-commit $H"
+  t_on 0 "-s, then an attached subject"                   "gh pr merge 21 -s -tmessage --match-head-commit $H"
+  t_on 0 "-st, the subject the next word"                 "gh pr merge 21 -st subject --match-head-commit $H"
+  t_on 0 "--squash=true"                                  "gh pr merge 21 --squash=true --match-head-commit $H"
+  t_on 2 "another repository attached to -R"              "gh pr merge 21 -Rother/app --squash --match-head-commit $H"
+  t_on 2 "another repository in an -sR cluster"           "gh pr merge 21 -sR other/app --match-head-commit $H"
+  t_on 2 "--auto=true"                                    "gh pr merge 21 --squash --auto=true --match-head-commit $H"
+  t_on 0 "--auto=false"                                   "gh pr merge 21 --squash --auto=false --match-head-commit $H"
+  t_on 2 "--admin=1"                                      "gh pr merge 21 --squash --admin=1 --match-head-commit $H"
+done
+
+echo "-- agent_merges, release only: the promotions pass as merge commits; a feature PR into main"
+echo "   stays the owner's (PR 12 develop→staging, 15 feat→main)"
+model=release PR_BASE=develop
 t_on 0 "promotion still passes"              'gh pr merge 12 --merge'
-t_on 2 "no pin"                              'gh pr merge 21 --squash'
-t_on 2 "pin to another commit"               'gh pr merge 21 --squash --match-head-commit 2222222222222222222222222222222222222222'
-t_on 2 "a merge commit into develop"         "gh pr merge 21 --merge --match-head-commit $H"
-t_on 2 "a rebase into develop"               "gh pr merge 21 --rebase --match-head-commit $H"
-t_on 2 "--auto"                              "gh pr merge 21 --squash --auto --match-head-commit $H"
-t_on 2 "--admin"                             "gh pr merge 21 --squash --admin --match-head-commit $H"
-t_on 2 "gate still running"                  "gh pr merge 22 --squash --match-head-commit $H"
-t_on 2 "no gate among the checks"            "gh pr merge 23 --squash --match-head-commit $H"
-t_on 2 "a check failed"                      "gh pr merge 24 --squash --match-head-commit $H"
-t_on 2 "a status still pending"              "gh pr merge 25 --squash --match-head-commit $H"
-t_on 2 "no checks at all"                    "gh pr merge 26 --squash --match-head-commit $H"
-t_on 2 "another repository named with -R"    "gh pr merge 21 -R other/app --squash --match-head-commit $H"
-t_on 2 "another repository after cd"         "cd $STUB/other && gh pr merge 21 --squash --match-head-commit $H"
-t_on 2 "bugfix into staging stays the owner's" "gh pr merge 16 --squash --match-head-commit $H"
-t_on 2 "feature into main stays the owner's" "gh pr merge 15 --squash --match-head-commit $H"
 t_on 2 "a squashed promotion still blocks"   "gh pr merge 12 --squash --match-head-commit $H"
-t_on 2 "REST merge route still blocks"       'gh api -X PUT repos/acme/app/pulls/21/merge'
-guard_case "$STUB/on-ssh/.claude/hooks/bash-guard.sh" 0 "own repo from an ssh origin" "gh pr merge 21 --squash --match-head-commit $H"
-guard_case "$STUB/on-no-origin/.claude/hooks/bash-guard.sh" 2 "no origin, so no own repository" "gh pr merge 21 --squash --match-head-commit $H"
-says "--match-head-commit $H" "a missing pin names the head to pin" 'gh pr merge 21 --squash'
-says "a-check-not-passed" "a failed check is named in the verdict" "gh pr merge 24 --squash --match-head-commit $H"
-says "only its own repository" "another repository is named as not this project's" "gh pr merge 21 -R other/app --squash --match-head-commit $H"
-t_on 2 "a rebase whose attached subject holds an s"     "gh pr merge 21 -r -tsubject --match-head-commit $H"
-t_on 2 "a squash and a rebase both"                     "gh pr merge 21 --squash --rebase --match-head-commit $H"
-t_on 2 "--squash=false"                                 "gh pr merge 21 --squash=false --rebase --match-head-commit $H"
-t_on 0 "-s, then an attached subject"                   "gh pr merge 21 -s -tmessage --match-head-commit $H"
-t_on 0 "-st, the subject the next word"                 "gh pr merge 21 -st subject --match-head-commit $H"
-t_on 0 "--squash=true"                                  "gh pr merge 21 --squash=true --match-head-commit $H"
-t_on 2 "another repository attached to -R"              "gh pr merge 21 -Rother/app --squash --match-head-commit $H"
-t_on 2 "another repository in an -sR cluster"           "gh pr merge 21 -sR other/app --match-head-commit $H"
-t_on 2 "--auto=true"                                    "gh pr merge 21 --squash --auto=true --match-head-commit $H"
-t_on 0 "--auto=false"                                   "gh pr merge 21 --squash --auto=false --match-head-commit $H"
-t_on 2 "--admin=1"                                      "gh pr merge 21 --squash --admin=1 --match-head-commit $H"
+t_on 2 "feature into main stays the owner's" "gh pr merge 15 --squash --match-head-commit $H"
+guard_case "$STUB/release-on-ssh/.claude/hooks/bash-guard.sh" 0 "own repo from an ssh origin" "gh pr merge 21 --squash --match-head-commit $H"
+guard_case "$STUB/release-on-no-origin/.claude/hooks/bash-guard.sh" 2 "no origin, so no own repository" "gh pr merge 21 --squash --match-head-commit $H"
+
+echo "-- trunk: no promotions, and develop is no base branch (PR 11 feat→develop, 12 develop→staging,"
+echo "   13 staging→main, 15 feat→main)"
+model=trunk
+t_on 2 "a feature PR into develop is the owner's"   "gh pr merge 11 --squash --match-head-commit $H"
+t_on 2 "develop→staging is no promotion"            'gh pr merge 12 --merge'
+t_on 2 "staging→main is no promotion"               'gh pr merge 13 --merge'
+guard_case "$STUB/trunk-off/.claude/hooks/bash-guard.sh" 2 "trunk: without agent_merges, a green pinned squash into main is the owner's" "gh pr merge 15 --squash --match-head-commit $H"
 
 echo "-- skipping the commit hooks (must block)"
 t 2 "commit --no-verify"               'git commit --no-verify -m "x"'

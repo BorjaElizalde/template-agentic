@@ -7,6 +7,10 @@ _skip_if_exists:
   - .claude/memory/MEMORY.md
   - renovate.json
 
+# The trunk model has no promotions to run.
+_exclude:
+  - "{% if branch_model == 'trunk' %}/.claude/skills/release{% endif %}"
+
 issues_repo:
   type: str
   help: GitHub repository that holds the task issues, as owner/name
@@ -16,12 +20,27 @@ worktree_root:
   help: Folder for linked worktrees, relative to the main checkout
   default: ../worktrees
 
+branch_model:
+  type: str
+  help: The branches work moves through
+  choices:
+    "release: feature PRs go into develop, and /release promotes develop to staging to main": release
+    "trunk: feature PRs go into main, for a project with nothing to deploy": trunk
+  default: release
+
+# The branch feature PRs go into, computed so no file repeats the branch model's if.
+base_branch:
+  type: str
+  default: "{{ 'main' if branch_model == 'trunk' else 'develop' }}"
+  when: false
+
 deploy_workflow:
   type: str
   help: GitHub Actions workflow the merge into main starts, which /release waits for; empty for none
   default: ""
+  when: "{{ branch_model == 'release' }}"
 
 agent_merges:
   type: bool
-  help: Let the agent squash-merge its own PR into develop once every check on its head, gate among them, has passed
+  help: Let the agent squash-merge its own PR into the base branch once every check on its head, gate among them, has passed
   default: false

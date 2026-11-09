@@ -133,10 +133,10 @@ APPLESCRIPT
 }
 
 # Whether branch $1 holds commits that exist nowhere else. They are safe when there are none beyond
-# develop, when its remote branch has them all, or when a PR from it merged: a squash merge leaves
-# the branch's own commits off develop.
+# the base branch, when its remote branch has them all, or when a PR from it merged: a squash merge
+# leaves the branch's own commits off the base branch.
 unshipped() {
-	[ "$(git rev-list --count "origin/develop..$1")" -eq 0 ] && return 1
+	[ "$(git rev-list --count "origin/$BASE_BRANCH..$1")" -eq 0 ] && return 1
 	git rev-parse -q --verify "refs/remotes/origin/$1" >/dev/null &&
 		[ "$(git rev-list --count "origin/$1..$1")" -eq 0 ] && return 1
 	[ -n "$(gh pr list --head "$1" --state merged --json number -q '.[0].number')" ] && return 1
@@ -165,7 +165,7 @@ start_task() {
 			branch=$type/$issue-$slug
 			worktree=$WORKTREE_ROOT/$issue-$slug/$REPO_NAME
 			mkdir -p "$(dirname "$worktree")"
-			git worktree add -q -b "$branch" "$worktree" origin/develop
+			git worktree add -q -b "$branch" "$worktree" "origin/$BASE_BRANCH"
 		fi
 		worktree=$(cd "$worktree" && pwd -P)
 		# Seed the gitignored files git worktree add can't carry, never overwriting one.
