@@ -285,23 +285,17 @@ active_line() {
 }
 
 # Sweeps first, so a look also finishes what is done. Then one line per task worktree of this
-# checkout, and the queue: the open issues with no task.
+# checkout, and nothing else: the backlog is gh issue list's.
 status() {
-	local issues issue worktree view pr
+	local issue worktree view pr
 	sweep
 	SESSIONS=$(claude agents --json)
-	issues=$(task_issues)
-	for issue in $issues; do
+	for issue in $(task_issues); do
 		worktree=$(issue_worktree "$issue")
 		view=$(issue_view "$issue")
 		pr=$(pr_line "$(git -C "$worktree" branch --show-current)")
 		echo "#$issue $(short_title "${view#* }"): $(session_line "$worktree"), $pr, $(active_line "$worktree")"
 	done
-	# Only this checkout's worktrees count: the worktree root can also hold the issue folders of a
-	# repository with another issues repository, whose issue numbers overlap these.
-	echo "Queue, the open issues with no task here:"
-	gh issue list -R "$ISSUES_REPO" --state open --limit 1000 --json number,title |
-		jq -r --argjson tasks "$(jq -s . <<<"$issues")" '.[] | select(.number | IN($tasks[]) | not) | "#\(.number) \(.title)"'
 }
 
 case ${1:-} in

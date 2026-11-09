@@ -2,7 +2,7 @@
 # From the agentic template: change the template, not this copy.
 # Regression suite for task.sh. Run from any checkout: bash .claude/skills/task/scripts/task.test.sh
 # Two clones of one throwaway origin, named backend and frontend, stand in for two repositories.
-# Stub gh answers issue state and title, the open issues, and PRs from files under $TASK_TEST_STATE;
+# Stub gh answers issue state and title, and PRs, from files under $TASK_TEST_STATE;
 # stub osascript logs the sessions it would open, end or bring to the front, and keeps its last
 # script; stub claude lists a session running in the folder named in $TASK_TEST_STATE/running, and
 # stub ps gives its tty.
@@ -17,24 +17,16 @@ pass=0; fail=0
 mkdir -p "$WORK/bin" "$TASK_TEST_STATE" "$WORK/seed/.claude/skills/task/scripts" "$WORK/repos"
 cat >"$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-title() {
-  case "$1" in
-    42) echo "Name make close_claude_session in backend CLAUDE.md" ;;
-    7) echo "Second task" ;;
-    5) echo "Already done" ;;
-    8|9|10|11|12|13|14|15) echo "Task $1" ;;
-    *) return 1 ;;
-  esac
-}
-issue_state() { cat "$TASK_TEST_STATE/issue-$1" 2>/dev/null || echo OPEN; }
 case "$1 $2" in
   "issue view")
-    t=$(title "$3") || exit 1
-    echo "$(issue_state "$3") $t" ;;
-  "issue list")
-    for n in 42 7 5 8 9 10 11 12 13 14 15; do
-      [ "$(issue_state "$n")" = CLOSED ] || jq -n --argjson n "$n" --arg t "$(title "$n")" '{number: $n, title: $t}'
-    done | jq -s . ;;
+    case "$3" in
+      42) title="Name make close_claude_session in backend CLAUDE.md" ;;
+      7) title="Second task" ;;
+      5) title="Already done" ;;
+      8|9|10|11|12|13|14) title="Task $3" ;;
+      *) exit 1 ;;
+    esac
+    echo "$(cat "$TASK_TEST_STATE/issue-$3" 2>/dev/null || echo OPEN) $title" ;;
   "pr list")
     while [ $# -gt 0 ]; do case "$1" in --head) branch=$2 ;; --state) state=$2 ;; esac; shift; done
     # --state merged asks whether a PR from the branch merged; --state all, for its newest PR.
@@ -273,7 +265,7 @@ check "a look runs"                            run_in "$BACKEND" status
 check "and first finishes the closed task"     test ! -e "$ISSUE14"
 check "a task's session, PR, checks and last write" test "$(status_line 11)" = "#11 Task 11: session idle, PR #21 open, checks pending, active 0 min ago"
 check "a task with none of them yet"           test "$(status_line 13)" = "#13 Task 13: no session, no PR, no transcript"
-check "the queue: the open issues with no task" test "$(sed -n '/^Queue/,$p' "$WORK/out" | tail -n +2)" = "#15 Task 15"
+check "and nothing else"                       test "$(grep -vc '^✓ ' "$WORK/out")" -eq 2
 pr_from feat/11-task-11 OPEN false "[$PENDING, $FAILED]"
 run_in "$BACKEND" status
 check "a failed check outweighs a pending one" bash -c "grep -qF '#11 Task 11: session idle, PR #21 open, checks failed,' '$WORK/out'"

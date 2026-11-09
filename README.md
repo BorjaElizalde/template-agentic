@@ -58,9 +58,8 @@ next start finishes its task.
 `task.sh status` shows every task in one view. It first finishes every task whose issue is
 closed, as a start does, then prints one line per task worktree of this checkout: the issue and
 its short title, its session (`busy`, `idle`, `waiting`, or none), its newest PR with its state
-and check result, and how long ago the session last wrote its transcript. Then come the open
-issues with no task here, as the queue. Only this checkout's worktrees count, because the
-worktree folder can also hold the issue folders of a repository with another issues repository.
+and check result, and how long ago the session last wrote its transcript. It prints nothing
+else, so a look costs the session that runs it a few lines; the backlog is `gh issue list`'s.
 The session that starts a task follows it by the task session's idle notice (`SendMessage` with
 `notify_when_idle`), never by polling, and after its own restart it runs `status` and subscribes
 to every task session still running.
