@@ -46,6 +46,12 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/project.sh\" SessionStart" }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/project.sh\" UserPromptSubmit" }] }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -60,7 +66,8 @@
           { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/worktree-guard.sh\"" },
           { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/practices/guard.sh\"" }
         ]
-      }
+      },
+      { "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/project.sh\" PreToolUse" }] }
     ],
     "PostToolUse": [
       {
@@ -69,7 +76,11 @@
           { "type": "command", "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/hooks/stack/format.sh\"; [ ! -f \"$f\" ] || bash \"$f\"" },
           { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/memory/guard.sh\"" }
         ]
-      }
+      },
+      { "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/project.sh\" PostToolUse" }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/project.sh\" Stop" }] }
     ]
   }
 }

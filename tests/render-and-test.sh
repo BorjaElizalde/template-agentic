@@ -41,6 +41,11 @@ expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
 MERGE_ALLOWED='any(.permissions.allow[]; . == "Bash(gh pr merge:*)")'
 expect "by default settings.json leaves gh pr merge to a prompt" jq -e "$MERGE_ALLOWED | not" "$D/.claude/settings.json"
 expect "with agent_merges settings.json allows gh pr merge" jq -e "$MERGE_ALLOWED" "$AM/.claude/settings.json"
+expect "settings.json runs the project's hooks on each event, with no matcher" jq -e '. as $s
+  | all("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"; . as $e | any($s.hooks[$e][];
+      (has("matcher") | not) and .hooks == [{type: "command", command: "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/project.sh\" \($e)"}]))' \
+  "$D/.claude/settings.json"
+expect "the template renders nothing into the project's hooks folder" test ! -e "$D/.claude/hooks/project"
 GATE="$D/.github/workflows/gate.yaml"
 expect "the Gate workflow is a valid workflow" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows "$GATE"
 expect "the Gate workflow runs the stack's checks, never make" bash -c "
@@ -60,6 +65,7 @@ expect "every script parses" bash -c "for f in \$(find '$D' -name '*.sh'); do ba
 expect "bash-guard suite" bash "$D/.claude/hooks/bash-guard.test.sh"
 expect "practices protocol suite" bash "$D/.claude/hooks/practices/guard.test.sh"
 expect "memory checker suite" bash "$D/.claude/hooks/memory/guard.test.sh"
+expect "project hooks dispatcher suite" bash "$D/.claude/hooks/project.test.sh"
 expect "task.sh suite" bash "$D/.claude/skills/task/scripts/task.test.sh"
 expect "seeded memory index is clean" bash "$D/.claude/hooks/memory/staleness.sh" "$D/.claude/memory"
 expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/task/scripts/task.sh' point-memory >/dev/null &&

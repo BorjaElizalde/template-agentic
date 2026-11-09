@@ -3,7 +3,7 @@
 gate:
 	@bash tests/render-and-test.sh
 
-OWNED := --exclude /memory/ --exclude /agent-memory/ --exclude /settings.local.json
+OWNED := --exclude /memory/ --exclude /agent-memory/ --exclude /settings.local.json --exclude /hooks/project/
 
 # Make .claude/ match a render of the working tree, except the paths this repository owns.
 render:

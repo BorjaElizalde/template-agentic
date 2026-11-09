@@ -67,7 +67,25 @@ their action pins arrive only in the template's update PR; a repository that kee
 adds the same `ignorePaths`. The project's `CLAUDE.md`
 is its own: the template never writes it, and its Product Stage is what the Judgment Guidelines in
 `.claude/rules/agentic.md` decide against. That rule file has no `paths:`, so Claude Code loads it
-in every session. Every other file belongs to this template: change it here, not in a project.
+in every session.
+
+The project's own hooks live in `.claude/hooks/project/<event>/`, a folder the template never
+writes into. `settings.json` runs `.claude/hooks/project.sh <event>` on `SessionStart`,
+`UserPromptSubmit`, `PreToolUse`, `PostToolUse` and `Stop`, with no matcher, and that runs every
+file in the event's folder in name order, each with the hook payload on stdin. Each file is an
+executable program; one that cares about the tool reads `.tool_name` from the payload. The
+contract is the one Claude Code gives a command hook:
+
+- stdout passes through; on `SessionStart` and `UserPromptSubmit` it becomes context;
+- the first script that exits 2 stops the run, its stderr is the reason, and the hook exits 2;
+- a script that fails any other way is reported on one stderr line that names it, the rest still
+  run, and the hook exits 1;
+- JSON output is not supported: several scripts' JSON can't be merged into one answer.
+
+All scripts of an event share that hook's timeout. Task sessions run them too: the `--settings`
+a session starts with adds its hooks to the project's `settings.json` and replaces none of them.
+
+Every other file belongs to this template: change it here, not in a project.
 
 ## One settings file for every stack
 
@@ -112,7 +130,7 @@ from the working tree with the answers `.claude/agentic.conf` records (its own i
 issues repository, `Build` as its deploy workflow), so work here runs the guards and skills every
 project gets. Being the source, it has no answers file for Copier or Renovate to update. Instead
 `make render` makes `.claude/` match a render of the working tree, leaving the paths this
-repository owns (the memory stores and the local settings). A pre-commit hook runs it on every
+repository owns (the memory stores, the local settings and the project's hooks folder). A pre-commit hook runs it on every
 commit that changes `template/` and stops the commit when it re-rendered something, so the
 re-render is staged with the change. Once per clone, run `uvx pre-commit install` and
 `bash .claude/skills/task/scripts/task.sh point-memory`.
