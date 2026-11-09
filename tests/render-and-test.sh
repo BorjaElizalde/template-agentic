@@ -38,6 +38,15 @@ expect "with agent_merges the pull-request skill merges a pinned squash" bash -c
   grep -qF 'gh pr merge <n> --squash --match-head-commit <sha>' '$AM/.claude/skills/pull-request/SKILL.md' &&
   grep -qF 'Bash(gh pr merge:*)' '$AM/.claude/skills/pull-request/SKILL.md'"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
+expect "a session that starts or resumes runs task.sh attention" jq -e 'any(.hooks.SessionStart[];
+  .matcher == "startup|resume" and any(.hooks[];
+    .command == "bash \"$CLAUDE_PROJECT_DIR/.claude/skills/task/scripts/task.sh\" attention"))' "$D/.claude/settings.json"
+session_start_quiet() {  # the rendered hook command, run in the rendered project, which has no task
+  local cmd out
+  cmd="$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$D/.claude/settings.json")"
+  out="$(cd "$D" && CLAUDE_PROJECT_DIR="$D" bash -c "$cmd")" && [ -z "$out" ]
+}
+expect "the SessionStart hook says nothing where no task is" session_start_quiet
 MERGE_ALLOWED='any(.permissions.allow[]; . == "Bash(gh pr merge:*)")'
 expect "by default settings.json leaves gh pr merge to a prompt" jq -e "$MERGE_ALLOWED | not" "$D/.claude/settings.json"
 expect "with agent_merges settings.json allows gh pr merge" jq -e "$MERGE_ALLOWED" "$AM/.claude/settings.json"
