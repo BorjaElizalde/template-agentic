@@ -54,7 +54,10 @@ GATE="$D/.github/workflows/gate.yaml"
 expect "the Gate workflow is a valid workflow" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows "$GATE"
 expect "the Gate workflow runs the stack's checks, never make" bash -c "
   grep -qx '      - uses: ./.github/actions/stack-gate' '$GATE' && ! grep -v '^[[:space:]]*#' '$GATE' | grep -qw make"
-expect "renovate.json is valid Renovate config" uvx --quiet check-jsonschema --schemafile https://docs.renovatebot.com/renovate-schema.json "$D/renovate.json"
+expect "the shared preset and every renovate.json are valid Renovate config" uvx --quiet check-jsonschema \
+  --schemafile https://docs.renovatebot.com/renovate-schema.json "$ROOT/renovate/default.json" "$ROOT/renovate.json" "$D/renovate.json"
+expect "renovate.json takes its rules from the shared preset only" jq -e \
+  '.extends == ["github>BorjaElizalde/template-agentic//renovate/default"]' "$D/renovate.json"
 expect "Renovate leaves the template's CI files to the update PR" jq -e '.["github-actions"].ignorePaths as $p
   | any($p[]; . == ".github/workflows/gate.yaml") and any($p[]; . == ".github/actions/stack-gate/**")' "$D/renovate.json"
 expect "the release skill doesn't say CI runs make gate" bash -c "! grep -q 'make gate' '$D/.claude/skills/release/SKILL.md'"

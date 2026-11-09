@@ -1,6 +1,4 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", ":disableDependencyDashboard"],
-  "semanticCommits": "disabled",
-  "commitMessagePrefix": "renovate:"
+  "extends": ["github>BorjaElizalde/template-agentic//renovate/default"]
 }
