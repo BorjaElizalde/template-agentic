@@ -29,7 +29,7 @@ expect "answers land in .copier-answers.agentic.yaml" test -f "$D/.copier-answer
 expect "no .yml file in the template or the project" bash -c "[ -z \"\$(find '$ROOT' '$D' -name '*.yml' -not -path '*/.git/*')\" ]"
 # GitHub's own expressions, ${{ }}, are not Jinja.
 expect "no Jinja left in rendered files" bash -c "! grep -rIl -E '(^|[^\$])\\{\\{|\\{%' --exclude-dir=.git '$D'"
-expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf' && grep -qx 'DEPLOY_WORKFLOW=' '$D/.claude/agentic.conf' && grep -qx 'AGENT_MERGES=false' '$D/.claude/agentic.conf'"
+expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf' && grep -qx 'DEPLOY_WORKFLOW=' '$D/.claude/agentic.conf' && grep -qx 'AGENT_MERGES=false' '$D/.claude/agentic.conf' && grep -qx 'SESSION_STOP_CHECK=true' '$D/.claude/agentic.conf'"
 expect "by default the pull-request skill leaves the merge to the owner" bash -c "! grep -q 'gh pr merge' '$D/.claude/skills/pull-request/SKILL.md'"
 AM="$OUT/agent-merges"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data agent_merges=true "$OUT/src" "$AM"
@@ -69,6 +69,16 @@ expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R a
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
+# jq -e fails on JSON it can't parse, so each check below also proves the file is JSON.
+SESSION_SETTINGS=.claude/skills/task/session/settings.json
+DENIES_PROMPTS='.hooks.PermissionRequest[0].hooks[0].type == "command"'
+expect "by default a session denies every permission prompt and has a Stop prompt hook" \
+  jq -e "$DENIES_PROMPTS and .hooks.Stop[0].hooks[0].type == \"prompt\"" "$D/$SESSION_SETTINGS"
+NS="$OUT/no-stop-check"
+uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data session_stop_check=false "$OUT/src" "$NS"
+expect "session_stop_check reaches agentic.conf" grep -qx 'SESSION_STOP_CHECK=false' "$NS/.claude/agentic.conf"
+expect "without session_stop_check a session still denies every permission prompt, and has no Stop hook" \
+  jq -e "$DENIES_PROMPTS and (.hooks | has(\"Stop\") | not)" "$NS/$SESSION_SETTINGS"
 
 # This repository is a project of its own template: on a copy of the working tree, make render
 # (which the pre-commit hook runs on every commit that changes template/) must leave .claude/ as it is.

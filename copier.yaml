@@ -25,3 +25,8 @@ agent_merges:
   type: bool
   help: Let the agent squash-merge its own PR into develop once every check on its head, gate among them, has passed
   default: false
+
+session_stop_check:
+  type: bool
+  help: Give each task session a Stop prompt hook, which calls a model at every turn end and sends back a session that stops to wait for an answer
+  default: true
