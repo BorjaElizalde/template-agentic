@@ -60,14 +60,24 @@ closed, as a start does, then prints one line per task worktree of this checkout
 its short title, its session (`busy`, `idle`, `waiting`, or none), its newest PR with its state
 and check result, and how long ago the session last wrote its transcript. It prints nothing
 else, so a look costs the session that runs it a few lines; the backlog is `gh issue list`'s.
-The session that starts a task follows it by the task session's idle notice (`SendMessage` with
-`notify_when_idle`), never by polling. A restart can't make it forget its tasks: a `SessionStart`
-hook in `settings.json` (`startup|resume`) runs `task.sh session-start`, which puts the output of
-`status` in the session's context, followed by a line telling it to subscribe to each running
-task session. It does so only in a main checkout; in a task worktree, and where no task is, it
-prints nothing. When `gh` or `claude agents` can't answer, it says the tasks are unknown and the
-session starts anyway. Its cost is `status`'s: under 2 seconds with one task, plus three `gh`
-calls for each further task, and more when the sweep finishes one.
+
+The main session follows its tasks through `task.sh attention`: the same lines, for only the
+tasks that need attention. A task needs it when its session waits for an answer, or has been idle
+or gone for 10 minutes (`QUIET_MINUTES`) since it last wrote its transcript. A busy session is
+working, and one that went quiet only just now often waits for a background check that wakes it
+when the check finishes. Idle notices (`SendMessage` with `notify_when_idle`) are not used: they
+can't be delayed, so they would fire on exactly those pauses. The list comes at three moments:
+
+- `/task:start` prints it after its sweep, leaving out the task it starts;
+- a `SessionStart` hook in `settings.json` (`startup|resume`) puts it in the context of a session
+  that starts or resumes in a main checkout, so a restart forgets nothing;
+- a main session that runs a `/loop` can print it on each round.
+
+`attention` only reads, so a session start stays fast: it never sweeps, and a task whose issue is
+closed shows up until the next start finishes it. It prints nothing in a task worktree, so task
+sessions are untouched, nor when no task needs attention; where there is no task worktree it calls
+neither `gh` nor `claude`. When `gh` or `claude agents` can't answer, it says the tasks are unknown
+and exits 0, so the session starts anyway. The start skill says what to do with each line.
 
 A task session is an interactive `claude` process in a Terminal tab (`open_session` in
 `task.sh`), never `claude -p`, the Agent SDK or an API key. Nobody answers it, so it never waits

@@ -38,9 +38,9 @@ expect "with agent_merges the pull-request skill merges a pinned squash" bash -c
   grep -qF 'gh pr merge <n> --squash --match-head-commit <sha>' '$AM/.claude/skills/pull-request/SKILL.md' &&
   grep -qF 'Bash(gh pr merge:*)' '$AM/.claude/skills/pull-request/SKILL.md'"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
-expect "a session that starts or resumes runs task.sh session-start" jq -e 'any(.hooks.SessionStart[];
+expect "a session that starts or resumes runs task.sh attention" jq -e 'any(.hooks.SessionStart[];
   .matcher == "startup|resume" and any(.hooks[];
-    .command == "bash \"$CLAUDE_PROJECT_DIR/.claude/skills/task/scripts/task.sh\" session-start"))' "$D/.claude/settings.json"
+    .command == "bash \"$CLAUDE_PROJECT_DIR/.claude/skills/task/scripts/task.sh\" attention"))' "$D/.claude/settings.json"
 session_start_quiet() {  # the rendered hook command, run in the rendered project, which has no task
   local cmd out
   cmd="$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$D/.claude/settings.json")"

@@ -4,8 +4,8 @@
 # Two clones of one throwaway origin, named backend and frontend, stand in for two repositories.
 # Stub gh answers issue state and title, and PRs, from files under $TASK_TEST_STATE;
 # stub osascript logs the sessions it would open, end or bring to the front, and keeps its last
-# script; stub claude lists a session running in the folder named in $TASK_TEST_STATE/running, and
-# stub ps gives its tty.
+# script; stub claude lists a session running in each folder named in $TASK_TEST_STATE/running,
+# and stub ps gives its tty.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(cd "$(mktemp -d)" && pwd -P)"
@@ -23,7 +23,7 @@ case "$1 $2" in
       42) title="Name make close_claude_session in backend CLAUDE.md" ;;
       7) title="Second task" ;;
       5) title="Already done" ;;
-      8|9|10|11|12|13|14) title="Task $3" ;;
+      8|9|10|11|12|13|14|15|16) title="Task $3" ;;
       *) exit 1 ;;
     esac
     echo "$(cat "$TASK_TEST_STATE/issue-$3" 2>/dev/null || echo OPEN) $title" ;;
@@ -47,24 +47,29 @@ printf '%s\n' "$*" >>"$TASK_TEST_STATE/osascript.log"
 # the session never stops, and the script fails as session_tab's does after 30 seconds.
 if [ "${3:-}" = exit ]; then
   [ ! -f "$TASK_TEST_STATE/stuck" ] || exit 1
-  rm -f "$TASK_TEST_STATE/running"
+  # Its session's line goes: the session on /dev/ttys042 is on line 1, /dev/ttys043 on line 2.
+  awk -v n=$((10#${2#/dev/ttys} - 41)) 'NR != n' "$TASK_TEST_STATE/running" >"$TASK_TEST_STATE/running.next"
+  mv "$TASK_TEST_STATE/running.next" "$TASK_TEST_STATE/running"
 fi
 exit 0
 EOF
-# claude agents --json, as Claude Code prints it: a background session, then the interactive one,
-# both in the running folder; the interactive one is busy unless $TASK_TEST_STATE/status says else.
-# While $TASK_TEST_STATE/claude-down exists, it can't answer.
+# claude agents --json, as Claude Code prints it. Each line of $TASK_TEST_STATE/running,
+# "<folder> [<status>]", is a background session, then an interactive one, busy unless the line
+# says else, with pid 4242 on line 1, 4243 on line 2. While $TASK_TEST_STATE/claude-down exists,
+# it can't answer.
 cat >"$WORK/bin/claude" <<'EOF'
 #!/usr/bin/env bash
 [ "$*" = "agents --json" ] && [ ! -f "$TASK_TEST_STATE/claude-down" ] || exit 1
 [ -f "$TASK_TEST_STATE/running" ] || { echo '[]'; exit 0; }
-jq -n --arg cwd "$(cat "$TASK_TEST_STATE/running")" --arg status "$(cat "$TASK_TEST_STATE/status" 2>/dev/null || echo busy)" '[
-  {id: "b0b0b0b0", cwd: $cwd, kind: "background", name: "a background session", state: "blocked"},
-  {pid: 4242, cwd: $cwd, kind: "interactive", name: "a task session", status: $status}]'
+jq -Rn '[inputs | capture("^(?<cwd>[^ ]+)( (?<status>.+))?$")] | to_entries | map(
+  {id: "b0b0b0b0", cwd: .value.cwd, kind: "background", name: "a background session", state: "blocked"},
+  {pid: (4242 + .key), cwd: .value.cwd, kind: "interactive", name: "a task session", status: (.value.status // "busy")})' \
+  "$TASK_TEST_STATE/running"
 EOF
+# The tty of pid 4242 is ttys042, of 4243 ttys043.
 cat >"$WORK/bin/ps" <<'EOF'
 #!/usr/bin/env bash
-[ "$*" = "-o tty= -p 4242" ] && printf 'ttys042    \n'
+[ "$1 $2 $3" = "-o tty= -p" ] && printf 'ttys%03d    \n' $(($4 - 4200))
 EOF
 chmod +x "$WORK/bin/gh" "$WORK/bin/osascript" "$WORK/bin/claude" "$WORK/bin/ps"
 export PATH="$WORK/bin:$PATH"
@@ -251,8 +256,7 @@ ISSUE14="$WORK/repos/worktrees/14-task-14"
 check "backend starts issue 13"                task "$BACKEND" start 13
 check "and issue 14"                           task "$BACKEND" start 14
 echo CLOSED >"$TASK_TEST_STATE/issue-14"
-echo "$ISSUE11/backend" >"$TASK_TEST_STATE/running"
-echo idle >"$TASK_TEST_STATE/status"
+echo "$ISSUE11/backend idle" >"$TASK_TEST_STATE/running"
 transcript "$ISSUE11/backend" old 200001010000
 transcript "$ISSUE11/backend"
 PENDING='{"__typename": "CheckRun", "name": "gate", "status": "IN_PROGRESS", "conclusion": ""}'
@@ -282,20 +286,48 @@ run_in "$BACKEND" status
 check "a merged PR with no checks"             bash -c "grep -qF 'PR #21 merged, no checks,' '$WORK/out'"
 check "a session silent for days"              bash -c "grep -qE '^#11 .*, active [0-9]+ d ago$' '$WORK/out'"
 
-echo "-- session-start: a main checkout's session starts with every task in its context"
-check "a session in the main checkout"         run_in "$BACKEND" session-start
-check "is told the status of each task"        bash -c "grep -qF '#11 Task 11: session idle,' '$WORK/out' && grep -qF '#13 Task 13: no session,' '$WORK/out'"
-check "and how to follow the running ones"     bash -c "tail -n 1 '$WORK/out' | grep -qF 'SendMessage to its session name, \"#<n> backend: <title>\"'"
-check "a session in a task worktree"           run_in "$ISSUE11/backend" session-start
-check "is told nothing"                        test ! -s "$WORK/out"
-check "a session where no task is"             run_in "$FRONTEND" session-start
-check "is told nothing either"                 test ! -s "$WORK/out"
+echo "-- attention: the tasks that need attention, read only"
+ISSUE13="$WORK/repos/worktrees/13-task-13"
+echo CLOSED >"$TASK_TEST_STATE/issue-13"
+check "a look from the main checkout"          run_in "$BACKEND" attention
+check "lists a session idle for 10 minutes"    grep -qF '#11 Task 11: session idle, PR #21 merged, no checks, active' "$WORK/out"
+check "and a task with no session nor transcript" grep -qxF '#13 Task 13: no session, no PR, no transcript' "$WORK/out"
+check "and nothing else"                       test "$(wc -l <"$WORK/out")" -eq 2
+check "it finishes no task whose issue closed" test -d "$ISSUE13/backend"
+rm "$TASK_TEST_STATE/issue-13"
+transcript "$ISSUE11/backend"
+transcript "$ISSUE13/backend"
+check "a session idle, and one gone, for less than 10 minutes" run_in "$BACKEND" attention
+check "need nothing: nothing is printed"       test ! -s "$WORK/out"
+echo "$ISSUE11/backend waiting" >"$TASK_TEST_STATE/running"
+run_in "$BACKEND" attention
+check "a waiting session is listed at once"    bash -c "grep -q '^#11 Task 11: session waiting,' '$WORK/out' && ! grep -q '^#13 ' '$WORK/out'"
+echo "$ISSUE11/backend" >"$TASK_TEST_STATE/running"
+transcript "$ISSUE11/backend" session 200001010000
+run_in "$BACKEND" attention
+check "a busy one is left out, however long ago it wrote" bash -c "! grep -q '^#11 ' '$WORK/out'"
+check "a look from a task worktree"            run_in "$ISSUE11/backend" attention
+check "says nothing"                           test ! -s "$WORK/out"
+check "a look where no task is"                run_in "$FRONTEND" attention
+check "says nothing either"                    test ! -s "$WORK/out"
 touch "$TASK_TEST_STATE/claude-down"
-check "claude agents can't answer, the session still starts" run_in "$BACKEND" session-start
-check "and is told the tasks are unknown"      grep -q '^task.sh status failed' "$WORK/out"
-rm "$TASK_TEST_STATE/claude-down" "$TASK_TEST_STATE/running"
-run_in "$BACKEND" session-start
-check "no session runs: nothing to follow"     bash -c "grep -q '^#11 ' '$WORK/out' && ! grep -q SendMessage '$WORK/out'"
+check "claude agents can't answer: it still exits 0" run_in "$BACKEND" attention
+check "and says the tasks are unknown"         grep -q 'tasks are unknown' "$WORK/out"
+rm "$TASK_TEST_STATE/claude-down"
+
+echo "-- start: lists every other task that needs attention"
+ISSUE15="$WORK/repos/worktrees/15-task-15"
+printf '%s idle\n%s\n' "$ISSUE11/backend" "$ISSUE13/backend" >"$TASK_TEST_STATE/running"
+transcript "$ISSUE11/backend" session 200001010000
+transcript "$ISSUE11/backend" old 200001010000
+check "a start"                                run_in "$BACKEND" start 15
+check "lists an idle task"                     grep -q '^#11 Task 11: session idle,' "$WORK/out"
+check "leaves out a busy one"                  bash -c "! grep -q '^#13 ' '$WORK/out'"
+check "another start"                          run_in "$BACKEND" start 16
+check "lists a task with no session"           grep -qxF '#15 Task 15: no session, no PR, no transcript' "$WORK/out"
+printf '%s\n' "$ISSUE11/backend" "$ISSUE13/backend" "$ISSUE15/backend" >"$TASK_TEST_STATE/running"
+check "a start with every other task busy"     run_in "$BACKEND" start 16
+check "lists nothing, not even its own task"   bash -c "! grep -q '^#' '$WORK/out'"
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"

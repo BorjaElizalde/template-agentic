@@ -3,7 +3,7 @@
 # The task lifecycle behind /task:start and /task:finish: one issue, one worktree, one session.
 set -euo pipefail
 
-usage="usage: task.sh start <issue> [type] | finish <issue> | sweep | status | session-start | point-memory"
+usage="usage: task.sh start <issue> [type] | finish <issue> | sweep | status | attention | point-memory"
 
 CALLER=$(pwd -P)
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -162,6 +162,8 @@ start_task() {
 	[ "${view%% *}" = OPEN ] || die "issue $issue is ${view%% *}: a task starts from an open issue"
 	short=$(short_title "$title")
 	sweep
+	SESSIONS=$(claude agents --json)
+	task_lines attention "$issue"
 	if worktree=$(issue_worktree "$issue"); then
 		echo "✓ worktree exists: $worktree"
 	else
@@ -187,7 +189,6 @@ start_task() {
 	point_memory "$MAIN"
 	point_memory "$worktree"
 	name="#$issue $REPO_NAME: $short"
-	SESSIONS=$(claude agents --json)
 	if tty=$(session_tty "$worktree"); then
 		session_tab "$tty" focus
 		echo "✓ session already running, brought to the front: $name"
@@ -267,15 +268,19 @@ pr_line() {
 		end'
 }
 
-# "active <age> ago" from the newest transcript of a session in folder $1, else "no transcript".
+# The seconds since a session in folder $1 last wrote its transcript; nothing when none did.
+transcript_age() {
+	local newest
+	newest=$(ls -t "$(transcript_dir "$1")"/*.jsonl 2>/dev/null | head -n 1) || return 0
+	echo $(($(date +%s) - $(date -r "$newest" +%s)))
+}
+
+# "active <age> ago" from a transcript_age, else "no transcript".
 active_line() {
-	local newest age
-	if ! newest=$(ls -t "$(transcript_dir "$1")"/*.jsonl 2>/dev/null | head -n 1); then
+	local age=$1
+	if [ -z "$age" ]; then
 		echo "no transcript"
-		return
-	fi
-	age=$(($(date +%s) - $(date -r "$newest" +%s)))
-	if [ "$age" -lt 3600 ]; then
+	elif [ "$age" -lt 3600 ]; then
 		echo "active $((age / 60)) min ago"
 	elif [ "$age" -lt 86400 ]; then
 		echo "active $((age / 3600)) h ago"
@@ -287,34 +292,52 @@ active_line() {
 # Sweeps first, so a look also finishes what is done. Then one line per task worktree of this
 # checkout, and nothing else: the backlog is gh issue list's.
 status() {
-	local issue worktree view pr
 	sweep
 	SESSIONS=$(claude agents --json)
+	task_lines all
+}
+
+# A session idle or gone for less than this many minutes since it last wrote is left alone: one
+# that ends its turn on a background check is woken when the check finishes.
+QUIET_MINUTES=10
+
+# needs_attention <session_line> <transcript_age>: a session waiting for an answer, or idle or
+# gone for QUIET_MINUTES. A busy one is working.
+needs_attention() {
+	case $1 in
+	"session busy") return 1 ;;
+	"session waiting") return 0 ;;
+	*) [ -z "$2" ] || [ "$2" -ge $((QUIET_MINUTES * 60)) ] ;;
+	esac
+}
+
+# task_lines all|attention [<issue>]: one line per task worktree of this checkout, with its session,
+# its PR and when its session last wrote; the issue given is left out. With attention, only the
+# tasks that need it.
+task_lines() {
+	local issue worktree session age view pr
 	for issue in $(task_issues); do
+		[ "$issue" != "${2:-}" ] || continue
 		worktree=$(issue_worktree "$issue")
+		session=$(session_line "$worktree")
+		age=$(transcript_age "$worktree")
+		[ "$1" = all ] || needs_attention "$session" "$age" || continue
 		view=$(issue_view "$issue")
 		pr=$(pr_line "$(git -C "$worktree" branch --show-current)")
-		echo "#$issue $(short_title "${view#* }"): $(session_line "$worktree"), $pr, $(active_line "$worktree")"
+		echo "#$issue $(short_title "${view#* }"): $session, $pr, $(active_line "$age")"
 	done
 }
 
-# The SessionStart hook: the status of every task, put in the context of a session in the main
-# checkout, with how to follow them. It says nothing in a task worktree, whose session follows no
-# task, nor where no task is, and it never keeps a session from starting.
-session_start() {
-	local out
+# The tasks that need attention, read only so it is fast: the SessionStart hook puts them in the
+# context of a session in the main checkout, and a /loop can print them on each round. It says
+# nothing in a task worktree, nor when no task needs attention, and it never fails a session start.
+attention() {
 	[ "$(git -C "$CHECKOUT" rev-parse --absolute-git-dir)" = \
 		"$(git -C "$CHECKOUT" rev-parse --path-format=absolute --git-common-dir)" ] || return 0
 	[ -n "$(task_issues)" ] || return 0
-	# A task.sh of its own, so a failure stops it as set -e does and is reported here.
-	if ! out=$(cd "$CALLER" && bash "$0" status 2>&1); then
-		printf 'task.sh status failed, so the tasks are unknown; run it again once gh and claude agents answer.\n%s' "$out"
-		return 0
-	fi
-	printf '%s\n' "$out"
-	if grep -qE ': session (busy|idle|waiting),' <<<"$out"; then
-		echo "Follow each task whose session runs by its idle notice: SendMessage to its session name, \"#<n> $REPO_NAME: <title>\" as on its line above (ListAgents lists the names), with no message and notify_when_idle: true."
-	fi
+	trap '[ $? -eq 0 ] || { echo "task.sh attention failed, so the tasks are unknown: run it again once gh and claude agents answer."; exit 0; }' EXIT
+	SESSIONS=$(claude agents --json)
+	task_lines attention
 }
 
 case ${1:-} in
@@ -322,7 +345,7 @@ start) [ $# -ge 2 ] || die "$usage"; start_task "$2" "${3:-feat}" ;;
 finish) [ $# -ge 2 ] || die "$usage"; finish_task "$2" ;;
 sweep) sweep ;;
 status) status ;;
-session-start) session_start ;;
+attention) attention ;;
 point-memory) point_memory "$CHECKOUT" && echo "✓ auto memory points at $CHECKOUT/.claude/memory" ;;
 *) die "$usage" ;;
 esac
