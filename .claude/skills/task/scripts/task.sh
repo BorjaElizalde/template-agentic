@@ -3,7 +3,7 @@
 # The task lifecycle behind /task:start and /task:finish: one issue, one worktree, one session.
 set -euo pipefail
 
-usage="usage: task.sh start <issue> [type] | finish <issue> | sweep | status | point-memory"
+usage="usage: task.sh start <issue> [type] | finish <issue> | sweep | status | session-start | point-memory"
 
 CALLER=$(pwd -P)
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -298,11 +298,31 @@ status() {
 	done
 }
 
+# The SessionStart hook: the status of every task, put in the context of a session in the main
+# checkout, with how to follow them. It says nothing in a task worktree, whose session follows no
+# task, nor where no task is, and it never keeps a session from starting.
+session_start() {
+	local out
+	[ "$(git -C "$CHECKOUT" rev-parse --absolute-git-dir)" = \
+		"$(git -C "$CHECKOUT" rev-parse --path-format=absolute --git-common-dir)" ] || return 0
+	[ -n "$(task_issues)" ] || return 0
+	# A task.sh of its own, so a failure stops it as set -e does and is reported here.
+	if ! out=$(cd "$CALLER" && bash "$0" status 2>&1); then
+		printf 'task.sh status failed, so the tasks are unknown; run it again once gh and claude agents answer.\n%s' "$out"
+		return 0
+	fi
+	printf '%s\n' "$out"
+	if grep -qE ': session (busy|idle|waiting),' <<<"$out"; then
+		echo "Follow each task whose session runs by its idle notice: SendMessage to its session name, \"#<n> $REPO_NAME: <title>\" as on its line above (ListAgents lists the names), with no message and notify_when_idle: true."
+	fi
+}
+
 case ${1:-} in
 start) [ $# -ge 2 ] || die "$usage"; start_task "$2" "${3:-feat}" ;;
 finish) [ $# -ge 2 ] || die "$usage"; finish_task "$2" ;;
 sweep) sweep ;;
 status) status ;;
+session-start) session_start ;;
 point-memory) point_memory "$CHECKOUT" && echo "✓ auto memory points at $CHECKOUT/.claude/memory" ;;
 *) die "$usage" ;;
 esac

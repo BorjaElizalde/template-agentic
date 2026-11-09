@@ -61,8 +61,13 @@ its short title, its session (`busy`, `idle`, `waiting`, or none), its newest PR
 and check result, and how long ago the session last wrote its transcript. It prints nothing
 else, so a look costs the session that runs it a few lines; the backlog is `gh issue list`'s.
 The session that starts a task follows it by the task session's idle notice (`SendMessage` with
-`notify_when_idle`), never by polling, and after its own restart it runs `status` and subscribes
-to every task session still running.
+`notify_when_idle`), never by polling. A restart can't make it forget its tasks: a `SessionStart`
+hook in `settings.json` (`startup|resume`) runs `task.sh session-start`, which puts the output of
+`status` in the session's context, followed by a line telling it to subscribe to each running
+task session. It does so only in a main checkout; in a task worktree, and where no task is, it
+prints nothing. When `gh` or `claude agents` can't answer, it says the tasks are unknown and the
+session starts anyway. Its cost is `status`'s: under 2 seconds with one task, plus three `gh`
+calls for each further task, and more when the sweep finishes one.
 
 A task session is an interactive `claude` process in a Terminal tab (`open_session` in
 `task.sh`), never `claude -p`, the Agent SDK or an API key. Nobody answers it, so it never waits

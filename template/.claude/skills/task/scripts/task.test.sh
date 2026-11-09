@@ -53,9 +53,10 @@ exit 0
 EOF
 # claude agents --json, as Claude Code prints it: a background session, then the interactive one,
 # both in the running folder; the interactive one is busy unless $TASK_TEST_STATE/status says else.
+# While $TASK_TEST_STATE/claude-down exists, it can't answer.
 cat >"$WORK/bin/claude" <<'EOF'
 #!/usr/bin/env bash
-[ "$*" = "agents --json" ] || exit 1
+[ "$*" = "agents --json" ] && [ ! -f "$TASK_TEST_STATE/claude-down" ] || exit 1
 [ -f "$TASK_TEST_STATE/running" ] || { echo '[]'; exit 0; }
 jq -n --arg cwd "$(cat "$TASK_TEST_STATE/running")" --arg status "$(cat "$TASK_TEST_STATE/status" 2>/dev/null || echo busy)" '[
   {id: "b0b0b0b0", cwd: $cwd, kind: "background", name: "a background session", state: "blocked"},
@@ -280,6 +281,21 @@ transcript "$ISSUE11/backend" session 200001010000
 run_in "$BACKEND" status
 check "a merged PR with no checks"             bash -c "grep -qF 'PR #21 merged, no checks,' '$WORK/out'"
 check "a session silent for days"              bash -c "grep -qE '^#11 .*, active [0-9]+ d ago$' '$WORK/out'"
+
+echo "-- session-start: a main checkout's session starts with every task in its context"
+check "a session in the main checkout"         run_in "$BACKEND" session-start
+check "is told the status of each task"        bash -c "grep -qF '#11 Task 11: session idle,' '$WORK/out' && grep -qF '#13 Task 13: no session,' '$WORK/out'"
+check "and how to follow the running ones"     bash -c "tail -n 1 '$WORK/out' | grep -qF 'SendMessage to its session name, \"#<n> backend: <title>\"'"
+check "a session in a task worktree"           run_in "$ISSUE11/backend" session-start
+check "is told nothing"                        test ! -s "$WORK/out"
+check "a session where no task is"             run_in "$FRONTEND" session-start
+check "is told nothing either"                 test ! -s "$WORK/out"
+touch "$TASK_TEST_STATE/claude-down"
+check "claude agents can't answer, the session still starts" run_in "$BACKEND" session-start
+check "and is told the tasks are unknown"      grep -q '^task.sh status failed' "$WORK/out"
+rm "$TASK_TEST_STATE/claude-down" "$TASK_TEST_STATE/running"
+run_in "$BACKEND" session-start
+check "no session runs: nothing to follow"     bash -c "grep -q '^#11 ' '$WORK/out' && ! grep -q SendMessage '$WORK/out'"
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"
