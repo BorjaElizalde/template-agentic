@@ -52,6 +52,12 @@ files. Given no issue, `/task:finish` finishes every task whose issue is closed,
 `/task:start` does the same first: a PR merged on GitHub closes its issue, and the next start
 finishes its task.
 
+The main checkout holds no work. `worktree-guard.sh` refuses an Edit or Write there, and
+`bash-guard.sh` refuses a commit. A script that saves by relative path, or a shell redirect, can
+still write there, so after each Bash call run in the main checkout `main-clean-guard.sh` names its
+new untracked and changed files to Claude. It names each change once and keeps what it named in
+the git dir, so a file the owner keeps there does not repeat on every call.
+
 A task session is an interactive `claude` process in a Terminal tab (`open_session` in
 `task.sh`), never `claude -p`, the Agent SDK or an API key. Nobody answers it, so it never waits
 for a person: `--disallowed-tools AskUserQuestion` removes the question tool, a `PermissionRequest`
@@ -125,9 +131,9 @@ commit that changes `template/` and stops the commit when it re-rendered somethi
 re-render is staged with the change. Once per clone, run `uvx pre-commit install` and
 `bash .claude/skills/task/scripts/task.sh point-memory`.
 
-`make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`task.sh` suites. It also runs `make render` on a copy of the working tree and fails when that
-changes `.claude/`, for a commit made without the hook. The
+`make gate` renders the template and runs the suites of the rendered Bash and main-clean guards,
+protocol, memory checker and `task.sh`. It also runs `make render` on a copy of the working tree
+and fails when that changes `.claude/`, for a commit made without the hook. The
 `Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
 checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
 `bugfix/*` PR of one commit, from this repository's own branches. `Build` runs the gate again on

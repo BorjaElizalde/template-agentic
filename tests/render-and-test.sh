@@ -58,6 +58,7 @@ expect "the task plugin's manifest names it task" bash -c "[ \"\$(jq -r .name '$
 expect "no .claude/scripts folder is rendered" test ! -e "$D/.claude/scripts"
 expect "every script parses" bash -c "for f in \$(find '$D' -name '*.sh'); do bash -n \"\$f\" || exit 1; done"
 expect "bash-guard suite" bash "$D/.claude/hooks/bash-guard.test.sh"
+expect "main-clean guard suite" bash "$D/.claude/hooks/main-clean-guard.test.sh"
 expect "practices protocol suite" bash "$D/.claude/hooks/practices/guard.test.sh"
 expect "memory checker suite" bash "$D/.claude/hooks/memory/guard.test.sh"
 expect "task.sh suite" bash "$D/.claude/skills/task/scripts/task.test.sh"

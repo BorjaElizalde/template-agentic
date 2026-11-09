@@ -61,6 +61,12 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/main-clean-guard.sh\"" }
+        ]
+      },
+      {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           { "type": "command", "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/hooks/stack/format.sh\"; [ ! -f \"$f\" ] || bash \"$f\"" },
