@@ -22,7 +22,7 @@ title() {
     42) echo "Name make close_claude_session in backend CLAUDE.md" ;;
     7) echo "Second task" ;;
     5) echo "Already done" ;;
-    8|9|10|11|12|13|14) echo "Task $1" ;;
+    8|9|10|11|12|13|14|15) echo "Task $1" ;;
     *) return 1 ;;
   esac
 }
@@ -32,7 +32,7 @@ case "$1 $2" in
     t=$(title "$3") || exit 1
     echo "$(issue_state "$3") $t" ;;
   "issue list")
-    for n in 42 7 5 8 9 10 11 12 13 14; do
+    for n in 42 7 5 8 9 10 11 12 13 14 15; do
       [ "$(issue_state "$n")" = CLOSED ] || jq -n --argjson n "$n" --arg t "$(title "$n")" '{number: $n, title: $t}'
     done | jq -s . ;;
   "pr list")
@@ -207,6 +207,21 @@ echo fix/7-second-task >"$TASK_TEST_STATE/merged"
 check "a merged PR covers a squash-merged branch" task "$BACKEND" finish 7
 check "its worktree is gone"                   test ! -e "$ISSUE7/backend"
 
+echo "-- finish: every local branch of the issue"
+ISSUE12="$WORK/repos/worktrees/12-task-12"
+check "backend starts issue 12"                task "$BACKEND" start 12
+commit "$ISSUE12/backend"
+# The task moves on to a second branch for a follow-up PR and leaves its first one unpushed.
+git -C "$ISSUE12/backend" switch -q -c docs/12-follow-up origin/develop
+git -C "$BACKEND" branch -q feat/112-other origin/develop
+echo CLOSED >"$TASK_TEST_STATE/issue-12"
+refuses "an unshipped branch beside the worktree's blocks it" 'feat/12-task-12 has commits' "$BACKEND" finish 12
+check "before anything is removed"             test -d "$ISSUE12/backend"
+echo feat/12-task-12 >>"$TASK_TEST_STATE/merged"
+check "once shipped, it finishes with the worktree" task "$BACKEND" finish 12
+check "both branches of the issue are gone"    test -z "$(git -C "$BACKEND" for-each-ref 'refs/heads/*/12-*')"
+check "another issue's branch stays"           git -C "$BACKEND" rev-parse -q --verify feat/112-other
+
 echo "-- sweep: a start first finishes every task whose issue is closed"
 ISSUE8="$WORK/repos/worktrees/8-task-8"
 ISSUE9="$WORK/repos/worktrees/9-task-9"
@@ -239,10 +254,10 @@ check "which stays"                            test -d "$ISSUE10/backend"
 
 echo "-- status: every task in one view"
 ISSUE11="$WORK/repos/worktrees/11-task-11"
-ISSUE13="$WORK/repos/worktrees/13-task-13"
-check "backend starts issue 12"                task "$BACKEND" start 12
-check "and issue 13"                           task "$BACKEND" start 13
-echo CLOSED >"$TASK_TEST_STATE/issue-13"
+ISSUE14="$WORK/repos/worktrees/14-task-14"
+check "backend starts issue 13"                task "$BACKEND" start 13
+check "and issue 14"                           task "$BACKEND" start 14
+echo CLOSED >"$TASK_TEST_STATE/issue-14"
 echo "$ISSUE11/backend" >"$TASK_TEST_STATE/running"
 echo idle >"$TASK_TEST_STATE/status"
 transcript "$ISSUE11/backend" old 200001010000
@@ -255,10 +270,10 @@ NO_CONCLUSION='{"__typename": "CheckRun", "name": "gate", "status": "COMPLETED",
 CONTEXT='{"__typename": "StatusContext", "context": "ci", "state": "SUCCESS"}'
 pr_from feat/11-task-11 OPEN false "[$PENDING, $CONTEXT]"
 check "a look runs"                            run_in "$BACKEND" status
-check "and first finishes the closed task"     test ! -e "$ISSUE13"
+check "and first finishes the closed task"     test ! -e "$ISSUE14"
 check "a task's session, PR, checks and last write" test "$(status_line 11)" = "#11 Task 11: session idle, PR #21 open, checks pending, active 0 min ago"
-check "a task with none of them yet"           test "$(status_line 12)" = "#12 Task 12: no session, no PR, no transcript"
-check "the queue: the open issues with no task" test "$(sed -n '/^Queue/,$p' "$WORK/out" | tail -n +2)" = "#14 Task 14"
+check "a task with none of them yet"           test "$(status_line 13)" = "#13 Task 13: no session, no PR, no transcript"
+check "the queue: the open issues with no task" test "$(sed -n '/^Queue/,$p' "$WORK/out" | tail -n +2)" = "#15 Task 15"
 pr_from feat/11-task-11 OPEN false "[$PENDING, $FAILED]"
 run_in "$BACKEND" status
 check "a failed check outweighs a pending one" bash -c "grep -qF '#11 Task 11: session idle, PR #21 open, checks failed,' '$WORK/out'"

@@ -35,7 +35,9 @@ that the template's tests run directly.
 Every project works on the same three branches: feature PRs go into `develop`, and `/release`
 promotes `develop` to `staging` to `main` with merge commits. All three are protected, and
 `develop` is the default branch: GitHub links a PR's `Closes` line to its issue only on a PR into
-the default branch.
+the default branch. Beside the rulesets, turn on *Automatically delete head branches* in the
+repository's settings: GitHub then deletes a merged PR's branch on origin. No script deletes a
+remote branch, so without it the branches of finished tasks pile up there.
 
 ## Tasks
 
@@ -46,11 +48,12 @@ so a task that spans repositories gets one issue folder holding each repository'
 opens the session. On an issue that already has work it picks that work up: its worktree, else its
 branch (left without a worktree, or pushed from another clone), and its session, brought to the
 front while it runs and resumed when it doesn't. `/task:finish` closes the issue once its result
-is delivered, then the session, the worktree and the branch; it refuses while the branch has
-commits on no remote branch and in no merged PR, or the worktree has uncommitted or untracked
-files. Given no issue, `/task:finish` finishes every task whose issue is closed, and
-`/task:start` does the same first: a PR merged on GitHub closes its issue, and the next start
-finishes its task.
+is delivered, then the session, the worktree and every local branch of the issue (`*/<n>-*`: a
+task can open a second branch for a follow-up PR); it refuses before it removes anything while one
+of those branches has commits on no remote branch and in no merged PR, or the worktree has
+uncommitted or untracked files. Given no issue, `/task:finish` finishes every task whose issue
+is closed, and `/task:start` does the same first: a PR merged on GitHub closes its issue, and the
+next start finishes its task.
 
 `task.sh status` shows every task in one view. It first finishes every task whose issue is
 closed, as a start does, then prints one line per task worktree of this checkout: the issue and

@@ -202,7 +202,7 @@ start_task() {
 }
 
 finish_task() {
-	local issue=$1 view worktree branch tty
+	local issue=$1 view worktree branches branch tty
 	worktree=$(issue_worktree "$issue") || die "no worktree for issue $issue"
 	case "$CALLER/" in "$worktree"/*)
 		die "finish issue $issue from outside its worktree: from inside, it would close its own session and delete its own folder" ;;
@@ -210,20 +210,24 @@ finish_task() {
 	[ "$CHECKOUT" != "$worktree" ] || die "finish issue $issue with the main checkout's task.sh, not the copy in its worktree"
 	view=$(issue_view "$issue") || die "no issue $issue in $ISSUES_REPO"
 	[ "${view%% *}" = CLOSED ] || die "issue $issue is still open: deliver its result through the PR or the issue, then close it"
-	branch=$(git -C "$worktree" branch --show-current)
+	# Every local branch of the issue, the worktree's among them: a task can open a second branch for
+	# a follow-up PR. A branch name holds no space or glob character, so the list splits unquoted.
+	branches=$(git for-each-ref --format='%(refname:lstrip=2)' "refs/heads/*/$issue-*")
 	git fetch origin -q
-	if unshipped "$branch"; then
-		die "branch $branch has commits on no remote branch and in no merged PR: push them first"
-	fi
+	for branch in $branches; do
+		if unshipped "$branch"; then
+			die "branch $branch has commits on no remote branch and in no merged PR: push them first"
+		fi
+	done
 	SESSIONS=$(claude agents --json)
 	if tty=$(session_tty "$worktree"); then
 		session_tab "$tty" exit || die "the session in $worktree did not exit; close it, then finish again"
 	fi
 	git worktree remove "$worktree" ||
 		die "$worktree has uncommitted or untracked files: commit them, or move what matters to the PR or the issue"
-	git branch -D -q "$branch"
+	git branch -D -q $branches
 	rmdir "$(dirname "$worktree")" 2>/dev/null || true
-	echo "✓ issue $issue finished: session closed, worktree and branch $branch removed"
+	echo "✓ issue $issue finished: session closed, worktree removed, branches removed:" $branches
 }
 
 # The issue of each task worktree of this checkout.
