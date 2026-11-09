@@ -27,7 +27,6 @@ outside the project root), so an update runs without `--trust`.
 | `worktree_root` | Folder for linked worktrees, relative to the main checkout |
 | `deploy_workflow` | The GitHub Actions workflow the merge into `main` starts, which `/release` waits for; empty for none |
 | `agent_merges` | Whether the agent may squash-merge its own PR into `develop` once every check on its head, `gate` among them, has passed (default `false`: the owner merges). With it, `settings.json` allows `gh pr merge` and `bash-guard.sh` decides every merge; for a repository whose plan has no rulesets, the guard is then the only place `gate` is enforced |
-| `session_stop_check` | Whether a task session has a `Stop` prompt hook (default `true`). At every turn end it calls a model, which sends the session back to work when it stopped to wait for an answer. With `false`, `session/settings.json` has no `Stop` hook, for a project that allows command hooks only. The session still can't wait on a permission prompt or a question tool, but a session that ends its turn with a question in plain text stays idle, and nothing in it pushes it on. Whoever manages the sessions catches it: `SendMessage` with `notify_when_idle: true` gives one notice when a session on the same machine next goes idle or exits |
 
 Repositories that share an issue tracker and a worktree folder give the same answers. Scripts read
 them from `.claude/agentic.conf`, the only rendered file they source, so they stay plain shell
@@ -57,8 +56,9 @@ A task session is an interactive `claude` process in a Terminal tab (`open_sessi
 `task.sh`), never `claude -p`, the Agent SDK or an API key. Nobody answers it, so it never waits
 for a person: `--disallowed-tools AskUserQuestion` removes the question tool, a `PermissionRequest`
 hook in `session/settings.json` denies every permission prompt, and `session/prompt.md` tells it
-to take the option it would recommend and go on. With `session_stop_check`, the `Stop` hook also
-sends it back to work when it ends its turn on a question.
+to take the option it would recommend and go on. A `Stop` prompt hook in `session/settings.json`
+also sends it back to work when it ends its turn on a question. The hook's model call runs on the
+session's own login, so it needs no API key either.
 
 Both are skills of one plugin, `.claude/skills/task/`, so they share its `scripts/task.sh`
 through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a Makefile for them. Claude Code loads a

@@ -9,8 +9,7 @@
           }
         ]
       }
-    ]
-{%- if session_stop_check %},
+    ],
     "Stop": [
       {
         "hooks": [
@@ -21,6 +20,5 @@
         ]
       }
     ]
-{%- endif %}
   }
 }
