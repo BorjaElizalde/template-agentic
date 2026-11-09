@@ -2,9 +2,10 @@
 # From the agentic template: change the template, not this copy.
 # Regression suite for task.sh. Run from any checkout: bash .claude/skills/task/scripts/task.test.sh
 # Two clones of one throwaway origin, named backend and frontend, stand in for two repositories.
-# Stub gh answers issue state and title and merged PRs from files under $TASK_TEST_STATE; stub
-# osascript logs the sessions it would open, end or bring to the front, and keeps its last script;
-# stub ps and lsof report a claude process running in the folder named in $TASK_TEST_STATE/running.
+# Stub gh answers issue state and title, the open issues, and PRs from files under $TASK_TEST_STATE;
+# stub osascript logs the sessions it would open, end or bring to the front, and keeps its last
+# script; stub claude lists a session running in the folder named in $TASK_TEST_STATE/running, and
+# stub ps gives its tty.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(cd "$(mktemp -d)" && pwd -P)"
@@ -16,19 +17,32 @@ pass=0; fail=0
 mkdir -p "$WORK/bin" "$TASK_TEST_STATE" "$WORK/seed/.claude/skills/task/scripts" "$WORK/repos"
 cat >"$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+title() {
+  case "$1" in
+    42) echo "Name make close_claude_session in backend CLAUDE.md" ;;
+    7) echo "Second task" ;;
+    5) echo "Already done" ;;
+    8|9|10|11|12|13|14) echo "Task $1" ;;
+    *) return 1 ;;
+  esac
+}
+issue_state() { cat "$TASK_TEST_STATE/issue-$1" 2>/dev/null || echo OPEN; }
 case "$1 $2" in
   "issue view")
-    case "$3" in
-      42) title="Name make close_claude_session in backend CLAUDE.md" ;;
-      7) title="Second task" ;;
-      5) title="Already done" ;;
-      8|9|10|11) title="Task $3" ;;
-      *) exit 1 ;;
-    esac
-    echo "$(cat "$TASK_TEST_STATE/issue-$3" 2>/dev/null || echo OPEN) $title" ;;
+    t=$(title "$3") || exit 1
+    echo "$(issue_state "$3") $t" ;;
+  "issue list")
+    for n in 42 7 5 8 9 10 11 12 13 14; do
+      [ "$(issue_state "$n")" = CLOSED ] || jq -n --argjson n "$n" --arg t "$(title "$n")" '{number: $n, title: $t}'
+    done | jq -s . ;;
   "pr list")
-    while [ $# -gt 0 ]; do [ "$1" = --head ] && branch=$2; shift; done
-    grep -qxF "$branch" "$TASK_TEST_STATE/merged" 2>/dev/null && echo 1
+    while [ $# -gt 0 ]; do case "$1" in --head) branch=$2 ;; --state) state=$2 ;; esac; shift; done
+    # --state merged asks whether a PR from the branch merged; --state all, for its newest PR.
+    if [ "$state" = merged ]; then
+      grep -qxF "$branch" "$TASK_TEST_STATE/merged" 2>/dev/null && echo 1
+    else
+      cat "$TASK_TEST_STATE/pr-${branch//\//-}" 2>/dev/null || echo '[]'
+    fi
     exit 0 ;;
   *) exit 1 ;;
 esac
@@ -45,16 +59,21 @@ if [ "${3:-}" = exit ]; then
 fi
 exit 0
 EOF
+# claude agents --json, as Claude Code prints it: a background session, then the interactive one,
+# both in the running folder; the interactive one is busy unless $TASK_TEST_STATE/status says else.
+cat >"$WORK/bin/claude" <<'EOF'
+#!/usr/bin/env bash
+[ "$*" = "agents --json" ] || exit 1
+[ -f "$TASK_TEST_STATE/running" ] || { echo '[]'; exit 0; }
+jq -n --arg cwd "$(cat "$TASK_TEST_STATE/running")" --arg status "$(cat "$TASK_TEST_STATE/status" 2>/dev/null || echo busy)" '[
+  {id: "b0b0b0b0", cwd: $cwd, kind: "background", name: "a background session", state: "blocked"},
+  {pid: 4242, cwd: $cwd, kind: "interactive", name: "a task session", status: $status}]'
+EOF
 cat >"$WORK/bin/ps" <<'EOF'
 #!/usr/bin/env bash
-[ -f "$TASK_TEST_STATE/running" ] && echo "4242 ttys042 /usr/local/bin/claude"
-exit 0
+[ "$*" = "-o tty= -p 4242" ] && printf 'ttys042    \n'
 EOF
-cat >"$WORK/bin/lsof" <<'EOF'
-#!/usr/bin/env bash
-printf 'p4242\nfcwd\nn%s\n' "$(cat "$TASK_TEST_STATE/running")"
-EOF
-chmod +x "$WORK/bin/gh" "$WORK/bin/osascript" "$WORK/bin/ps" "$WORK/bin/lsof"
+chmod +x "$WORK/bin/gh" "$WORK/bin/osascript" "$WORK/bin/claude" "$WORK/bin/ps"
 export PATH="$WORK/bin:$PATH"
 echo CLOSED >"$TASK_TEST_STATE/issue-5"
 
@@ -85,10 +104,15 @@ interactive() {
   grep -q 'exec claude ' "$TASK_TEST_STATE/osascript.script" &&
     ! last_osascript | cat - "$TASK_TEST_STATE/osascript.script" | grep -qE -- '(^|[[:space:]"])(-p|--print)([[:space:]"]|$)'
 }
-transcript() {  # leaves the transcript a claude session in folder $1 writes
+transcript() {  # transcript <folder> [<name> <[CC]YYMMDDhhmm>]: a claude session in that folder writes it, now or then
   local dir; dir="$CLAUDE_CONFIG_DIR/projects/$(printf '%s' "$1" | tr -c 'a-zA-Z0-9' '-')"
-  mkdir -p "$dir" && touch "$dir/session.jsonl"
+  mkdir -p "$dir" && touch ${3:+-t "$3"} "$dir/${2:-session}.jsonl"
 }
+pr_from() {  # pr_from <branch> <state> <isDraft> <statusCheckRollup>: the newest PR from that branch, #21
+  printf '[{"number": 21, "state": "%s", "isDraft": %s, "statusCheckRollup": %s}]\n' "$2" "$3" "$4" \
+    >"$TASK_TEST_STATE/pr-${1//\//-}"
+}
+status_line() { grep "^#$1 " "$WORK/out"; }  # the line the last run_in ... status printed for issue $1
 refuses() {  # refuses <desc> <reason pattern> <checkout> <task.sh args...>: fails, and says why
   local out
   if out="$(bash "$3/.claude/skills/task/scripts/task.sh" "${@:4}" 2>&1)"; then fail=$((fail+1)); echo "FAIL $1 (it ran)"
@@ -212,6 +236,43 @@ check "a start from the task's own session"    run_in "$ISSUE10/backend" start 1
 check "starts its issue"                       test -d "$WORK/repos/worktrees/11-task-11/backend"
 check "past the finish of its own worktree"    grep -q 'from outside its worktree' "$WORK/out"
 check "which stays"                            test -d "$ISSUE10/backend"
+
+echo "-- status: every task in one view"
+ISSUE11="$WORK/repos/worktrees/11-task-11"
+ISSUE13="$WORK/repos/worktrees/13-task-13"
+check "backend starts issue 12"                task "$BACKEND" start 12
+check "and issue 13"                           task "$BACKEND" start 13
+echo CLOSED >"$TASK_TEST_STATE/issue-13"
+echo "$ISSUE11/backend" >"$TASK_TEST_STATE/running"
+echo idle >"$TASK_TEST_STATE/status"
+transcript "$ISSUE11/backend" old 200001010000
+transcript "$ISSUE11/backend"
+PENDING='{"__typename": "CheckRun", "name": "gate", "status": "IN_PROGRESS", "conclusion": ""}'
+PASSED='{"__typename": "CheckRun", "name": "gate", "status": "COMPLETED", "conclusion": "SUCCESS"}'
+SKIPPED='{"__typename": "CheckRun", "name": "lint", "status": "COMPLETED", "conclusion": "SKIPPED"}'
+FAILED='{"__typename": "CheckRun", "name": "gate", "status": "COMPLETED", "conclusion": "FAILURE"}'
+NO_CONCLUSION='{"__typename": "CheckRun", "name": "gate", "status": "COMPLETED", "conclusion": ""}'
+CONTEXT='{"__typename": "StatusContext", "context": "ci", "state": "SUCCESS"}'
+pr_from feat/11-task-11 OPEN false "[$PENDING, $CONTEXT]"
+check "a look runs"                            run_in "$BACKEND" status
+check "and first finishes the closed task"     test ! -e "$ISSUE13"
+check "a task's session, PR, checks and last write" test "$(status_line 11)" = "#11 Task 11: session idle, PR #21 open, checks pending, active 0 min ago"
+check "a task with none of them yet"           test "$(status_line 12)" = "#12 Task 12: no session, no PR, no transcript"
+check "the queue: the open issues with no task" test "$(sed -n '/^Queue/,$p' "$WORK/out" | tail -n +2)" = "#14 Task 14"
+pr_from feat/11-task-11 OPEN false "[$PENDING, $FAILED]"
+run_in "$BACKEND" status
+check "a failed check outweighs a pending one" bash -c "grep -qF '#11 Task 11: session idle, PR #21 open, checks failed,' '$WORK/out'"
+pr_from feat/11-task-11 OPEN true "[$PASSED, $SKIPPED, $CONTEXT]"
+run_in "$BACKEND" status
+check "a draft whose checks passed or skipped" bash -c "grep -qF 'PR #21 draft, checks passed,' '$WORK/out'"
+pr_from feat/11-task-11 OPEN false "[$PASSED, $NO_CONCLUSION]"
+run_in "$BACKEND" status
+check "a check completed with no conclusion has not passed" bash -c "grep -qF 'PR #21 open, checks failed,' '$WORK/out'"
+pr_from feat/11-task-11 MERGED false "[]"
+transcript "$ISSUE11/backend" session 200001010000
+run_in "$BACKEND" status
+check "a merged PR with no checks"             bash -c "grep -qF 'PR #21 merged, no checks,' '$WORK/out'"
+check "a session silent for days"              bash -c "grep -qE '^#11 .*, active [0-9]+ d ago$' '$WORK/out'"
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"

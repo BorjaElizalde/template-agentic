@@ -52,13 +52,26 @@ files. Given no issue, `/task:finish` finishes every task whose issue is closed,
 `/task:start` does the same first: a PR merged on GitHub closes its issue, and the next start
 finishes its task.
 
+`task.sh status` shows every task in one view. It first finishes every task whose issue is
+closed, as a start does, then prints one line per task worktree of this checkout: the issue and
+its short title, its session (`busy`, `idle`, `waiting`, or none), its newest PR with its state
+and check result, and how long ago the session last wrote its transcript. Then come the open
+issues with no task here, as the queue. Only this checkout's worktrees count, because the
+worktree folder can also hold the issue folders of a repository with another issues repository.
+The session that starts a task follows it by the task session's idle notice (`SendMessage` with
+`notify_when_idle`), never by polling, and after its own restart it runs `status` and subscribes
+to every task session still running.
+
 A task session is an interactive `claude` process in a Terminal tab (`open_session` in
 `task.sh`), never `claude -p`, the Agent SDK or an API key. Nobody answers it, so it never waits
 for a person: `--disallowed-tools AskUserQuestion` removes the question tool, a `PermissionRequest`
 hook in `session/settings.json` denies every permission prompt, and `session/prompt.md` tells it
 to take the option it would recommend and go on. A `Stop` prompt hook in `session/settings.json`
 also sends it back to work when it ends its turn on a question. The hook's model call runs on the
-session's own login, so it needs no API key either.
+session's own login, so it needs no API key either. `task.sh` finds a running session in
+`claude agents --json`, the supported way to read session state from outside Claude Code, as the
+interactive session whose working directory is the worktree; it finds the session's Terminal tab
+by that process's tty.
 
 Both are skills of one plugin, `.claude/skills/task/`, so they share its `scripts/task.sh`
 through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a Makefile for them. Claude Code loads a

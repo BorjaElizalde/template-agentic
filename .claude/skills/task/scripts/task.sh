@@ -3,7 +3,7 @@
 # The task lifecycle behind /task:start and /task:finish: one issue, one worktree, one session.
 set -euo pipefail
 
-usage="usage: task.sh start <issue> [type] | finish <issue> | sweep | point-memory"
+usage="usage: task.sh start <issue> [type] | finish <issue> | sweep | status | point-memory"
 
 CALLER=$(pwd -P)
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -44,20 +44,31 @@ issue_branch() {
 		awk 'NR == 1 { print } END { exit NR == 0 }'
 }
 
-has_session_transcript() {
-	ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$(printf '%s' "$1" | tr -c 'a-zA-Z0-9' '-')"/*.jsonl >/dev/null 2>&1
+# The folder Claude Code writes the transcripts of the sessions in folder $1 to.
+transcript_dir() {
+	printf '%s/projects/%s' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "$(printf '%s' "$1" | tr -c 'a-zA-Z0-9' '-')"
 }
 
-# The tty of a claude process whose working directory is $1.
+has_session_transcript() {
+	ls "$(transcript_dir "$1")"/*.jsonl >/dev/null 2>&1
+}
+
+# The interactive session running in folder $1, found in $SESSIONS: the output of
+# `claude agents --json`, the supported way to read session state from outside Claude Code.
+session() {
+	jq -ce --arg cwd "$1" 'first(.[] | select(.kind == "interactive" and .cwd == $cwd))' <<<"$SESSIONS"
+}
+
+# The tty of the session running in folder $1.
 session_tty() {
-	local pid tty
-	while read -r pid tty; do
-		if [ "$(lsof -a -p "$pid" -d cwd -Fn | sed -n 's/^n//p')" = "$1" ]; then
-			echo "/dev/$tty"
-			return
-		fi
-	done < <(ps -axo pid=,tty=,comm= | awk '$2 != "??" && $3 ~ /(^|\/)claude$/ { print $1, $2 }')
-	return 1
+	local pid
+	pid=$(session "$1" | jq .pid) || return 1
+	echo "/dev/$(ps -o tty= -p "$pid" | tr -d ' ')"
+}
+
+# "session busy|idle|waiting" of the session running in folder $1, else "no session".
+session_line() {
+	session "$1" | jq -r '"session " + .status' || echo "no session"
 }
 
 # autoMemoryDirectory takes only an absolute or ~/ path, so each checkout's gitignored local
@@ -176,6 +187,7 @@ start_task() {
 	point_memory "$MAIN"
 	point_memory "$worktree"
 	name="#$issue $REPO_NAME: $short"
+	SESSIONS=$(claude agents --json)
 	if tty=$(session_tty "$worktree"); then
 		session_tab "$tty" focus
 		echo "✓ session already running, brought to the front: $name"
@@ -203,6 +215,7 @@ finish_task() {
 	if unshipped "$branch"; then
 		die "branch $branch has commits on no remote branch and in no merged PR: push them first"
 	fi
+	SESSIONS=$(claude agents --json)
 	if tty=$(session_tty "$worktree"); then
 		session_tab "$tty" exit || die "the session in $worktree did not exit; close it, then finish again"
 	fi
@@ -213,13 +226,18 @@ finish_task() {
 	echo "✓ issue $issue finished: session closed, worktree and branch $branch removed"
 }
 
+# The issue of each task worktree of this checkout.
+task_issues() {
+	git worktree list --porcelain | sed -En 's|^branch refs/heads/[^/]+/([0-9]+)-.*|\1|p'
+}
+
 # Finishes every task worktree of this checkout whose issue is closed: a PR merged on GitHub closes
 # its issue, but nothing finishes its task. Open issues are skipped without a word.
 sweep() {
 	local issue view
 	# A worktree whose folder was deleted by hand still holds its branch until git forgets it.
 	git worktree prune
-	for issue in $(git worktree list --porcelain | sed -En 's|^branch refs/heads/[^/]+/([0-9]+)-.*|\1|p'); do
+	for issue in $(task_issues); do
 		view=$(issue_view "$issue") || continue
 		[ "${view%% *}" = CLOSED ] || continue
 		# A refusal exits, so each finish runs as a task.sh of its own: a refusal is reported and the
@@ -229,10 +247,64 @@ sweep() {
 	done
 }
 
+# "PR #<n> <state>, checks <result>" of the newest PR from branch $1, else "no PR". A check has
+# passed once it succeeded, or was neutral or skipped, as the merge guard reads it; a failure
+# outweighs a pending check.
+pr_line() {
+	gh pr list --head "$1" --state all --json number,state,isDraft,statusCheckRollup | jq -r '
+		if length == 0 then "no PR" else .[0]
+		| [.statusCheckRollup[]? | if .__typename == "StatusContext" then .state
+			elif .status == "COMPLETED" then .conclusion else "PENDING" end] as $c
+		| "PR #\(.number) \(if .isDraft then "draft" else .state | ascii_downcase end), "
+			+ if $c == [] then "no checks"
+			elif any($c[]; IN("SUCCESS", "NEUTRAL", "SKIPPED", "PENDING", "EXPECTED") | not) then "checks failed"
+			elif any($c[]; IN("PENDING", "EXPECTED")) then "checks pending"
+			else "checks passed" end
+		end'
+}
+
+# "active <age> ago" from the newest transcript of a session in folder $1, else "no transcript".
+active_line() {
+	local newest age
+	if ! newest=$(ls -t "$(transcript_dir "$1")"/*.jsonl 2>/dev/null | head -n 1); then
+		echo "no transcript"
+		return
+	fi
+	age=$(($(date +%s) - $(date -r "$newest" +%s)))
+	if [ "$age" -lt 3600 ]; then
+		echo "active $((age / 60)) min ago"
+	elif [ "$age" -lt 86400 ]; then
+		echo "active $((age / 3600)) h ago"
+	else
+		echo "active $((age / 86400)) d ago"
+	fi
+}
+
+# Sweeps first, so a look also finishes what is done. Then one line per task worktree of this
+# checkout, and the queue: the open issues with no task.
+status() {
+	local issues issue worktree view pr
+	sweep
+	SESSIONS=$(claude agents --json)
+	issues=$(task_issues)
+	for issue in $issues; do
+		worktree=$(issue_worktree "$issue")
+		view=$(issue_view "$issue")
+		pr=$(pr_line "$(git -C "$worktree" branch --show-current)")
+		echo "#$issue $(short_title "${view#* }"): $(session_line "$worktree"), $pr, $(active_line "$worktree")"
+	done
+	# Only this checkout's worktrees count: the worktree root can also hold the issue folders of a
+	# repository with another issues repository, whose issue numbers overlap these.
+	echo "Queue, the open issues with no task here:"
+	gh issue list -R "$ISSUES_REPO" --state open --limit 1000 --json number,title |
+		jq -r --argjson tasks "$(jq -s . <<<"$issues")" '.[] | select(.number | IN($tasks[]) | not) | "#\(.number) \(.title)"'
+}
+
 case ${1:-} in
 start) [ $# -ge 2 ] || die "$usage"; start_task "$2" "${3:-feat}" ;;
 finish) [ $# -ge 2 ] || die "$usage"; finish_task "$2" ;;
 sweep) sweep ;;
+status) status ;;
 point-memory) point_memory "$CHECKOUT" && echo "✓ auto memory points at $CHECKOUT/.claude/memory" ;;
 *) die "$usage" ;;
 esac

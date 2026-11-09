@@ -15,7 +15,9 @@ The same steps start a new task and pick up an existing one.
    also say where its result goes: a PR, or a comment on the issue. The issue is the session's
    whole brief: it sees nothing of the conversation that started it, so the body carries every
    decision already taken and what the conversation found out. On an existing issue, add what was
-   settled since as a comment.
+   settled since as a comment. Never point a task at a scratchpad, `/tmp` or `/private/tmp` path:
+   a restart wipes them, and a consumer project lost a task's input files that way. What a task
+   needs goes in the issue, or the task rebuilds it.
 2. Pick the branch type: `feat`, `fix`, `refactor` or `chore` for a change, `research` for a task
    whose result is an answer. It names a new branch only: an issue that has a branch keeps it.
 3. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" start <n> <type>`. It first finishes every
@@ -28,5 +30,9 @@ The same steps start a new task and pick up an existing one.
 
    A new or resumed session starts with a prompt that sends it to the issue and its comments. A
    running session gets no prompt: send it what changed with SendMessage.
-4. Return the issue URL, the worktree path, the session name, what the script picked up, and the
+4. Follow the session by its idle notice, never by polling: SendMessage to the session name with
+   no message and `notify_when_idle: true` (with a message, the same call delivers it and
+   subscribes). A notice is one-shot: subscribe again after acting on each one. It carries only
+   the first line of the session's last message: read the PR or the issue for the rest.
+5. Return the issue URL, the worktree path, the session name, what the script picked up, and the
    tasks it finished or refused to finish.
