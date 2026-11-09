@@ -52,6 +52,14 @@ files. Given no issue, `/task:finish` finishes every task whose issue is closed,
 `/task:start` does the same first: a PR merged on GitHub closes its issue, and the next start
 finishes its task.
 
+A task session is an interactive `claude` process in a Terminal tab (`open_session` in
+`task.sh`), never `claude -p`, the Agent SDK or an API key. Nobody answers it, so it never waits
+for a person: `--disallowed-tools AskUserQuestion` removes the question tool, a `PermissionRequest`
+hook in `session/settings.json` denies every permission prompt, and `session/prompt.md` tells it
+to take the option it would recommend and go on. A `Stop` prompt hook in `session/settings.json`
+also sends it back to work when it ends its turn on a question. The hook's model call runs on the
+session's own login, so it needs no API key either.
+
 Both are skills of one plugin, `.claude/skills/task/`, so they share its `scripts/task.sh`
 through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a Makefile for them. Claude Code loads a
 plugin under `.claude/skills/` in place, with no install and no settings entry, from the folder a

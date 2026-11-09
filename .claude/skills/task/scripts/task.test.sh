@@ -3,8 +3,8 @@
 # Regression suite for task.sh. Run from any checkout: bash .claude/skills/task/scripts/task.test.sh
 # Two clones of one throwaway origin, named backend and frontend, stand in for two repositories.
 # Stub gh answers issue state and title and merged PRs from files under $TASK_TEST_STATE; stub
-# osascript logs the sessions it would open, end or bring to the front; stub ps and lsof report a
-# claude process running in the folder named in $TASK_TEST_STATE/running.
+# osascript logs the sessions it would open, end or bring to the front, and keeps its last script;
+# stub ps and lsof report a claude process running in the folder named in $TASK_TEST_STATE/running.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(cd "$(mktemp -d)" && pwd -P)"
@@ -35,7 +35,7 @@ esac
 EOF
 cat >"$WORK/bin/osascript" <<'EOF'
 #!/usr/bin/env bash
-cat >/dev/null
+cat >"$TASK_TEST_STATE/osascript.script"
 printf '%s\n' "$*" >>"$TASK_TEST_STATE/osascript.log"
 # The session in a tab told to exit stops and its window closes. While $TASK_TEST_STATE/stuck exists
 # the session never stops, and the script fails as session_tab's does after 30 seconds.
@@ -79,6 +79,12 @@ branch_of() { git -C "$1" rev-parse --abbrev-ref HEAD; }
 memory_of() { jq -r .autoMemoryDirectory "$1/.claude/settings.local.json"; }
 sessions() { grep -c -F "$1" "$TASK_TEST_STATE/osascript.log"; }
 last_osascript() { tail -n 1 "$TASK_TEST_STATE/osascript.log"; }
+# The session last opened runs claude interactively: no -p or --print word in the script that builds
+# its command, nor in the values the script puts in it.
+interactive() {
+  grep -q 'exec claude ' "$TASK_TEST_STATE/osascript.script" &&
+    ! last_osascript | cat - "$TASK_TEST_STATE/osascript.script" | grep -qE -- '(^|[[:space:]"])(-p|--print)([[:space:]"]|$)'
+}
 transcript() {  # leaves the transcript a claude session in folder $1 writes
   local dir; dir="$CLAUDE_CONFIG_DIR/projects/$(printf '%s' "$1" | tr -c 'a-zA-Z0-9' '-')"
   mkdir -p "$dir" && touch "$dir/session.jsonl"
@@ -106,6 +112,7 @@ check "its memory points at itself"            test "$(memory_of "$ISSUE42/backe
 check "the main checkout's memory points at it" test "$(memory_of "$BACKEND")" = "$BACKEND/.claude/memory"
 check "its session opens with the issue name"  test "$(sessions '#42 backend: Name make close_claude_session in')" -eq 1
 check "with a first prompt that reads its issue" bash -c "tail -n 1 '$TASK_TEST_STATE/osascript.log' | grep -qF 'gh issue view 42 -R acme/tasks --comments'"
+check "an interactive claude, never -p or --print" interactive
 check "starting again resumes, creates nothing" task "$BACKEND" start 42
 check "the session opens a second time"        test "$(sessions '#42 backend:')" -eq 2
 check "both fresh: no transcript exists yet"   bash -c "! grep -q -- --continue '$TASK_TEST_STATE/osascript.log'"
@@ -121,6 +128,7 @@ transcript "$ISSUE42/backend"
 check "a session with a transcript"            task "$BACKEND" start 42
 check "resumes it with --continue"             bash -c "tail -n 1 '$TASK_TEST_STATE/osascript.log' | grep -q -- ' --continue '"
 check "and the same first prompt"              bash -c "tail -n 1 '$TASK_TEST_STATE/osascript.log' | grep -qF 'Work on issue #42 in acme/tasks.'"
+check "still interactive"                      interactive
 echo "$ISSUE42/backend" >"$TASK_TEST_STATE/running"
 check "a running session"                      task "$BACKEND" start 42
 check "is brought to the front"                test "$(last_osascript)" = "- /dev/ttys042 focus"
