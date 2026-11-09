@@ -22,7 +22,7 @@ case "$1 $2" in
       42) title="Name make close_claude_session in backend CLAUDE.md" ;;
       7) title="Second task" ;;
       5) title="Already done" ;;
-      8|9|10|11) title="Task $3" ;;
+      8|9|10|11|12) title="Task $3" ;;
       *) exit 1 ;;
     esac
     echo "$(cat "$TASK_TEST_STATE/issue-$3" 2>/dev/null || echo OPEN) $title" ;;
@@ -182,6 +182,21 @@ refuses "its unpushed commit blocks it"          'push them first'      "$BACKEN
 echo fix/7-second-task >"$TASK_TEST_STATE/merged"
 check "a merged PR covers a squash-merged branch" task "$BACKEND" finish 7
 check "its worktree is gone"                   test ! -e "$ISSUE7/backend"
+
+echo "-- finish: every local branch of the issue"
+ISSUE12="$WORK/repos/worktrees/12-task-12"
+check "backend starts issue 12"                task "$BACKEND" start 12
+commit "$ISSUE12/backend"
+# The task moves on to a second branch for a follow-up PR and leaves its first one unpushed.
+git -C "$ISSUE12/backend" switch -q -c docs/12-follow-up origin/develop
+git -C "$BACKEND" branch -q feat/112-other origin/develop
+echo CLOSED >"$TASK_TEST_STATE/issue-12"
+refuses "an unshipped branch beside the worktree's blocks it" 'feat/12-task-12 has commits' "$BACKEND" finish 12
+check "before anything is removed"             test -d "$ISSUE12/backend"
+echo feat/12-task-12 >>"$TASK_TEST_STATE/merged"
+check "once shipped, it finishes with the worktree" task "$BACKEND" finish 12
+check "both branches of the issue are gone"    test -z "$(git -C "$BACKEND" for-each-ref 'refs/heads/*/12-*')"
+check "another issue's branch stays"           git -C "$BACKEND" rev-parse -q --verify feat/112-other
 
 echo "-- sweep: a start first finishes every task whose issue is closed"
 ISSUE8="$WORK/repos/worktrees/8-task-8"
