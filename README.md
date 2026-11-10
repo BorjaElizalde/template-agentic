@@ -82,11 +82,14 @@ neither `gh` nor `claude`. When `gh` or `claude agents` can't answer, it says th
 and exits 0, so the session starts anyway. The start skill says what to do with each line.
 
 A task session is an interactive `claude` process in a Terminal tab (`open_session` in
-`task.sh`), never `claude -p`, the Agent SDK or an API key. Nobody answers it, so it never waits
-for a person: `--disallowed-tools AskUserQuestion` removes the question tool, a `PermissionRequest`
-hook in `session/settings.json` denies every permission prompt, and `session/prompt.md` tells it
-to take the option it would recommend and go on. A `Stop` prompt hook in `session/settings.json`
-also sends it back to work when it ends its turn on a question. The hook's model call runs on the
+`task.sh`), never `claude -p`, the Agent SDK or an API key. `settings.json` also denies
+`claude -p` and `claude --print` to every session, since a print run is billed at API prices.
+These deny lines match only a command that starts that way, so a form like `claude --model x -p`
+still gets through. Nobody answers a task session, so it never waits for a person:
+`--disallowed-tools AskUserQuestion` removes the question tool, a `PermissionRequest` hook in
+`session/settings.json` denies every permission prompt, and `session/prompt.md` tells it to take
+the option it would recommend and go on. A `Stop` prompt hook in `session/settings.json` also
+sends it back to work when it ends its turn on a question. The hook's model call runs on the
 session's own login, so it needs no API key either. `task.sh` finds a running session in
 `claude agents --json`, the supported way to read session state from outside Claude Code, as the
 interactive session whose working directory is the worktree; it finds the session's Terminal tab
@@ -132,6 +135,15 @@ and carries every stack's permissions and environment side by side. The stacks n
 key to different values, so a line one stack needs is inert in the others: a TypeScript project
 never calls `pip`, and an empty `VIRTUAL_ENV` changes nothing there. A new stack adds its lines
 here.
+
+`settings.json` allows `gh issue create`, `list`, `view`, `comment` and `edit`; the start skill and
+the session prompt ask for issue comments. It grants no other `gh issue` call and no `gh label`,
+which leaves each of them to the auto-mode classifier:
+
+- `gh issue close` is allowed only inside `/task:finish`, by its `allowed-tools`, because the next
+  sweep finishes a task whose issue is closed;
+- `gh issue delete` and `gh issue transfer` can't be undone;
+- `gh label` is used by no workflow of the template.
 
 ## CI
 
