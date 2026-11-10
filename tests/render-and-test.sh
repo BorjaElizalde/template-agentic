@@ -50,6 +50,13 @@ expect "the SessionStart hook says nothing where no task is" session_start_quiet
 MERGE_ALLOWED='any(.permissions.allow[]; . == "Bash(gh pr merge:*)")'
 expect "by default settings.json leaves gh pr merge to a prompt" jq -e "$MERGE_ALLOWED | not" "$D/.claude/settings.json"
 expect "with agent_merges settings.json allows gh pr merge" jq -e "$MERGE_ALLOWED" "$AM/.claude/settings.json"
+expect "settings.json denies claude -p and claude --print" jq -e '.permissions.deny as $d
+  | all("Bash(claude -p:*)", "Bash(claude --print:*)"; IN($d[]))' "$D/.claude/settings.json"
+# Neither gh issue close, delete, transfer nor gh issue:* or gh label: the README says why.
+expect "settings.json allows gh issue create, list, view, comment and edit, and no other gh issue or gh label call" jq -e '
+  [.permissions.allow[] | select(startswith("Bash(gh issue") or startswith("Bash(gh label"))] | sort
+  == ["Bash(gh issue comment:*)", "Bash(gh issue create:*)", "Bash(gh issue edit:*)", "Bash(gh issue list:*)", "Bash(gh issue view:*)"]' \
+  "$D/.claude/settings.json"
 GATE="$D/.github/workflows/gate.yaml"
 expect "the Gate workflow is a valid workflow" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows "$GATE"
 expect "the Gate workflow runs the stack's checks, never make" bash -c "
