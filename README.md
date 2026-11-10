@@ -16,8 +16,10 @@ uvx copier update -a .copier-answers.agentic.yaml
 Every merge to `main` is a release: the `Build` workflow re-runs `make gate` on the merged result,
 then tags the next `YYYYMMDD.N` version (a PEP 440 version, which Copier and Renovate order by).
 Projects take it as an update PR (Renovate's Copier manager, or `copier update` by hand). The
-template uses no unsafe Copier feature (Jinja extensions, migrations, tasks, or `_external_data`
-outside the project root), so an update runs without `--trust`.
+shared Renovate preset (see [What the project owns](#what-the-project-owns)) opens that PR at any
+time and outside every group, so a release reaches projects within hours, each template layer in
+its own PR. The template uses no unsafe Copier feature (Jinja extensions, migrations, tasks, or
+`_external_data` outside the project root), so an update runs without `--trust`.
 
 ## Questions
 
@@ -80,11 +82,14 @@ neither `gh` nor `claude`. When `gh` or `claude agents` can't answer, it says th
 and exits 0, so the session starts anyway. The start skill says what to do with each line.
 
 A task session is an interactive `claude` process in a Terminal tab (`open_session` in
-`task.sh`), never `claude -p`, the Agent SDK or an API key. Nobody answers it, so it never waits
-for a person: `--disallowed-tools AskUserQuestion` removes the question tool, a `PermissionRequest`
-hook in `session/settings.json` denies every permission prompt, and `session/prompt.md` tells it
-to take the option it would recommend and go on. A `Stop` prompt hook in `session/settings.json`
-also sends it back to work when it ends its turn on a question. The hook's model call runs on the
+`task.sh`), never `claude -p`, the Agent SDK or an API key. `settings.json` also denies
+`claude -p` and `claude --print` to every session, since a print run is billed at API prices.
+These deny lines match only a command that starts that way, so a form like `claude --model x -p`
+still gets through. Nobody answers a task session, so it never waits for a person:
+`--disallowed-tools AskUserQuestion` removes the question tool, a `PermissionRequest` hook in
+`session/settings.json` denies every permission prompt, and `session/prompt.md` tells it to take
+the option it would recommend and go on. A `Stop` prompt hook in `session/settings.json` also
+sends it back to work when it ends its turn on a question. The hook's model call runs on the
 session's own login, so it needs no API key either. `task.sh` finds a running session in
 `claude agents --json`, the supported way to read session state from outside Claude Code, as the
 interactive session whose working directory is the worktree; it finds the session's Terminal tab
@@ -100,12 +105,28 @@ machine prefers, for example `alias claude-rc='caffeinate -i claude --remote-con
 
 `.claude/memory/MEMORY.md` and `renovate.json` are seeded once (`_skip_if_exists`): an update
 never touches them, and a first copy into an existing repository keeps the repository's own file.
-The seeded `renovate.json` keeps Renovate's github-actions manager off the template's CI files, so
-their action pins arrive only in the template's update PR; a repository that keeps its own file
-adds the same `ignorePaths`. The project's `CLAUDE.md`
-is its own: the template never writes it, and its Product Stage is what the Judgment Guidelines in
-`.claude/rules/agentic.md` decide against. That rule file has no `paths:`, so Claude Code loads it
-in every session. Every other file belongs to this template: change it here, not in a project.
+The project's `CLAUDE.md` is its own: the template never writes it, and its Product Stage is what
+the Judgment Guidelines in `.claude/rules/agentic.md` decide against. That rule file has no
+`paths:`, so Claude Code loads it in every session. Every other file belongs to this template:
+change it here, not in a project.
+
+The seeded `renovate.json` takes its rules from one shared preset, `renovate/default.json` at this
+repository's root, outside `template/` so it is never rendered. It extends
+`github>BorjaElizalde/template-agentic//renovate/default`, which Renovate reads from this
+repository's default branch, `develop`, with no tag pin: a rule change merged there reaches every
+project on its next Renovate run. This repository's own `renovate.json` extends it too. The preset
+runs Renovate on the 1st of each month. It puts every minor and patch update in one PR and each
+major update in its own, bumps the version ranges, refreshes the lock files, and moves the Python
+image and the Python version together. Template updates (the `copier` manager) are the exception:
+they come at any time and outside every group, so a release reaches a project within hours, each
+template layer in its own PR.
+
+Beside the `extends`, the seeded file has only the `ignorePaths` that keep Renovate's
+github-actions manager off the template's CI files, so their action pins arrive only in the
+template's update PR. They stay out of the preset, which also serves this repository, whose CI
+files are its own. A repository that keeps its own `renovate.json` extends the preset and adds the
+same `ignorePaths`. A project adds its own rules as `packageRules` in its `renovate.json`: Renovate
+appends them after the preset's, so they win where both set an option.
 
 ## One settings file for every stack
 
@@ -114,6 +135,15 @@ and carries every stack's permissions and environment side by side. The stacks n
 key to different values, so a line one stack needs is inert in the others: a TypeScript project
 never calls `pip`, and an empty `VIRTUAL_ENV` changes nothing there. A new stack adds its lines
 here.
+
+`settings.json` allows `gh issue create`, `list`, `view`, `comment` and `edit`; the start skill and
+the session prompt ask for issue comments. It grants no other `gh issue` call and no `gh label`,
+which leaves each of them to the auto-mode classifier:
+
+- `gh issue close` is allowed only inside `/task:finish`, by its `allowed-tools`, because the next
+  sweep finishes a task whose issue is closed;
+- `gh issue delete` and `gh issue transfer` can't be undone;
+- `gh label` is used by no workflow of the template.
 
 ## CI
 
@@ -155,10 +185,10 @@ commit that changes `template/` and stops the commit when it re-rendered somethi
 re-render is staged with the change. Once per clone, run `uvx pre-commit install` and
 `bash .claude/skills/task/scripts/task.sh point-memory`.
 
-`make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`task.sh` suites. It also runs `make render` on a copy of the working tree and fails when that
-changes `.claude/`, for a commit made without the hook. The
-`Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
-checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
-`bugfix/*` PR of one commit, from this repository's own branches. `Build` runs the gate again on
+`make gate` renders the template, runs shellcheck on every script in the render and in `tests/`,
+and runs the rendered suites, which cover every hook and script. It also runs `make render` on a
+copy of the working tree and fails when that changes `.claude/`, for a commit made without the
+hook. The `Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`,
+after it checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or
+a `bugfix/*` PR of one commit, from this repository's own branches. `Build` runs the gate again on
 `main` before it tags.

@@ -30,7 +30,9 @@
 {%- endif %}
       "Bash(gh issue create:*)",
       "Bash(gh issue list:*)",
-      "Bash(gh issue view:*)"
+      "Bash(gh issue view:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(gh issue edit:*)"
     ],
     "deny": [
       "Edit(**/.env)",
@@ -42,7 +44,9 @@
       "Bash(pip:*)",
       "Bash(pip3:*)",
       "Bash(python:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(claude -p:*)",
+      "Bash(claude --print:*)"
     ]
   },
   "hooks": {
