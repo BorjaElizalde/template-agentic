@@ -86,7 +86,7 @@ expect "a first copy keeps the project's renovate.json" bash -c "[ \"\$(cat '$X/
 expect "the task plugin's manifest names it task" bash -c "[ \"\$(jq -r .name '$D/.claude/skills/task/.claude-plugin/plugin.json')\" = task ]"
 expect "no .claude/scripts folder is rendered" test ! -e "$D/.claude/scripts"
 expect "every script parses" bash -c "for f in \$(find '$D' -name '*.sh'); do bash -n \"\$f\" || exit 1; done"
-expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$ROOT/tests' -name '*.sh' -exec uvx --quiet --from shellcheck-py shellcheck --format gcc {} + | sed 's/^/FAIL /'"
+expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$ROOT/tests' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
 expect "bash-guard suite" bash "$D/.claude/hooks/bash-guard.test.sh"
 expect "worktree-guard suite" bash "$D/.claude/hooks/worktree-guard.test.sh"
 expect "practices protocol suite" bash "$D/.claude/hooks/practices/guard.test.sh"

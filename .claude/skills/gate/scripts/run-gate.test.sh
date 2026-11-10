@@ -85,14 +85,16 @@ check "and, third, the duration"                   grep -qxE 'Duration: [0-9]+s'
 check "the log is removed"                         test -z "$(temp_files)"
 
 echo "-- a gate that fails"
-GATE_TEST_EXIT=3 GATE_TEST_LINES=100 exits 3 "exits with make's status" "$REPO"
+GATE_TEST_EXIT=2 GATE_TEST_LINES=100 exits 2 "exits with make's status, 2 for a failed recipe" "$REPO"
 LOG="$(sed -n 's/^Log: //p' "$WORK/out")"
 check "it prints FAIL with that status, the tree and the log's path" \
-  test "$(head -n 4 "$WORK/out")" = "$(printf '%s\n' 'Gate: FAIL (exit 3)' "Tree: $FP" "Log: $LOG" 'Failure output (last 80 lines):')"
+  test "$(head -n 4 "$WORK/out")" = "$(printf '%s\n' 'Gate: FAIL (exit 2)' "Tree: $FP" "Log: $LOG" 'Failure output (last 80 lines):')"
 check "the log is kept in TMPDIR"                  test "$(temp_files)" = "$LOG"
-check "with all of make's output, stderr among it" test "$(cat "$LOG")" = "$(numbered 1 100; echo 'gate exit 3')"
+check "with all of make's output, stderr among it" test "$(cat "$LOG")" = "$(numbered 1 100; echo 'gate exit 2')"
 check "then the log's last 80 lines"               test "$(tail -n +5 "$WORK/out")" = "$(tail -n 80 "$LOG")"
 rm "$LOG"
+GATE_TEST_EXIT=3 exits 3 "any other status of make passes through too" "$REPO"
+rm "$(sed -n 's/^Log: //p' "$WORK/out")"
 
 echo "-- no tree to fingerprint: a repository with no commit"
 EMPTY="$WORK/empty"
