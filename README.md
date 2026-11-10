@@ -173,10 +173,10 @@ commit that changes `template/` and stops the commit when it re-rendered somethi
 re-render is staged with the change. Once per clone, run `uvx pre-commit install` and
 `bash .claude/skills/task/scripts/task.sh point-memory`.
 
-`make gate` renders the template and runs the rendered guard, protocol, memory checker and
-`task.sh` suites. It also runs `make render` on a copy of the working tree and fails when that
-changes `.claude/`, for a commit made without the hook. The
-`Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
+`make gate` renders the template, runs shellcheck on every script in the render and in `tests/`,
+and runs the rendered suites, which cover every hook and script. It also runs `make render` on a
+copy of the working tree and fails when that changes `.claude/`, for a commit made without the
+hook. The `Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`, after it
 checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a
 `bugfix/*` PR of one commit, from this repository's own branches. `Build` runs the gate again on
 `main` before it tags.
