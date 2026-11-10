@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Renders the template and runs the rendered harness's own tests, the way a project gets it.
 # Needs uv, git and jq.
+# Every function here runs: expect calls each check by the name it is given. Tried one directive on
+# each such function, but the cause is expect, which every check in this file goes through.
+# shellcheck disable=SC2329
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$(mktemp -d)"
@@ -38,6 +41,9 @@ expect "with agent_merges the pull-request skill merges a pinned squash" bash -c
   grep -qF 'gh pr merge <n> --squash --match-head-commit <sha>' '$AM/.claude/skills/pull-request/SKILL.md' &&
   grep -qF 'Bash(gh pr merge:*)' '$AM/.claude/skills/pull-request/SKILL.md'"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
+# $CLAUDE_PROJECT_DIR is text in the hook command, for Claude Code to expand. Tried double quotes,
+# but then each " and $ of the jq program needs a backslash.
+# shellcheck disable=SC2016
 expect "a session that starts or resumes runs task.sh attention" jq -e 'any(.hooks.SessionStart[];
   .matcher == "startup|resume" and any(.hooks[];
     .command == "bash \"$CLAUDE_PROJECT_DIR/.claude/skills/task/scripts/task.sh\" attention"))' "$D/.claude/settings.json"
@@ -50,6 +56,8 @@ expect "the SessionStart hook says nothing where no task is" session_start_quiet
 MERGE_ALLOWED='any(.permissions.allow[]; . == "Bash(gh pr merge:*)")'
 expect "by default settings.json leaves gh pr merge to a prompt" jq -e "$MERGE_ALLOWED | not" "$D/.claude/settings.json"
 expect "with agent_merges settings.json allows gh pr merge" jq -e "$MERGE_ALLOWED" "$AM/.claude/settings.json"
+# $d is jq's variable. Tried double quotes, but then each " and $ of the program needs a backslash.
+# shellcheck disable=SC2016
 expect "settings.json denies claude -p and claude --print" jq -e '.permissions.deny as $d
   | all("Bash(claude -p:*)", "Bash(claude --print:*)"; IN($d[]))' "$D/.claude/settings.json"
 # Neither gh issue close, delete, transfer nor gh issue:* or gh label: the README says why.
@@ -65,6 +73,8 @@ expect "the shared preset and every renovate.json are valid Renovate config" uvx
   --schemafile https://docs.renovatebot.com/renovate-schema.json "$ROOT/renovate/default.json" "$ROOT/renovate.json" "$D/renovate.json"
 expect "renovate.json takes its rules from the shared preset only" jq -e \
   '.extends == ["github>BorjaElizalde/template-agentic//renovate/default"]' "$D/renovate.json"
+# $p is jq's variable. Tried double quotes, but then each " and $ of the program needs a backslash.
+# shellcheck disable=SC2016
 expect "Renovate leaves the template's CI files to the update PR" jq -e '.["github-actions"].ignorePaths as $p
   | any($p[]; . == ".github/workflows/gate.yaml") and any($p[]; . == ".github/actions/stack-gate/**")' "$D/renovate.json"
 expect "the release skill doesn't say CI runs make gate" bash -c "! grep -q 'make gate' '$D/.claude/skills/release/SKILL.md'"
@@ -76,10 +86,15 @@ expect "a first copy keeps the project's renovate.json" bash -c "[ \"\$(cat '$X/
 expect "the task plugin's manifest names it task" bash -c "[ \"\$(jq -r .name '$D/.claude/skills/task/.claude-plugin/plugin.json')\" = task ]"
 expect "no .claude/scripts folder is rendered" test ! -e "$D/.claude/scripts"
 expect "every script parses" bash -c "for f in \$(find '$D' -name '*.sh'); do bash -n \"\$f\" || exit 1; done"
+expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$ROOT/tests' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
 expect "bash-guard suite" bash "$D/.claude/hooks/bash-guard.test.sh"
+expect "worktree-guard suite" bash "$D/.claude/hooks/worktree-guard.test.sh"
 expect "practices protocol suite" bash "$D/.claude/hooks/practices/guard.test.sh"
 expect "memory checker suite" bash "$D/.claude/hooks/memory/guard.test.sh"
 expect "task.sh suite" bash "$D/.claude/skills/task/scripts/task.test.sh"
+expect "run-gate.sh suite" bash "$D/.claude/skills/gate/scripts/run-gate.test.sh"
+expect "await-run.sh suite" bash "$D/.claude/skills/release/scripts/await-run.test.sh"
+expect "await-checks.sh suite" bash "$D/.claude/skills/release/scripts/await-checks.test.sh"
 expect "seeded memory index is clean" bash "$D/.claude/hooks/memory/staleness.sh" "$D/.claude/memory"
 expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/task/scripts/task.sh' point-memory >/dev/null &&
   [ \"\$(jq -r .autoMemoryDirectory '$D/.claude/settings.local.json')\" = \"\$(cd '$D' && pwd -P)/.claude/memory\" ]"
