@@ -1,9 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Seeded once by the agentic template. The template's own CI files take their action pins from the template's update PR, so Renovate's github-actions manager leaves them alone.",
-  "extends": ["config:recommended", ":disableDependencyDashboard"],
-  "semanticCommits": "disabled",
-  "commitMessagePrefix": "renovate:",
+  "description": "Seeded once by the agentic template. Every rule comes from the shared preset; add the project's own as packageRules here. The template's own CI files take their action pins from the template's update PR, so Renovate's github-actions manager leaves them alone.",
+  "extends": ["github>BorjaElizalde/template-agentic//renovate/default"],
   "github-actions": {
     "ignorePaths": [".github/workflows/gate.yaml", ".github/actions/stack-gate/**"]
   }
