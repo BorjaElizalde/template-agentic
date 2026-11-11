@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
-# The task lifecycle behind /task:start and /task:finish: one issue, one worktree, one session.
+# The task lifecycle behind /task:start and /task:finish: one issue, one worktree, one session. And
+# the parking of an issue that must not start yet.
 set -euo pipefail
 
-usage="usage: task.sh start <issue> [type] | finish <issue> | cleanup | status | on-session-start | point-memory"
+usage="usage: task.sh start <issue> [type] | finish <issue> | park <issue> <reason> | cleanup | status | on-session-start | point-memory"
 
 CALLER=$(pwd -P)
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -27,6 +28,28 @@ die() {
 # "<STATE> <title>" of an issue in the issues repository.
 issue_view() {
 	gh issue view "$1" -R "$ISSUES_REPO" --json state,title -q '.state + " " + .title'
+}
+
+# Why issue $1 must not start yet, one line per reason, else nothing: the open issues it is blocked
+# by, and the reason it is parked for, from the last comment that starts with "Parked:".
+issue_holds() {
+	gh issue view "$1" -R "$ISSUES_REPO" --json labels,blockedBy,comments | jq -r --arg n "$1" '
+		([.blockedBy.nodes[] | select(.state == "OPEN") | "#\(.number)"] | select(. != [])
+			| "issue \($n) is blocked by \(join(", "))"),
+		(select(any(.labels[]; .name == "backlog"))
+			| [.comments[].body | select(startswith("Parked:")) | sub("^Parked: *"; "")] | last
+			| "issue \($n) is parked: \(. // "no reason given")")'
+}
+
+# Parks issue $1 for reason $2: a comment that gives the reason, then the backlog label, so the label
+# never stands without its reason. The label is created on its first use in the issues repository;
+# --force updates one that exists.
+park() {
+	gh label create backlog -R "$ISSUES_REPO" --force --color ededed \
+		--description "Parked: no agent starts it until the owner releases it" >/dev/null
+	gh issue comment "$1" -R "$ISSUES_REPO" --body "Parked: $2" >/dev/null
+	gh issue edit "$1" -R "$ISSUES_REPO" --add-label backlog >/dev/null
+	echo "✓ issue $1 parked: $2"
 }
 
 # A title cut at a word boundary to 40 characters.
@@ -159,10 +182,12 @@ unshipped() {
 
 # Picks up whatever the issue already has: its worktree, else its branch, and its session.
 start_task() {
-	local issue=$1 type=$2 view title short slug worktree branch name tty
+	local issue=$1 type=$2 view title holds short slug worktree branch name tty
 	view=$(issue_view "$issue") || die "no issue $issue in $ISSUES_REPO"
 	title=${view#* }
 	[ "${view%% *}" = OPEN ] || die "issue $issue is ${view%% *}: a task starts from an open issue"
+	holds=$(issue_holds "$issue")
+	[ -z "$holds" ] || die "$holds"
 	short=$(short_title "$title")
 	cleanup
 	SESSIONS=$(claude agents --json)
@@ -363,6 +388,7 @@ on_session_start() {
 case ${1:-} in
 start) [ $# -ge 2 ] || die "$usage"; start_task "$2" "${3:-feat}" ;;
 finish) [ $# -ge 2 ] || die "$usage"; finish_task "$2" ;;
+park) [ $# -ge 3 ] || die "$usage"; park "$2" "$3" ;;
 cleanup) cleanup ;;
 status) status ;;
 on-session-start) on_session_start ;;
