@@ -53,33 +53,39 @@ front while it runs and resumed when it doesn't. `/task:finish` closes the issue
 is delivered, then the session, the worktree and every local branch of the issue (`*/<n>-*`: a
 task can open a second branch for a follow-up PR); it refuses before it removes anything while one
 of those branches has commits on no remote branch and in no merged PR, or the worktree has
-uncommitted or untracked files. Given no issue, `/task:finish` finishes every task whose issue
-is closed, and `/task:start` does the same first: a PR merged on GitHub closes its issue, and the
-next start finishes its task.
+uncommitted or untracked files.
 
-`task.sh status` shows every task in one view. It first finishes every task whose issue is
-closed, as a start does, then prints one line per task worktree of this checkout: the issue and
-its short title, its session (`busy`, `idle`, `waiting`, or none), its newest PR with its state
-and check result, and how long ago the session last wrote its transcript. It prints nothing
-else, so a look costs the session that runs it a few lines; the backlog is `gh issue list`'s.
+The main session follows its tasks through two commands of `task.sh`, and each does one thing:
 
-The main session follows its tasks through `task.sh attention`: the same lines, for only the
-tasks that need attention. A task needs it when its session waits for an answer, or has been idle
-or gone for 10 minutes (`QUIET_MINUTES`) since it last wrote its transcript. A busy session is
+- `cleanup` finishes every task whose issue is closed, and prints one line per task it finished
+  or refused to finish, with the reason. A PR merged on GitHub closes its issue, but nothing else
+  finishes its task. `/task:finish` with no issue runs it.
+- `status` only reads. It prints one line per task worktree of this checkout: the issue and its
+  short title, its session (`busy`, `idle`, `waiting`, or none), its newest PR with its state and
+  check result, and how long ago the session last wrote its transcript. It prints nothing else,
+  so a look costs the session that runs it a few lines; the backlog is `gh issue list`'s.
+
+A line ends in `needs attention` when the task's session waits for an answer, or has been idle or
+gone for 10 minutes (`QUIET_MINUTES`) since it last wrote its transcript. A busy session is
 working, and one that went quiet only just now often waits for a background check that wakes it
 when the check finishes. Idle notices (`SendMessage` with `notify_when_idle`) are not used: they
-can't be delayed, so they would fire on exactly those pauses. The list comes at three moments:
+can't be delayed, so they would fire on exactly those pauses. The start skill says what to do with
+each marked line.
 
-- `/task:start` prints it after its sweep, leaving out the task it starts;
-- a `SessionStart` hook in `settings.json` (`startup|resume`) puts it in the context of a session
-  that starts or resumes in a main checkout, so a restart forgets nothing;
-- a main session that runs a `/loop` can print it on each round.
+Both run by themselves, cleanup first, at two moments:
 
-`attention` only reads, so a session start stays fast: it never sweeps, and a task whose issue is
-closed shows up until the next start finishes it. It prints nothing in a task worktree, so task
-sessions are untouched, nor when no task needs attention; where there is no task worktree it calls
-neither `gh` nor `claude`. When `gh` or `claude agents` can't answer, it says the tasks are unknown
-and exits 0, so the session starts anyway. The start skill says what to do with each line.
+- each `/task:start`, whose status leaves out the task it starts;
+- a session that starts or resumes in a main checkout, through a `SessionStart` hook in
+  `settings.json` (`startup|resume`) that runs `task.sh on-session-start` and puts the lines in
+  the session's context, so a restart forgets nothing.
+
+A main session that runs a `/loop` runs `status` on each round, which prints every task even when
+none needs attention. The hook makes a session start slower, since its cleanup can close
+sessions and remove worktrees. Claude Code runs it in the background, and the session's first
+answer waits for it. It prints nothing in a task worktree, so task sessions start untouched; where
+there is no task worktree it calls neither `gh` nor `claude`. A cleanup refusal is reported and
+the session starts anyway. When `gh` or `claude agents` can't answer, it says the tasks are
+unknown and exits 0.
 
 A task session is an interactive `claude` process in a Terminal tab (`open_session` in
 `task.sh`), never `claude -p`, the Agent SDK or an API key. `settings.json` also denies
@@ -141,7 +147,7 @@ the session prompt ask for issue comments. It grants no other `gh issue` call an
 which leaves each of them to the auto-mode classifier:
 
 - `gh issue close` is allowed only inside `/task:finish`, by its `allowed-tools`, because the next
-  sweep finishes a task whose issue is closed;
+  cleanup finishes a task whose issue is closed;
 - `gh issue delete` and `gh issue transfer` can't be undone;
 - `gh label` is used by no workflow of the template.
 

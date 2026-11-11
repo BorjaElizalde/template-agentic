@@ -3,7 +3,7 @@
 # The task lifecycle behind /task:start and /task:finish: one issue, one worktree, one session.
 set -euo pipefail
 
-usage="usage: task.sh start <issue> [type] | finish <issue> | sweep | status | attention | point-memory"
+usage="usage: task.sh start <issue> [type] | finish <issue> | cleanup | status | on-session-start | point-memory"
 
 CALLER=$(pwd -P)
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -164,9 +164,9 @@ start_task() {
 	title=${view#* }
 	[ "${view%% *}" = OPEN ] || die "issue $issue is ${view%% *}: a task starts from an open issue"
 	short=$(short_title "$title")
-	sweep
+	cleanup
 	SESSIONS=$(claude agents --json)
-	task_lines attention "$issue"
+	task_lines "$issue"
 	if worktree=$(issue_worktree "$issue"); then
 		echo "✓ worktree exists: $worktree"
 	else
@@ -243,18 +243,23 @@ task_issues() {
 }
 
 # Finishes every task worktree of this checkout whose issue is closed: a PR merged on GitHub closes
-# its issue, but nothing finishes its task. Open issues are skipped without a word.
-sweep() {
-	local issue view
+# its issue, but nothing finishes its task. One line per task it finished or refused to finish;
+# open issues are skipped without a word.
+cleanup() {
+	local issue view out
 	# A worktree whose folder was deleted by hand still holds its branch until git forgets it.
 	git worktree prune
 	for issue in $(task_issues); do
 		view=$(issue_view "$issue") || continue
 		[ "${view%% *}" = CLOSED ] || continue
-		# A refusal exits, so each finish runs as a task.sh of its own: a refusal is reported and the
-		# sweep goes on. From the caller's folder, $0 resolves and finish sees a sweep from inside
-		# the worktree it would remove.
-		(cd "$CALLER" && bash "$0" finish "$issue") || true
+		# A refusal exits, so each finish runs as a task.sh of its own, whose last line says what it
+		# did or why it refused, and the cleanup goes on. From the caller's folder, $0 resolves and
+		# finish sees a cleanup from inside the worktree it would remove.
+		if out=$(cd "$CALLER" && bash "$0" finish "$issue" 2>&1); then
+			tail -n 1 <<<"$out"
+		else
+			echo "✗ issue $issue not finished: $(tail -n 1 <<<"$out")"
+		fi
 	done
 }
 
@@ -300,12 +305,12 @@ active_line() {
 	fi
 }
 
-# Sweeps first, so a look also finishes what is done. Then one line per task worktree of this
-# checkout, and nothing else: the backlog is gh issue list's.
+# One line per task worktree of this checkout, and nothing else: the backlog is gh issue list's. It
+# only reads, and where there is no task it calls neither gh nor claude.
 status() {
-	sweep
+	[ -n "$(task_issues)" ] || return 0
 	SESSIONS=$(claude agents --json)
-	task_lines all
+	task_lines
 }
 
 # A session idle or gone for less than this many minutes since it last wrote is left alone: one
@@ -322,41 +327,40 @@ needs_attention() {
 	esac
 }
 
-# task_lines all|attention [<issue>]: one line per task worktree of this checkout, with its session,
-# its PR and when its session last wrote; the issue given is left out. With attention, only the
-# tasks that need it.
+# task_lines [<issue>]: one line per task worktree of this checkout, with its session, its PR and
+# when its session last wrote, ending in "needs attention" when it does; the issue given is left out.
 task_lines() {
-	local issue worktree session age view pr
+	local issue worktree session age view pr mark
 	for issue in $(task_issues); do
-		[ "$issue" != "${2:-}" ] || continue
+		[ "$issue" != "${1:-}" ] || continue
 		worktree=$(issue_worktree "$issue")
 		session=$(session_line "$worktree")
 		age=$(transcript_age "$worktree")
-		[ "$1" = all ] || needs_attention "$session" "$age" || continue
 		view=$(issue_view "$issue")
 		pr=$(pr_line "$(git -C "$worktree" branch --show-current)")
-		echo "#$issue $(short_title "${view#* }"): $session, $pr, $(active_line "$age")"
+		mark=
+		if needs_attention "$session" "$age"; then mark=", needs attention"; fi
+		echo "#$issue $(short_title "${view#* }"): $session, $pr, $(active_line "$age")$mark"
 	done
 }
 
-# The tasks that need attention, read only so it is fast: the SessionStart hook puts them in the
-# context of a session in the main checkout, and a /loop can print them on each round. It says
-# nothing in a task worktree, nor when no task needs attention, and it never fails a session start.
-attention() {
+# The SessionStart hook: a cleanup, then the status, in the context of a session that starts or
+# resumes in the main checkout. It says nothing in a task worktree, so task sessions start
+# untouched, and it never fails a session start.
+on_session_start() {
 	[ "$(git -C "$CHECKOUT" rev-parse --absolute-git-dir)" = \
 		"$(git -C "$CHECKOUT" rev-parse --path-format=absolute --git-common-dir)" ] || return 0
-	[ -n "$(task_issues)" ] || return 0
-	trap '[ $? -eq 0 ] || { echo "task.sh attention failed, so the tasks are unknown: run it again once gh and claude agents answer."; exit 0; }' EXIT
-	SESSIONS=$(claude agents --json)
-	task_lines attention
+	trap '[ $? -eq 0 ] || { echo "The tasks are unknown: gh or claude agents did not answer. Run task.sh status once they do."; exit 0; }' EXIT
+	cleanup
+	status
 }
 
 case ${1:-} in
 start) [ $# -ge 2 ] || die "$usage"; start_task "$2" "${3:-feat}" ;;
 finish) [ $# -ge 2 ] || die "$usage"; finish_task "$2" ;;
-sweep) sweep ;;
+cleanup) cleanup ;;
 status) status ;;
-attention) attention ;;
+on-session-start) on_session_start ;;
 point-memory) point_memory "$CHECKOUT" && echo "✓ auto memory points at $CHECKOUT/.claude/memory" ;;
 *) die "$usage" ;;
 esac
