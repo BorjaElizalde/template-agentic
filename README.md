@@ -69,8 +69,7 @@ A line ends in `needs attention` when the task's session waits for an answer, or
 gone for 10 minutes (`QUIET_MINUTES`) since it last wrote its transcript. A busy session is
 working, and one that went quiet only just now often waits for a background check that wakes it
 when the check finishes. Idle notices (`SendMessage` with `notify_when_idle`) are not used: they
-can't be delayed, so they would fire on exactly those pauses. The start skill says what to do with
-each marked line.
+can't be delayed, so they would fire on exactly those pauses.
 
 Both run by themselves, cleanup first, at two moments:
 
@@ -82,10 +81,28 @@ Both run by themselves, cleanup first, at two moments:
 A main session that runs a `/loop` runs `status` on each round, which prints every task even when
 none needs attention. The hook makes a session start slower, since its cleanup can close
 sessions and remove worktrees. Claude Code runs it in the background, and the session's first
-answer waits for it. It prints nothing in a task worktree, so task sessions start untouched; where
-there is no task worktree it calls neither `gh` nor `claude`. A cleanup refusal is reported and
-the session starts anyway. When `gh` or `claude agents` can't answer, it says the tasks are
-unknown and exits 0.
+answer waits for it. A hook can't call a skill or start a turn: it only adds its output to the
+session's context, which the owner doesn't see. So its output ends with one line that sends the
+session to `/task:status` for its first reply. Claude Code passes on 10,000 characters of a hook's
+output, and only a preview of the first 2,000 when there are more, so the lines stay short: about
+40 tasks fit. It prints nothing in a task worktree, so task sessions start untouched, nor where
+there is no task worktree, where it calls neither `gh` nor `claude`. A cleanup refusal is
+reported and the session starts anyway. When `gh` or `claude agents` can't answer, it says the
+tasks are unknown, and to report them through `/task:status` once they answer, and exits 0.
+
+The owner reads the status through `/task:status`. The script gives the facts and the main session
+writes the reply, since a script can't put a goal in plain words or say what the owner should do.
+The skill runs the cleanup and the status, reads each task's issue for its goal and any
+`Owner steps` comment, and reads the last message of each idle or waiting session. It acts on each
+line marked `needs attention` where the main session can, for example it sends a session back to
+fix failed checks. Then it answers with one card per task: the goal, where the task stands, and
+what the owner should do, with the main session's pick. The cards that need the owner come first,
+and a task whose issue is closed shows only in the closing "Cleaned up" list. The main session
+reports the status this way when the owner asks for it, in its first reply after a session start,
+and at the end of each `/task:start`; a `/loop` round does it when a line needs attention. The
+format is only in the skill, which loads when it is used, so a task session never carries it. The
+name keeps the plugin's prefix: a bare `/status` skill would replace Claude Code's built-in
+command.
 
 A task session is an interactive `claude` process in a Terminal tab (`open_session` in
 `task.sh`), never `claude -p`, the Agent SDK or an API key. `settings.json` also denies
@@ -101,11 +118,12 @@ session's own login, so it needs no API key either. `task.sh` finds a running se
 interactive session whose working directory is the worktree; it finds the session's Terminal tab
 by that process's tty.
 
-Both are skills of one plugin, `.claude/skills/task/`, so they share its `scripts/task.sh`
-through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a Makefile for them. Claude Code loads a
-plugin under `.claude/skills/` in place, with no install and no settings entry, from the folder a
-session starts in: the main checkout, or a task's worktree. Claude itself is started however the
-machine prefers, for example `alias claude-rc='caffeinate -i claude --remote-control'`.
+`/task:start`, `/task:finish` and `/task:status` are skills of one plugin, `.claude/skills/task/`,
+so they share its `scripts/task.sh` through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a
+Makefile for them. Claude Code loads a plugin under `.claude/skills/` in place, with no install
+and no settings entry, from the folder a session starts in: the main checkout, or a task's
+worktree. Claude itself is started however the machine prefers, for example
+`alias claude-rc='caffeinate -i claude --remote-control'`.
 
 ## What the project owns
 

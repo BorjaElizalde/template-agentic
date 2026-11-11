@@ -22,8 +22,7 @@ The same steps start a new task and pick up an existing one.
    whose result is an answer. It names a new branch only: an issue that has a branch keeps it.
 3. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" start <n> <type>`. It first runs
    `task.sh cleanup`, which finishes every task whose issue is closed, as a bare `/task:finish`
-   does, then `task.sh status` for every other task: one line each, which ends in
-   `needs attention` when the task needs it. Then it picks up what the issue already has:
+   does, then `task.sh status` for every other task. Then it picks up what the issue already has:
    - its worktree, else its branch (left without a worktree, or pushed from another clone), else
      a new branch from `origin/develop`;
    - its running session, brought to the front and never opened twice, else its last session,
@@ -31,14 +30,5 @@ The same steps start a new task and pick up an existing one.
 
    A new or resumed session starts with a prompt that sends it to the issue and its comments. A
    running session gets no prompt: send it what changed with SendMessage.
-4. Return the issue URL, the worktree path, the session name, what the script picked up, the
-   tasks it finished or refused to finish, and the tasks marked `needs attention`. Then act on
-   each marked task, by what its line says:
-   - idle, PR open and checks passed: review the PR; the owner merges it;
-   - checks failed: send the session back to work with SendMessage, saying what failed;
-   - idle, no PR: read the session's last message, which holds a research result to close the
-     issue on, a blocker, or a question to answer;
-   - waiting: someone must answer in its Terminal tab;
-   - no session, issue open: resume it with `/task:start <n>`.
-
-   A task whose issue is closed needs nothing: the next cleanup finishes it.
+4. Return the issue URL, the worktree path, the session name and what the script picked up. Then
+   report the status through `/task:status`.
