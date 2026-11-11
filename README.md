@@ -55,6 +55,23 @@ task can open a second branch for a follow-up PR); it refuses before it removes 
 of those branches has commits on no remote branch and in no merged PR, or the worktree has
 uncommitted or untracked files.
 
+A task starts in one of two modes, and its branch type is its mode from its start to its finish:
+
+| Mode | How its session works | Branch types | Result |
+|---|---|---|---|
+| Execution, the default | Alone: it never waits for a person | `feat`, `fix`, `refactor`, `chore`, `research` | A PR. For `research`, an answer: a PR for a document, or a result comment |
+| Design | With the owner, who answers in its Terminal tab: it asks what is the owner's to decide, and may end its turn on a question | `design` | An answer, delivered as a research task's is: the decisions taken, and the issues for the work |
+
+The main session starts a design task only when the owner asks to work it out together ("with
+me", "let's design", "let's discuss"), never on its own guess. `task.sh start` reads the mode from
+the task's branch at every start, so a resumed session keeps it; nothing else stores it, neither a
+start argument, a label nor a file. The type names a new branch only, so a task keeps its mode for
+life: to talk an execution task through, the owner uses its PR, and to build what a design task
+decided, the main session starts execution tasks from its issues. `task.sh start` refuses a type
+it does not know, since a mistyped one would fix the wrong mode for the task's life. The mode is
+said in three places: the branch name, the session line of `task.sh start`, for a new, a resumed
+and a running session, and the status line of a design task, which says `design mode`.
+
 Every open issue is in one of four states, each read from a fact GitHub already holds:
 
 | State | How it is marked | Who clears it |
@@ -75,12 +92,13 @@ label per reason, no project board, no issue type (GitHub offers them only to or
 no parent issue.
 
 To plan a backlog, the owner says "plan X", and the main session starts an ordinary `research`
-task. Its session studies the code and the open issues, then creates one issue per piece of work,
-each with its goal, its scope and what done means. "Blocked by" links put them in order, and each
-one is parked with a reason that names the planning issue. The result is a comment on the planning
-issue that lists them, which `/task:finish` accepts for a research task. The session never waits
-for the owner, who corrects the plan afterwards and tells the main session which issues to
-release.
+task, or says "plan X with me", and the main session starts a `design` task. Either session studies
+the code and the open issues, then creates one issue per piece of work, each with its goal, its
+scope and what done means. "Blocked by" links put them in order, and each one is parked with a
+reason that names the planning issue. The result is a comment on the planning issue that lists
+them, which `/task:finish` accepts for a research or a design task. A research session never
+waits for the owner, who corrects the plan afterwards; a design session works it out with the
+owner as it goes. Either way, the owner tells the main session which issues to release.
 
 The main session follows its tasks through two commands of `task.sh`, and each does one thing:
 
@@ -89,9 +107,10 @@ The main session follows its tasks through two commands of `task.sh`, and each d
   finishes its task. `/task:finish` with no issue runs it.
 - `status` only reads, and shows the whole backlog: every open issue once, under the headings In
   progress, Ready, Blocked and Parked, with no heading where no issue is. Under In progress is one
-  line per task worktree of this checkout: the issue and its short title, its session (`busy`,
-  `idle`, `waiting`, or none), its newest PR with its state and check result, and how long ago
-  the session last wrote its transcript. The other issues come from one `gh issue list`, one line
+  line per task worktree of this checkout: the issue and its short title, `design mode` for a
+  design task, its session (`busy`, `idle`, `waiting`, or none), its newest PR with its state and
+  check result, and how long ago the session last wrote its transcript. The other issues come
+  from one `gh issue list`, one line
   each with the whole title, lowest number first: a blocked line names the open issues it waits
   on, and a parked line its reason. An issue goes under the first state that fits: in progress,
   then parked, then blocked, then ready. So an issue a planning task left parked and blocked shows
@@ -146,12 +165,22 @@ A task session is an interactive `claude` process in a Terminal tab (`open_sessi
 `task.sh`), never `claude -p`, the Agent SDK or an API key. `settings.json` also denies
 `claude -p` and `claude --print` to every session, since a print run is billed at API prices.
 These deny lines match only a command that starts that way, so a form like `claude --model x -p`
-still gets through. Nobody answers a task session, so it never waits for a person:
-`--disallowed-tools AskUserQuestion` removes the question tool, a `PermissionRequest` hook in
-`session/settings.json` denies every permission prompt, and `session/prompt.md` tells it to take
-the option it would recommend and go on. A `Stop` prompt hook in `session/settings.json` also
-sends it back to work when it ends its turn on a question. The hook's model call runs on the
-session's own login, so it needs no API key either. `task.sh` finds a running session in
+still gets through.
+
+Each text a session launches with lives in one file of `session/`. A `PermissionRequest` hook in
+`settings.json` denies every permission prompt, in both modes: nobody answers those. The system
+prompt is `prompt.md`, the words both modes share, then the mode's own words, `execution.md` or
+`design.md`. `claude` takes one appended system prompt, so the tab's shell joins the two files
+when it launches the session. Nobody answers an execution session, so it never waits for a person:
+`--disallowed-tools AskUserQuestion` removes the question tool, `execution.md` tells it to take
+the option it would recommend and go on, and a `Stop` prompt hook in `settings.json` sends it back
+to work when it ends its turn on a question. The hook's model call runs on the session's own
+login, so it needs no API key either. A design session keeps the question tool and goes without
+the `Stop` hook: `claude --settings` takes one file or JSON string, so `task.sh` gives it the
+settings less the hook as JSON. It asks the owner what is the owner's to decide, and may end its
+turn on a question. `/task:status` gives such a question the ✋ mark: the owner answers it in the
+session's Terminal tab, and the main session never answers it for the owner, nor sends the
+session back to work past it. `task.sh` finds a running session in
 `claude agents --json`, the supported way to read session state from outside Claude Code, as the
 interactive session whose working directory is the worktree; it finds the session's Terminal tab
 by that process's tty.

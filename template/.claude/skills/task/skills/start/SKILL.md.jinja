@@ -11,30 +11,39 @@ The same steps start a new task and pick up an existing one.
 1. Find the issue. Given a number, use it. Otherwise search the open issues with
    `gh issue list -R {{ issues_repo }} --state open --search "<keywords>"` and reuse one that
    covers the task. Otherwise create one with `gh issue create -R {{ issues_repo }}`: an imperative
-   title, and a body that states the goal, the scope, and what done means. For a research task,
-   also say where its result goes: a PR, or a comment on the issue. The issue is the session's
-   whole brief: it sees nothing of the conversation that started it, so the body carries every
-   decision already taken and what the conversation found out. On an existing issue, add what was
-   settled since as a comment. Never point a task at a scratchpad, `/tmp` or `/private/tmp` path:
-   a restart wipes them, and a consumer project lost a task's input files that way. What a task
-   needs goes in the issue, or the task rebuilds it.
-2. Pick the branch type: `feat`, `fix`, `refactor` or `chore` for a change, `research` for a task
-   whose result is an answer. It names a new branch only: an issue that has a branch keeps it.
+   title, and a body that states the goal, the scope, and what done means. For a research or a
+   design task, also say where its result goes: a PR, or a comment on the issue. The issue is the
+   session's whole brief: it sees nothing of the conversation that started it, so the body
+   carries every decision already taken and what the conversation found out. On an existing
+   issue, add what was settled since as a comment. Never point a task at a scratchpad, `/tmp` or
+   `/private/tmp` path: a restart wipes them, and a consumer project lost a task's input files
+   that way. What a task needs goes in the issue, or the task rebuilds it.
+2. Pick the branch type. It is the task's mode, for the task's life:
+   - **Execution**, the default: `feat`, `fix`, `refactor` or `chore` for a change, `research`
+     for a task whose result is an answer. Its session works alone and never waits for a person.
+   - **Design**: `design`, only when the owner asks to work the task out together ("with me",
+     "let's design", "let's discuss"), never on your own guess. Its session asks the owner, in
+     its Terminal tab, what is the owner's to decide, and builds nothing: its result, delivered
+     as a research task's, is the decisions taken and the issues for the work.
+
+   The type names a new branch only: an issue that has a branch keeps it, and its mode. To talk
+   an execution task through, the owner uses its PR; to build what a design task decided, start
+   execution tasks from its issues.
 3. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" start <n> <type>`. Before anything else, it
-   refuses an issue that must wait (see below) and names its open blocker or the reason it is
-   parked: tell the owner, and start nothing in its place. Otherwise it first runs
-   `task.sh cleanup`, which finishes every task whose issue is closed, as a bare `/task:finish`
-   does, then prints the status line of every other task, with no backlog. Then it picks up what
-   the issue already has:
+   refuses a type it does not know, and an issue that must wait (see below), naming its open
+   blocker or the reason it is parked: tell the owner, and start nothing in its place. Otherwise
+   it first runs `task.sh cleanup`, which finishes every task whose issue is closed, as a bare
+   `/task:finish` does, then prints the status line of every other task, with no backlog. Then it
+   picks up what the issue already has:
    - its worktree, else its branch (left without a worktree, or pushed from another clone), else
      a new branch from `origin/develop`;
    - its running session, brought to the front and never opened twice, else its last session,
-     resumed, else a new one.
+     resumed, else a new one, in the mode of its branch, which the session line names.
 
    A new or resumed session starts with a prompt that sends it to the issue and its comments. A
    running session gets no prompt: send it what changed with SendMessage.
-4. Return the issue URL, the worktree path, the session name and what the script picked up. Then
-   report the status through `/task:status`.
+4. Return the issue URL, the worktree path, the session name, its mode and what the script picked
+   up. Then report the status through `/task:status`.
 
 ## Issues that must wait
 
@@ -52,7 +61,9 @@ No agent starts an issue that is blocked or parked. GitHub holds both facts:
 
 ## Plan a backlog
 
-When the owner says "plan X", start a `research` task for it. Its issue body asks its session to:
+When the owner says "plan X", start a `research` task for it, whose session works alone. When the
+owner says "plan X with me", start a `design` task, whose session works the plan out with them.
+Either issue's body asks its session to:
 
 1. study the code and the open issues;
 2. create one issue per piece of work, whose body states its goal, its scope and what done means,
@@ -62,5 +73,5 @@ When the owner says "plan X", start a `research` task for it. Its issue body ask
    `bash .claude/skills/task/scripts/task.sh park <n> "planned in #<this issue>, waits for the owner's review"`;
 5. post, as its result, a comment on this issue that lists them in order.
 
-The session never waits for the owner. The owner corrects the plan afterwards, and tells the main
-session which issues to release.
+A research session never waits for the owner, who corrects its plan afterwards. Either way, the
+owner tells the main session which issues to release.

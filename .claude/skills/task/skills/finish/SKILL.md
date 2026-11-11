@@ -16,7 +16,7 @@ refused to finish, and goes on past a refusal. Return what it finished and each 
 1. Read the issue with `gh issue view <n> -R BorjaElizalde/template-agentic --json state,title,comments` and its
    PRs with `gh pr list --state all --search "BorjaElizalde/template-agentic#<n>"`.
 2. An open issue closes only once its result is delivered: a merged PR that names it, or, for a
-   research task, a result comment on the issue. Close it with
+   research or a design task, a result comment on the issue. Close it with
    `gh issue close <n> -R BorjaElizalde/template-agentic --comment "<where the result is>"`. When the result is
    not delivered, stop and say what is missing.
 3. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" finish <n>`. It removes the worktree and
