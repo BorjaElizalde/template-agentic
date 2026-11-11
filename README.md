@@ -87,10 +87,16 @@ The main session follows its tasks through two commands of `task.sh`, and each d
 - `cleanup` finishes every task whose issue is closed, and prints one line per task it finished
   or refused to finish, with the reason. A PR merged on GitHub closes its issue, but nothing else
   finishes its task. `/task:finish` with no issue runs it.
-- `status` only reads. It prints one line per task worktree of this checkout: the issue and its
-  short title, its session (`busy`, `idle`, `waiting`, or none), its newest PR with its state and
-  check result, and how long ago the session last wrote its transcript. It prints nothing else,
-  so a look costs the session that runs it a few lines; the backlog is `gh issue list`'s.
+- `status` only reads, and shows the whole backlog: every open issue once, under the headings In
+  progress, Ready, Blocked and Parked, with no heading where no issue is. Under In progress is one
+  line per task worktree of this checkout: the issue and its short title, its session (`busy`,
+  `idle`, `waiting`, or none), its newest PR with its state and check result, and how long ago
+  the session last wrote its transcript. The other issues come from one `gh issue list`, one line
+  each, lowest number first: a blocked line names the open issues it waits on, and a parked line
+  its reason. An issue goes under the first state that fits: in progress, then parked, then
+  blocked, then ready. So an issue a planning task left parked and blocked shows under Parked,
+  and its line names its open blocker too. `status` calls `claude agents` only where there is a
+  task worktree.
 
 A line ends in `needs attention` when the task's session waits for an answer, or has been idle or
 gone for 10 minutes (`QUIET_MINUTES`) since it last wrote its transcript. A busy session is
@@ -98,21 +104,23 @@ working, and one that went quiet only just now often waits for a background chec
 when the check finishes. Idle notices (`SendMessage` with `notify_when_idle`) are not used: they
 can't be delayed, so they would fire on exactly those pauses.
 
-Both run by themselves, cleanup first, at two moments:
+Both run by themselves, cleanup first, at two moments, where the status gives only its task lines,
+with no heading and no backlog:
 
-- each `/task:start`, whose status leaves out the task it starts;
+- each `/task:start`, whose lines leave out the task it starts;
 - a session that starts or resumes in a main checkout, through a `SessionStart` hook in
   `settings.json` (`startup|resume`) that runs `task.sh on-session-start` and puts the lines in
   the session's context, so a restart forgets nothing.
 
-A main session that runs a `/loop` runs `status` on each round, which prints every task even when
-none needs attention. The hook makes a session start slower, since its cleanup can close
-sessions and remove worktrees. Claude Code runs it in the background, and the session's first
-answer waits for it. A hook can't call a skill or start a turn: it only adds its output to the
-session's context, which the owner doesn't see. So its output ends with one line that sends the
-session to `/task:status` for its first reply. Claude Code passes on 10,000 characters of a hook's
-output, and only a preview of the first 2,000 when there are more, so the lines stay short: about
-40 tasks fit. It prints nothing in a task worktree, so task sessions start untouched, nor where
+A main session that runs a `/loop` runs `status` on each round, which prints every task and the
+backlog even when no task needs attention. The hook makes a session start slower, since its
+cleanup can close sessions and remove worktrees. Claude Code runs it in the background, and the
+session's first answer waits for it. A hook can't call a skill or start a turn: it only adds its
+output to the session's context, which the owner doesn't see. So its output ends with one line
+that sends the session to `/task:status` for its first reply. Claude Code passes on 10,000
+characters of a hook's output, and only a preview of the first 2,000 when there are more, so the
+lines stay short: about 40 tasks fit. The backlog has no such bound, so the hook leaves it to
+`/task:status`. It prints nothing in a task worktree, so task sessions start untouched, nor where
 there is no task worktree, where it calls neither `gh` nor `claude`. A cleanup refusal is
 reported and the session starts anyway. When `gh` or `claude agents` can't answer, it says the
 tasks are unknown, and to report them through `/task:status` once they answer, and exits 0.
@@ -123,8 +131,10 @@ The skill runs the cleanup and the status, reads each task's issue for its goal 
 `Owner steps` comment, and reads the last message of each idle or waiting session. It acts on each
 line marked `needs attention` where the main session can, for example it sends a session back to
 fix failed checks. Then it answers with one card per task: the goal, where the task stands, and
-what the owner should do, with the main session's pick. The cards that need the owner come first,
-and a task whose issue is closed shows only in the closing "Cleaned up" list. The main session
+what the owner should do, with the main session's pick. The cards that need the owner come first.
+Three short lists follow the cards: Ready, Blocked and Parked, one line per issue. A list with no
+issue is left out, and a list of more than ten shows its first ten and how many more there are.
+A task whose issue is closed shows only in the closing "Cleaned up" list. The main session
 reports the status this way when the owner asks for it, in its first reply after a session start,
 and at the end of each `/task:start`; a `/loop` round does it when a line needs attention. The
 format is only in the skill, which loads when it is used, so a task session never carries it. The

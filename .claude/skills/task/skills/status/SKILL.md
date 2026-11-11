@@ -1,12 +1,14 @@
 ---
 name: status
-description: Use when the owner asks for the status of the tasks, in words or with /task:status, and in the first reply after a session start in the main checkout. Runs the cleanup and the status, acts on each task that needs it, and answers with one card per task.
+description: Use when the owner asks for the status of the tasks, in words or with /task:status, and in the first reply after a session start in the main checkout. Runs the cleanup and the status, acts on each task that needs it, and answers with one card per task, then the backlog's ready, blocked and parked issues.
 allowed-tools: Bash(bash:*), Bash(gh issue view:*)
 ---
 
 1. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" cleanup`, then
-   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" status`. The status prints one line per task: its
-   session, its newest PR with that PR's checks, and when the session last wrote.
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" status`. The status lists every open issue once.
+   Under In progress, it prints one line per task: its session, its newest PR with that PR's
+   checks, and when the session last wrote. Then come Ready, Blocked, with the open issues each
+   waits on, and Parked, with each reason; a parked line also names an open blocker.
 2. Read each task's issue with `gh issue view <n> -R BorjaElizalde/template-agentic --comments`, for its goal
    and any `Owner steps` comment, and the last message of each session that is idle or waiting.
 3. A line that ends in `needs attention` asks for a move. Make it by what the line says, and give
@@ -34,5 +36,9 @@ allowed-tools: Bash(bash:*), Bash(gh issue view:*)
      ```
 
      **You** also carries the `Owner steps` and what the session's last message asks for.
+   - Then three lists, one line per issue, its number and what it is in plain words: **Ready**,
+     **Blocked**, with the issues it waits on, and **Parked**, with the reason. The cards are for
+     the tasks in progress only. Leave out a list with no issue, and give a list of more than ten
+     issues its first ten, then how many more there are.
    - End with **Cleaned up**: each task a cleanup finished or refused to finish since your last
      status reply, and why. A task whose issue is closed gets no card: it shows only here.
