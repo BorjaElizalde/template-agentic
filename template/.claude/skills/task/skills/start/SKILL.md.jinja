@@ -24,7 +24,8 @@ The same steps start a new task and pick up an existing one.
    refuses an issue that must wait (see below) and names its open blocker or the reason it is
    parked: tell the owner, and start nothing in its place. Otherwise it first runs
    `task.sh cleanup`, which finishes every task whose issue is closed, as a bare `/task:finish`
-   does, then `task.sh status` for every other task. Then it picks up what the issue already has:
+   does, then prints the status line of every other task, with no backlog. Then it picks up what
+   the issue already has:
    - its worktree, else its branch (left without a worktree, or pushed from another clone), else
      a new branch from `origin/develop`;
    - its running session, brought to the front and never opened twice, else its last session,

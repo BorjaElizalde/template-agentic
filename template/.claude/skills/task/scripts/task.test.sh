@@ -2,11 +2,11 @@
 # From the agentic template: change the template, not this copy.
 # Regression suite for task.sh. Run from any checkout: bash .claude/skills/task/scripts/task.test.sh
 # Two clones of one throwaway origin, named backend and frontend, stand in for two repositories.
-# Stub gh answers issue state and title, labels, blockers and comments, and PRs, from files under
-# $TASK_TEST_STATE, keeps the labels and comments it is given there, and can't answer while
-# $TASK_TEST_STATE/gh-down exists; stub osascript logs the sessions it would open, end
-# or bring to the front, and keeps its last script; stub claude lists a session running in each folder named in $TASK_TEST_STATE/running,
-# and stub ps gives its tty.
+# Stub gh answers issue state and title, labels, blockers and comments, the open issues, and PRs,
+# from files under $TASK_TEST_STATE, keeps the labels and comments it is given there, and can't
+# answer while $TASK_TEST_STATE/gh-down exists; stub osascript logs the sessions it would open, end
+# or bring to the front, and keeps its last script; stub claude lists a session running in each
+# folder named in $TASK_TEST_STATE/running, and stub ps gives its tty.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(cd "$(mktemp -d)" && pwd -P)"
@@ -19,30 +19,39 @@ mkdir -p "$WORK/bin" "$TASK_TEST_STATE" "$WORK/seed/.claude/skills/task/scripts"
 cat >"$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 [ ! -f "$TASK_TEST_STATE/gh-down" ] || exit 1
+cd "$TASK_TEST_STATE" || exit 1
+title() {
+  case "$1" in
+    42) echo "Name make close_claude_session in backend CLAUDE.md" ;;
+    7) echo "Second task" ;;
+    5) echo "Already done" ;;
+    23) echo "Task 23, with a title longer than the forty characters of a task line" ;;
+    8|9|1[0-9]|2[0-4]) echo "Task $1" ;;
+    *) return 1 ;;
+  esac
+}
+state() { cat "issue-$1" 2>/dev/null || echo OPEN; }
+# Issue $1 as JSON: its number and title, its labels and comments, one per line of labels-<n> and
+# comments-<n>, and the issues it is blocked by, one number per line of blocked-by-<n>, each in the
+# state its issue-<n> file gives.
+issue() {
+  local blockers
+  blockers=$(for m in $(cat "blocked-by-$1" 2>/dev/null); do echo "$m $(state "$m")"; done)
+  jq -n --argjson number "$1" --arg title "$(title "$1")" --arg labels "$(cat "labels-$1" 2>/dev/null)" \
+    --arg comments "$(cat "comments-$1" 2>/dev/null)" --arg blockers "$blockers" '
+    def lines: split("\n") | map(select(. != ""));
+    {number: $number, title: $title, labels: ($labels | lines | map({name: .})),
+      blockedBy: {nodes: ($blockers | lines | map(split(" ") | {number: (.[0] | tonumber), state: .[1]}))},
+      comments: ($comments | lines | map({body: .}))}'
+}
 case "$1 $2" in
   "issue view")
-    case "$3" in
-      42) title="Name make close_claude_session in backend CLAUDE.md" ;;
-      7) title="Second task" ;;
-      5) title="Already done" ;;
-      8|9|10|11|12|13|14|15|16|17|18|19) title="Task $3" ;;
-      *) exit 1 ;;
-    esac
-    # --json state,title asks for "<STATE> <title>", as its -q prints it. Else, as JSON, the issue's
-    # labels and comments, one per line of labels-<n> and comments-<n>, and the issues it is blocked
-    # by, one number per line of blocked-by-<n>, each in the state its issue-<n> file gives.
-    if [ "$7" = state,title ]; then
-      echo "$(cat "$TASK_TEST_STATE/issue-$3" 2>/dev/null || echo OPEN) $title"
-    else
-      cd "$TASK_TEST_STATE" || exit 1
-      blockers=$(for m in $(cat "blocked-by-$3" 2>/dev/null); do echo "$m $(cat "issue-$m" 2>/dev/null || echo OPEN)"; done)
-      jq -n --arg labels "$(cat "labels-$3" 2>/dev/null)" --arg comments "$(cat "comments-$3" 2>/dev/null)" \
-        --arg blockers "$blockers" '
-        def lines: split("\n") | map(select(. != ""));
-        {labels: ($labels | lines | map({name: .})),
-          blockedBy: {nodes: ($blockers | lines | map(split(" ") | {number: (.[0] | tonumber), state: .[1]}))},
-          comments: ($comments | lines | map({body: .}))}'
-    fi ;;
+    title "$3" >/dev/null || exit 1
+    # --json state,title asks for "<STATE> <title>", as its -q prints it; any other --json, for the issue.
+    if [ "$7" = state,title ]; then echo "$(state "$3") $(title "$3")"; else issue "$3"; fi ;;
+  "issue list")
+    # The open issues, newest first, as gh lists them for --state open.
+    for n in 42 {24..7} 5; do [ "$(state "$n")" != OPEN ] || issue "$n"; done | jq -s . ;;
   "issue comment")
     n=$3; while [ $# -gt 0 ]; do [ "$1" != --body ] || echo "$2" >>"$TASK_TEST_STATE/comments-$n"; shift; done ;;
   "issue edit")
@@ -141,6 +150,7 @@ pr_from() {  # pr_from <branch> <state> <isDraft> <statusCheckRollup>: the newes
     >"$TASK_TEST_STATE/pr-${1//\//-}"
 }
 status_line() { grep "^#$1 " "$WORK/out"; }  # the line the last run_in ... status printed for issue $1
+under() { awk -v heading="$1:" '!/^#/ { on = $0 == heading; next } on' "$WORK/out"; }  # its lines under heading $1
 unknown_last() { tail -n 1 "$WORK/out" | grep -q '^The tasks are unknown: .*/task:status'; }  # the last run_in ended so
 refuses() {  # refuses <desc> <reason pattern> <checkout> <task.sh args...>: fails, and says why
   local out
@@ -307,7 +317,8 @@ check "a task's session, PR, checks and last write" test "$(status_line 11)" = "
 check "a task with none of them yet, marked"   test "$(status_line 13)" = "#13 Task 13: no session, no PR, no transcript, needs attention"
 check "it finishes no task whose issue closed" test -d "$ISSUE14/backend"
 check "and lists it"                           test -n "$(status_line 14)"
-check "and nothing else: one line per task"    test "$(grep -c '^#[0-9]* Task [0-9]*: ' "$WORK/out")" -eq 4 -a "$(wc -l <"$WORK/out")" -eq 4
+check "it opens with the In progress heading"  test "$(head -n 1 "$WORK/out")" = 'In progress:'
+check "under which is one line per task"       test "$(under 'In progress' | grep -c '^#[0-9]* Task [0-9]*: ')" -eq 4 -a "$(under 'In progress' | wc -l)" -eq 4
 pr_from feat/11-task-11 OPEN false "[$PENDING, $FAILED]"
 run_in "$BACKEND" status
 check "a failed check outweighs a pending one" bash -c "grep -qF '#11 Task 11: session idle, PR #21 open, checks failed,' '$WORK/out'"
@@ -380,6 +391,7 @@ check "a start"                                run_in "$BACKEND" start 15
 check "finishes the closed task"               bash -c "test ! -e '$ISSUE16' && grep -qF '✓ issue 16 finished:' '$WORK/out'"
 check "lists every other task, and leaves out its own" bash -c "
   grep -q '^#11 ' '$WORK/out' && grep -q '^#13 ' '$WORK/out' && ! grep -q '^#15 ' '$WORK/out'"
+check "and no heading or backlog line"         bash -c "! grep -qE '^(In progress|Ready|Blocked|Parked):|^#2[0-4] ' '$WORK/out'"
 
 echo "-- park and block: a start refuses an issue that must wait, and says why"
 check "an issue parks where the label never was" task "$BACKEND" park 18 "planned in #19"
@@ -401,6 +413,37 @@ check "a block clears itself when its blocker closes" test "$(cat "$WORK/out")" 
 rm "$TASK_TEST_STATE/labels-19"
 check "and a released issue starts"            task "$BACKEND" start 19
 check "with its worktree"                      test -d "$WORK/repos/worktrees/19-task-19/backend"
+
+echo "-- status: every open issue, under the first heading that fits"
+# By now 11, 13, 15 and 19 have a task worktree in backend, and every other issue up to 19 is closed.
+echo backlog >"$TASK_TEST_STATE/labels-11"
+echo backlog >"$TASK_TEST_STATE/labels-20"
+echo 'Parked: planned in #19' >"$TASK_TEST_STATE/comments-20"
+echo backlog >"$TASK_TEST_STATE/labels-21"
+echo 'Parked: waits for the review' >"$TASK_TEST_STATE/comments-21"
+echo 22 >"$TASK_TEST_STATE/blocked-by-21"
+printf '20\n5\n' >"$TASK_TEST_STATE/blocked-by-22"
+check "a look runs"                            run_in "$BACKEND" status
+check "four headings, in order"                test "$(grep -v '^#' "$WORK/out" | tr '\n' ' ')" = 'In progress: Ready: Blocked: Parked: '
+check "a task's issue only under In progress, even parked" bash -c "
+  test \"\$(grep -c '^#11 ' '$WORK/out')\" -eq 1 && grep -q '^#11 Task 11: session ' '$WORK/out'"
+check "ready issues, lowest number first, each with its whole title" \
+  test "$(under Ready)" = "$(printf '#23 Task 23, with a title longer than the forty characters of a task line\n#24 Task 24')"
+check "a blocked one, naming its open blockers" test "$(under Blocked)" = '#22 Task 22: blocked by #20'
+check "a parked one with its reason, and one parked and blocked, once, naming its blocker" \
+  test "$(under Parked)" = "$(printf '#20 Task 20: planned in #19\n#21 Task 21: waits for the review; blocked by #22')"
+echo CLOSED >"$TASK_TEST_STATE/issue-22"
+run_in "$BACKEND" status
+check "a closed issue leaves, with its block and its empty heading" bash -c "
+  ! grep -qE '^Blocked:|^#22 ' '$WORK/out' && grep -qx '#21 Task 21: waits for the review' '$WORK/out'"
+touch "$TASK_TEST_STATE/claude-down"
+check "a look where there is no task worktree, with claude down" run_in "$FRONTEND" status
+check "lists the backlog, with no In progress heading" bash -c "
+  ! grep -q '^In progress:' '$WORK/out' && grep -qx '#24 Task 24' '$WORK/out'"
+rm "$TASK_TEST_STATE/claude-down"
+check "a session start in the main checkout"   run_in "$BACKEND" on-session-start
+check "prints the task lines, and no heading or backlog line" \
+  test "$(sed '$d' "$WORK/out" | cut -d ' ' -f 1 | sort | tr '\n' ' ')" = '#11 #13 #15 #19 '
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"

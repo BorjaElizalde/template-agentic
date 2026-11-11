@@ -30,15 +30,20 @@ issue_view() {
 	gh issue view "$1" -R "$ISSUES_REPO" --json state,title -q '.state + " " + .title'
 }
 
-# Why issue $1 must not start yet, one line per reason, else nothing: the open issues it is blocked
-# by, and the reason it is parked for, from the last comment that starts with "Parked:".
+# The jq definitions every view of an issue's holds shares, so each rule lives in one place. Over an
+# issue as gh gives it in JSON, blockers gives the open issues it is blocked by, and parked the
+# reason it is parked for, from the last comment that starts with "Parked:"; each gives nothing
+# where there is none.
+ISSUE_JQ='
+	def blockers: [.blockedBy.nodes[] | select(.state == "OPEN") | "#\(.number)"] | select(. != []) | join(", ");
+	def parked: select(any(.labels[]; .name == "backlog"))
+		| [.comments[].body | select(startswith("Parked:")) | sub("^Parked: *"; "")] | last // "no reason given";
+'
+
+# Why issue $1 must not start yet, one line per reason, else nothing.
 issue_holds() {
-	gh issue view "$1" -R "$ISSUES_REPO" --json labels,blockedBy,comments | jq -r --arg n "$1" '
-		([.blockedBy.nodes[] | select(.state == "OPEN") | "#\(.number)"] | select(. != [])
-			| "issue \($n) is blocked by \(join(", "))"),
-		(select(any(.labels[]; .name == "backlog"))
-			| [.comments[].body | select(startswith("Parked:")) | sub("^Parked: *"; "")] | last
-			| "issue \($n) is parked: \(. // "no reason given")")'
+	gh issue view "$1" -R "$ISSUES_REPO" --json number,labels,blockedBy,comments |
+		jq -r "$ISSUE_JQ"'"issue \(.number) is " + ("blocked by " + blockers, "parked: " + parked)'
 }
 
 # Parks issue $1 for reason $2: a comment that gives the reason, then the backlog label, so the label
@@ -330,12 +335,31 @@ active_line() {
 	fi
 }
 
-# One line per task worktree of this checkout, and nothing else: the backlog is gh issue list's. It
-# only reads, and where there is no task it calls neither gh nor claude.
+# Every open issue, under the first heading that fits: In progress, one task line per task worktree
+# of this checkout, then the backlog. It only reads, and where there is no task it calls no claude.
 status() {
-	[ -n "$(task_issues)" ] || return 0
-	SESSIONS=$(claude agents --json)
-	task_lines
+	if [ -n "$(task_issues)" ]; then
+		echo "In progress:"
+		SESSIONS=$(claude agents --json)
+		task_lines
+	fi
+	backlog_lines
+}
+
+# The open issues with no task worktree of this checkout, under Ready, Blocked and Parked, one line
+# each, lowest number first; a heading with no issue is left out. Each issue goes under the first
+# that fits: Parked, then Blocked, then Ready, so a parked line also names its open blockers. A line
+# keeps the whole title, so the reply can say what the issue is: the backlog never goes through the
+# hook, whose bound the task lines' cut is for. gh lists 30 issues unless told more.
+backlog_lines() {
+	gh issue list -R "$ISSUES_REPO" --state open --limit 1000 --json number,title,labels,blockedBy,comments |
+		jq -r --argjson tasks "[$(task_issues | paste -sd , -)]" "$ISSUE_JQ"'
+		[sort_by(.number)[] | select(.number | IN($tasks[]) | not)
+			| [parked] as $parked | ($parked + ["blocked by " + blockers]) as $holds
+			| {heading: (if $parked != [] then "Parked" elif $holds != [] then "Blocked" else "Ready" end),
+				line: (["#\(.number) \(.title)", ($holds | select(. != []) | join("; "))] | join(": "))}]
+		| ("Ready", "Blocked", "Parked") as $heading | map(select(.heading == $heading) | .line)
+		| select(. != []) | "\($heading):", .[]'
 }
 
 # A session idle or gone for less than this many minutes since it last wrote is left alone: one
@@ -369,19 +393,21 @@ task_lines() {
 	done
 }
 
-# The SessionStart hook: a cleanup, then the status, in the context of a session that starts or
+# The SessionStart hook: a cleanup, then the task lines, in the context of a session that starts or
 # resumes in the main checkout, ending with the line that sends it to /task:status for the reply.
 # A hook can't call a skill, only add to the context. It says nothing in a task worktree, so task
 # sessions start untouched, nor where there is no task, and it never fails a session start.
 # Claude Code passes on 10,000 characters of a hook's output, and only a preview of the first 2,000
-# when there are more. A line is at most about 250, so 40 tasks fit.
+# when there are more. A line is at most about 250, so 40 tasks fit; the backlog has no such bound,
+# so it is left to /task:status.
 on_session_start() {
 	[ "$(git -C "$CHECKOUT" rev-parse --absolute-git-dir)" = \
 		"$(git -C "$CHECKOUT" rev-parse --path-format=absolute --git-common-dir)" ] || return 0
 	[ -n "$(task_issues)" ] || return 0
 	trap '[ $? -eq 0 ] || { echo "The tasks are unknown: gh or claude agents did not answer. Report the status through /task:status once they do."; exit 0; }' EXIT
 	cleanup
-	status
+	SESSIONS=$(claude agents --json)
+	task_lines
 	echo "In your first reply, report the status to the owner through /task:status."
 }
 
