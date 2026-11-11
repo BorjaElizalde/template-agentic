@@ -2,9 +2,9 @@
 # From the agentic template: change the template, not this copy.
 # Regression suite for task.sh. Run from any checkout: bash .claude/skills/task/scripts/task.test.sh
 # Two clones of one throwaway origin, named backend and frontend, stand in for two repositories.
-# Stub gh answers issue state and title, and PRs, from files under $TASK_TEST_STATE;
-# stub osascript logs the sessions it would open, end or bring to the front, and keeps its last
-# script; stub claude lists a session running in each folder named in $TASK_TEST_STATE/running,
+# Stub gh answers issue state and title, and PRs, from files under $TASK_TEST_STATE, and can't
+# answer while $TASK_TEST_STATE/gh-down exists; stub osascript logs the sessions it would open, end
+# or bring to the front, and keeps its last script; stub claude lists a session running in each folder named in $TASK_TEST_STATE/running,
 # and stub ps gives its tty.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -17,13 +17,14 @@ pass=0; fail=0
 mkdir -p "$WORK/bin" "$TASK_TEST_STATE" "$WORK/seed/.claude/skills/task/scripts" "$WORK/repos"
 cat >"$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+[ ! -f "$TASK_TEST_STATE/gh-down" ] || exit 1
 case "$1 $2" in
   "issue view")
     case "$3" in
       42) title="Name make close_claude_session in backend CLAUDE.md" ;;
       7) title="Second task" ;;
       5) title="Already done" ;;
-      8|9|10|11|12|13|14|15|16) title="Task $3" ;;
+      8|9|10|11|12|13|14|15|16|17) title="Task $3" ;;
       *) exit 1 ;;
     esac
     echo "$(cat "$TASK_TEST_STATE/issue-$3" 2>/dev/null || echo OPEN) $title" ;;
@@ -220,7 +221,7 @@ check "once shipped, it finishes with the worktree" task "$BACKEND" finish 12
 check "both branches of the issue are gone"    test -z "$(git -C "$BACKEND" for-each-ref 'refs/heads/*/12-*')"
 check "another issue's branch stays"           git -C "$BACKEND" rev-parse -q --verify feat/112-other
 
-echo "-- sweep: a start first finishes every task whose issue is closed"
+echo "-- cleanup: a start first finishes every task whose issue is closed"
 ISSUE8="$WORK/repos/worktrees/8-task-8"
 ISSUE9="$WORK/repos/worktrees/9-task-9"
 ISSUE10="$WORK/repos/worktrees/10-task-10"
@@ -233,28 +234,33 @@ check "a start goes on past a refused finish"  run_in "$BACKEND" start 10
 check "and opens its own session"              test "$(sessions '#10 backend:')" -eq 1
 check "it finished the closed task"            test ! -e "$ISSUE9"
 check "and removed its branch"                 bash -c "! git -C '$BACKEND' rev-parse -q --verify feat/9-task-9"
-check "it reported the refusal"                grep -q 'untracked files' "$WORK/out"
+check "it reported the finish in one line"     grep -qxF '✓ issue 9 finished: session closed, worktree removed, branches removed: feat/9-task-9' "$WORK/out"
+check "and the refusal in one line, with why"  grep -qx "✗ issue 8 not finished: $ISSUE8/backend has uncommitted or untracked files: .*" "$WORK/out"
+check "with no line of git's own"              bash -c "! grep -q '^fatal:' '$WORK/out'"
 check "and kept the refused worktree"          test -f "$ISSUE8/backend/notes.md"
 
-echo "-- sweep: a bare finish"
+echo "-- cleanup: on its own"
 rm "$ISSUE8/backend/notes.md"
-check "a sweep runs on its own"                run_in "$BACKEND" sweep
+check "a cleanup runs on its own"              run_in "$BACKEND" cleanup
 check "it finished the closed task"            test ! -e "$ISSUE8"
 check "it left the open task alone"            test -d "$ISSUE10/backend"
-check "without a word about it"                bash -c "! grep -q 'issue 10' '$WORK/out'"
+check "and printed one line, for the finish"   test "$(cat "$WORK/out")" = '✓ issue 8 finished: session closed, worktree removed, branches removed: feat/8-task-8'
 
-echo "-- sweep: from inside a task worktree"
+echo "-- cleanup: from inside a task worktree"
 echo CLOSED >"$TASK_TEST_STATE/issue-10"
 check "a start from the task's own session"    run_in "$ISSUE10/backend" start 11
 check "starts its issue"                       test -d "$WORK/repos/worktrees/11-task-11/backend"
-check "past the finish of its own worktree"    grep -q 'from outside its worktree' "$WORK/out"
+check "past the finish of its own worktree"    grep -qx '✗ issue 10 not finished: finish issue 10 from outside its worktree: .*' "$WORK/out"
 check "which stays"                            test -d "$ISSUE10/backend"
 
-echo "-- status: every task in one view"
+echo "-- status: every task in one view, and it only reads"
 ISSUE11="$WORK/repos/worktrees/11-task-11"
+ISSUE13="$WORK/repos/worktrees/13-task-13"
 ISSUE14="$WORK/repos/worktrees/14-task-14"
+ISSUE17="$WORK/repos/worktrees/17-task-17"
 check "backend starts issue 13"                task "$BACKEND" start 13
 check "and issue 14"                           task "$BACKEND" start 14
+check "and issue 17"                           task "$BACKEND" start 17
 echo CLOSED >"$TASK_TEST_STATE/issue-14"
 echo "$ISSUE11/backend idle" >"$TASK_TEST_STATE/running"
 transcript "$ISSUE11/backend" old 200001010000
@@ -267,10 +273,11 @@ NO_CONCLUSION='{"__typename": "CheckRun", "name": "gate", "status": "COMPLETED",
 CONTEXT='{"__typename": "StatusContext", "context": "ci", "state": "SUCCESS"}'
 pr_from feat/11-task-11 OPEN false "[$PENDING, $CONTEXT]"
 check "a look runs"                            run_in "$BACKEND" status
-check "and first finishes the closed task"     test ! -e "$ISSUE14"
 check "a task's session, PR, checks and last write" test "$(status_line 11)" = "#11 Task 11: session idle, PR #21 open, checks pending, active 0 min ago"
-check "a task with none of them yet"           test "$(status_line 13)" = "#13 Task 13: no session, no PR, no transcript"
-check "and nothing else"                       test "$(grep -vc '^✓ ' "$WORK/out")" -eq 2
+check "a task with none of them yet, marked"   test "$(status_line 13)" = "#13 Task 13: no session, no PR, no transcript, needs attention"
+check "it finishes no task whose issue closed" test -d "$ISSUE14/backend"
+check "and lists it"                           test -n "$(status_line 14)"
+check "and nothing else: one line per task"    test "$(grep -c '^#[0-9]* Task [0-9]*: ' "$WORK/out")" -eq 4 -a "$(wc -l <"$WORK/out")" -eq 4
 pr_from feat/11-task-11 OPEN false "[$PENDING, $FAILED]"
 run_in "$BACKEND" status
 check "a failed check outweighs a pending one" bash -c "grep -qF '#11 Task 11: session idle, PR #21 open, checks failed,' '$WORK/out'"
@@ -284,50 +291,72 @@ pr_from feat/11-task-11 MERGED false "[]"
 transcript "$ISSUE11/backend" session 200001010000
 run_in "$BACKEND" status
 check "a merged PR with no checks"             bash -c "grep -qF 'PR #21 merged, no checks,' '$WORK/out'"
-check "a session silent for days"              bash -c "grep -qE '^#11 .*, active [0-9]+ d ago$' '$WORK/out'"
+check "a session idle for days, marked"        bash -c "grep -qE '^#11 Task 11: session idle, .*, active [0-9]+ d ago, needs attention$' '$WORK/out'"
 
-echo "-- attention: the tasks that need attention, read only"
-ISSUE13="$WORK/repos/worktrees/13-task-13"
-echo CLOSED >"$TASK_TEST_STATE/issue-13"
-check "a look from the main checkout"          run_in "$BACKEND" attention
-check "lists a session idle for 10 minutes"    grep -qF '#11 Task 11: session idle, PR #21 merged, no checks, active' "$WORK/out"
-check "and a task with no session nor transcript" grep -qxF '#13 Task 13: no session, no PR, no transcript' "$WORK/out"
-check "and nothing else"                       test "$(wc -l <"$WORK/out")" -eq 2
-check "it finishes no task whose issue closed" test -d "$ISSUE13/backend"
-rm "$TASK_TEST_STATE/issue-13"
+echo "-- status: marks the tasks that need attention"
+transcript "$ISSUE13/backend" old 200001010000
+run_in "$BACKEND" status
+check "a session idle for 10 minutes"          grep -qE '^#11 Task 11: session idle, .*, needs attention$' "$WORK/out"
+check "and a session gone for 10 minutes"      grep -qE '^#13 Task 13: no session, .*, needs attention$' "$WORK/out"
 transcript "$ISSUE11/backend"
 transcript "$ISSUE13/backend"
-check "a session idle, and one gone, for less than 10 minutes" run_in "$BACKEND" attention
-check "need nothing: nothing is printed"       test ! -s "$WORK/out"
+run_in "$BACKEND" status
+check "not a session idle, nor one gone, for less than 10 minutes" bash -c "
+  grep -q '^#11 Task 11: session idle,' '$WORK/out' && grep -q '^#13 Task 13: no session,' '$WORK/out' &&
+  ! grep -qE '^#1[13] .*needs attention' '$WORK/out'"
 echo "$ISSUE11/backend waiting" >"$TASK_TEST_STATE/running"
-run_in "$BACKEND" attention
-check "a waiting session is listed at once"    bash -c "grep -q '^#11 Task 11: session waiting,' '$WORK/out' && ! grep -q '^#13 ' '$WORK/out'"
+run_in "$BACKEND" status
+check "a waiting session at once"              bash -c "grep -qE '^#11 Task 11: session waiting, .*, needs attention$' '$WORK/out' && ! grep -qE '^#13 .*needs attention' '$WORK/out'"
 echo "$ISSUE11/backend" >"$TASK_TEST_STATE/running"
 transcript "$ISSUE11/backend" session 200001010000
-run_in "$BACKEND" attention
-check "a busy one is left out, however long ago it wrote" bash -c "! grep -q '^#11 ' '$WORK/out'"
-check "a look from a task worktree"            run_in "$ISSUE11/backend" attention
+transcript "$ISSUE11/backend" old 200001010000
+run_in "$BACKEND" status
+check "never a busy one, however long ago it wrote" bash -c "grep -qE '^#11 Task 11: session busy, .*, active [0-9]+ d ago$' '$WORK/out'"
+
+echo "-- on-session-start: a cleanup, then the status"
+echo CLOSED >"$TASK_TEST_STATE/issue-17"
+echo notes >"$ISSUE17/backend/notes.md"
+check "a session start in the main checkout"   run_in "$BACKEND" on-session-start
+check "finishes the closed task"               test ! -e "$ISSUE14"
+check "and reports it"                         grep -qF '✓ issue 14 finished:' "$WORK/out"
+check "reports a refusal and starts anyway"    grep -qF '✗ issue 17 not finished:' "$WORK/out"
+check "then prints the status of what is left" bash -c "grep -q '^#17 ' '$WORK/out' && grep -q '^#11 ' '$WORK/out' && grep -q '^#13 ' '$WORK/out' && ! grep -q '^#14 ' '$WORK/out'"
+check "after the cleanup's lines"              awk '/^#/ { status = 1 } status && /^(✓|✗)/ { exit 1 }' "$WORK/out"
+rm "$ISSUE17/backend/notes.md"
+task "$BACKEND" finish 17 >/dev/null
+echo CLOSED >"$TASK_TEST_STATE/issue-13"
+check "a session start in a task worktree"     run_in "$ISSUE11/backend" on-session-start
 check "says nothing"                           test ! -s "$WORK/out"
-check "a look where no task is"                run_in "$FRONTEND" attention
-check "says nothing either"                    test ! -s "$WORK/out"
-touch "$TASK_TEST_STATE/claude-down"
-check "claude agents can't answer: it still exits 0" run_in "$BACKEND" attention
+check "and finishes nothing"                   test -d "$ISSUE13/backend"
+rm "$TASK_TEST_STATE/issue-13"
+touch "$TASK_TEST_STATE/gh-down" "$TASK_TEST_STATE/claude-down"
+check "a session start where no task is, with gh and claude down" run_in "$FRONTEND" on-session-start
+check "says nothing: it calls neither"         test ! -s "$WORK/out"
+rm "$TASK_TEST_STATE/gh-down"
+check "claude agents can't answer: it still exits 0" run_in "$BACKEND" on-session-start
 check "and says the tasks are unknown"         grep -q 'tasks are unknown' "$WORK/out"
 rm "$TASK_TEST_STATE/claude-down"
+touch "$TASK_TEST_STATE/gh-down"
+check "gh can't answer: it still exits 0"      run_in "$BACKEND" on-session-start
+check "and says the tasks are unknown"         grep -q 'tasks are unknown' "$WORK/out"
+rm "$TASK_TEST_STATE/gh-down"
 
-echo "-- start: lists every other task that needs attention"
+echo "-- start: a cleanup, then every other task, marked when it needs attention"
 ISSUE15="$WORK/repos/worktrees/15-task-15"
+ISSUE16="$WORK/repos/worktrees/16-task-16"
 printf '%s idle\n%s\n' "$ISSUE11/backend" "$ISSUE13/backend" >"$TASK_TEST_STATE/running"
-transcript "$ISSUE11/backend" session 200001010000
-transcript "$ISSUE11/backend" old 200001010000
+check "backend starts issue 16"                task "$BACKEND" start 16
+echo CLOSED >"$TASK_TEST_STATE/issue-16"
 check "a start"                                run_in "$BACKEND" start 15
-check "lists an idle task"                     grep -q '^#11 Task 11: session idle,' "$WORK/out"
-check "leaves out a busy one"                  bash -c "! grep -q '^#13 ' '$WORK/out'"
-check "another start"                          run_in "$BACKEND" start 16
-check "lists a task with no session"           grep -qxF '#15 Task 15: no session, no PR, no transcript' "$WORK/out"
+check "finishes the closed task"               bash -c "test ! -e '$ISSUE16' && grep -qF '✓ issue 16 finished:' '$WORK/out'"
+check "marks an idle task"                     grep -qE '^#11 Task 11: session idle, .*, needs attention$' "$WORK/out"
+check "lists a busy one, unmarked"             bash -c "grep -q '^#13 Task 13: session busy,' '$WORK/out' && ! grep -qE '^#13 .*needs attention' '$WORK/out'"
+check "another start"                          run_in "$BACKEND" start 13
+check "marks a task with no session"           grep -qxF '#15 Task 15: no session, no PR, no transcript, needs attention' "$WORK/out"
 printf '%s\n' "$ISSUE11/backend" "$ISSUE13/backend" "$ISSUE15/backend" >"$TASK_TEST_STATE/running"
-check "a start with every other task busy"     run_in "$BACKEND" start 16
-check "lists nothing, not even its own task"   bash -c "! grep -q '^#' '$WORK/out'"
+check "a start with every other task busy"     run_in "$BACKEND" start 13
+check "lists them, marks none, and leaves out its own task" bash -c "
+  grep -q '^#11 ' '$WORK/out' && grep -q '^#15 ' '$WORK/out' && ! grep -q '^#13 ' '$WORK/out' && ! grep -q 'needs attention' '$WORK/out'"
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"
