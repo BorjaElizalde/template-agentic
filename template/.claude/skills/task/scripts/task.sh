@@ -30,12 +30,11 @@ issue_view() {
 	gh issue view "$1" -R "$ISSUES_REPO" --json state,title -q '.state + " " + .title'
 }
 
-# The jq definitions every view of an issue shares, so each rule lives in one place. Over a title,
-# short cuts it at a word boundary to 40 characters. Over an issue as gh gives it in JSON, blockers
-# gives the open issues it is blocked by, and parked the reason it is parked for, from the last
-# comment that starts with "Parked:"; each gives nothing where there is none.
+# The jq definitions every view of an issue's holds shares, so each rule lives in one place. Over an
+# issue as gh gives it in JSON, blockers gives the open issues it is blocked by, and parked the
+# reason it is parked for, from the last comment that starts with "Parked:"; each gives nothing
+# where there is none.
 ISSUE_JQ='
-	def short: if length > 40 then .[:41] | sub(" [^ ]*$"; "") else . end;
 	def blockers: [.blockedBy.nodes[] | select(.state == "OPEN") | "#\(.number)"] | select(. != []) | join(", ");
 	def parked: select(any(.labels[]; .name == "backlog"))
 		| [.comments[].body | select(startswith("Parked:")) | sub("^Parked: *"; "")] | last // "no reason given";
@@ -58,8 +57,9 @@ park() {
 	echo "✓ issue $1 parked: $2"
 }
 
+# A title cut at a word boundary to 40 characters.
 short_title() {
-	jq -Rr "$ISSUE_JQ short" <<<"$1"
+	awk 'length > 40 { $0 = substr($0, 1, 41); sub(/ [^ ]*$/, "") } 1' <<<"$1"
 }
 
 issue_worktree() {
@@ -348,15 +348,16 @@ status() {
 
 # The open issues with no task worktree of this checkout, under Ready, Blocked and Parked, one line
 # each, lowest number first; a heading with no issue is left out. Each issue goes under the first
-# that fits: Parked, then Blocked, then Ready, so a parked line also names its open blockers. gh
-# lists 30 issues unless told more.
+# that fits: Parked, then Blocked, then Ready, so a parked line also names its open blockers. A line
+# keeps the whole title, so the reply can say what the issue is: the backlog never goes through the
+# hook, whose bound the task lines' cut is for. gh lists 30 issues unless told more.
 backlog_lines() {
 	gh issue list -R "$ISSUES_REPO" --state open --limit 1000 --json number,title,labels,blockedBy,comments |
 		jq -r --argjson tasks "[$(task_issues | paste -sd , -)]" "$ISSUE_JQ"'
 		[sort_by(.number)[] | select(.number | IN($tasks[]) | not)
 			| [parked] as $parked | ($parked + ["blocked by " + blockers]) as $holds
 			| {heading: (if $parked != [] then "Parked" elif $holds != [] then "Blocked" else "Ready" end),
-				line: (["#\(.number) \(.title | short)", ($holds | select(. != []) | join("; "))] | join(": "))}]
+				line: (["#\(.number) \(.title)", ($holds | select(. != []) | join("; "))] | join(": "))}]
 		| ("Ready", "Blocked", "Parked") as $heading | map(select(.heading == $heading) | .line)
 		| select(. != []) | "\($heading):", .[]'
 }

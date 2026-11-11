@@ -25,6 +25,7 @@ title() {
     42) echo "Name make close_claude_session in backend CLAUDE.md" ;;
     7) echo "Second task" ;;
     5) echo "Already done" ;;
+    23) echo "Task 23, with a title longer than the forty characters of a task line" ;;
     8|9|1[0-9]|2[0-4]) echo "Task $1" ;;
     *) return 1 ;;
   esac
@@ -426,7 +427,8 @@ check "a look runs"                            run_in "$BACKEND" status
 check "four headings, in order"                test "$(grep -v '^#' "$WORK/out" | tr '\n' ' ')" = 'In progress: Ready: Blocked: Parked: '
 check "a task's issue only under In progress, even parked" bash -c "
   test \"\$(grep -c '^#11 ' '$WORK/out')\" -eq 1 && grep -q '^#11 Task 11: session ' '$WORK/out'"
-check "ready issues, lowest number first"      test "$(under Ready)" = "$(printf '#23 Task 23\n#24 Task 24')"
+check "ready issues, lowest number first, each with its whole title" \
+  test "$(under Ready)" = "$(printf '#23 Task 23, with a title longer than the forty characters of a task line\n#24 Task 24')"
 check "a blocked one, naming its open blockers" test "$(under Blocked)" = '#22 Task 22: blocked by #20'
 check "a parked one with its reason, and one parked and blocked, once, naming its blocker" \
   test "$(under Parked)" = "$(printf '#20 Task 20: planned in #19\n#21 Task 21: waits for the review; blocked by #22')"
@@ -437,7 +439,7 @@ check "a closed issue leaves, with its block and its empty heading" bash -c "
 touch "$TASK_TEST_STATE/claude-down"
 check "a look where there is no task worktree, with claude down" run_in "$FRONTEND" status
 check "lists the backlog, with no In progress heading" bash -c "
-  ! grep -q '^In progress:' '$WORK/out' && grep -qx '#23 Task 23' '$WORK/out'"
+  ! grep -q '^In progress:' '$WORK/out' && grep -qx '#24 Task 24' '$WORK/out'"
 rm "$TASK_TEST_STATE/claude-down"
 check "a session start in the main checkout"   run_in "$BACKEND" on-session-start
 check "prints the task lines, and no heading or backlog line" \

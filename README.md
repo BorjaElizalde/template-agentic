@@ -92,11 +92,12 @@ The main session follows its tasks through two commands of `task.sh`, and each d
   line per task worktree of this checkout: the issue and its short title, its session (`busy`,
   `idle`, `waiting`, or none), its newest PR with its state and check result, and how long ago
   the session last wrote its transcript. The other issues come from one `gh issue list`, one line
-  each, lowest number first: a blocked line names the open issues it waits on, and a parked line
-  its reason. An issue goes under the first state that fits: in progress, then parked, then
-  blocked, then ready. So an issue a planning task left parked and blocked shows under Parked,
-  and its line names its open blocker too. `status` calls `claude agents` only where there is a
-  task worktree.
+  each with the whole title, lowest number first: a blocked line names the open issues it waits
+  on, and a parked line its reason. An issue goes under the first state that fits: in progress,
+  then parked, then blocked, then ready. So an issue a planning task left parked and blocked shows
+  under Parked, and its line names its open blocker too. An issue whose only task worktree is in
+  another repository of the project is not in progress here: it shows under the backlog heading
+  that fits. `status` calls `claude agents` only where there is a task worktree.
 
 A line ends in `needs attention` when the task's session waits for an answer, or has been idle or
 gone for 10 minutes (`QUIET_MINUTES`) since it last wrote its transcript. A busy session is
