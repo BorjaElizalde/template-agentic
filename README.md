@@ -55,6 +55,33 @@ task can open a second branch for a follow-up PR); it refuses before it removes 
 of those branches has commits on no remote branch and in no merged PR, or the worktree has
 uncommitted or untracked files.
 
+Every open issue is in one of four states, each read from a fact GitHub already holds:
+
+| State | How it is marked | Who clears it |
+|---|---|---|
+| Ready | Open, no `backlog` label, no open "blocked by" issue, no task worktree | nobody |
+| In progress | Has a task worktree | nobody |
+| Blocked | A "blocked by" link to an open issue | itself, when the blocker closes |
+| Parked | The `backlog` label, and a comment that starts with `Parked:` and gives the reason | the owner, by word |
+
+`task.sh start` refuses a blocked or a parked issue before it does anything else, and names the
+open blockers or the reason in the last `Parked:` comment, so no agent starts one. The owner never
+labels or links an issue by hand: the main session does it, as the start skill says. It links an
+issue with `gh issue edit --add-blocked-by`, and parks one only on the owner's word with
+`task.sh park <n> <reason>`, which posts the `Parked:` comment, then adds the label. The park
+creates the label on its first use in a repository, with `gh label create --force`, so no project
+needs a step to have it. Releasing removes the label. One label serves every reason: there is no
+label per reason, no project board, no issue type (GitHub offers them only to organizations) and
+no parent issue.
+
+To plan a backlog, the owner says "plan X", and the main session starts an ordinary `research`
+task. Its session studies the code and the open issues, then creates one issue per piece of work,
+each with its goal, its scope and what done means. "Blocked by" links put them in order, and each
+one is parked with a reason that names the planning issue. The result is a comment on the planning
+issue that lists them, which `/task:finish` accepts for a research task. The session never waits
+for the owner, who corrects the plan afterwards and tells the main session which issues to
+release.
+
 The main session follows its tasks through two commands of `task.sh`, and each does one thing:
 
 - `cleanup` finishes every task whose issue is closed, and prints one line per task it finished
@@ -167,7 +194,8 @@ which leaves each of them to the auto-mode classifier:
 - `gh issue close` is allowed only inside `/task:finish`, by its `allowed-tools`, because the next
   cleanup finishes a task whose issue is closed;
 - `gh issue delete` and `gh issue transfer` can't be undone;
-- `gh label` is used by no workflow of the template.
+- `gh label` runs only inside `task.sh park`, which a session calls through `bash`, as it calls
+  every `task.sh` command.
 
 ## CI
 

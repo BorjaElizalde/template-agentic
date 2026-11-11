@@ -2,8 +2,9 @@
 # From the agentic template: change the template, not this copy.
 # Regression suite for task.sh. Run from any checkout: bash .claude/skills/task/scripts/task.test.sh
 # Two clones of one throwaway origin, named backend and frontend, stand in for two repositories.
-# Stub gh answers issue state and title, and PRs, from files under $TASK_TEST_STATE, and can't
-# answer while $TASK_TEST_STATE/gh-down exists; stub osascript logs the sessions it would open, end
+# Stub gh answers issue state and title, labels, blockers and comments, and PRs, from files under
+# $TASK_TEST_STATE, keeps the labels and comments it is given there, and can't answer while
+# $TASK_TEST_STATE/gh-down exists; stub osascript logs the sessions it would open, end
 # or bring to the front, and keeps its last script; stub claude lists a session running in each folder named in $TASK_TEST_STATE/running,
 # and stub ps gives its tty.
 set -u
@@ -24,10 +25,38 @@ case "$1 $2" in
       42) title="Name make close_claude_session in backend CLAUDE.md" ;;
       7) title="Second task" ;;
       5) title="Already done" ;;
-      8|9|10|11|12|13|14|15|16|17) title="Task $3" ;;
+      8|9|10|11|12|13|14|15|16|17|18|19) title="Task $3" ;;
       *) exit 1 ;;
     esac
-    echo "$(cat "$TASK_TEST_STATE/issue-$3" 2>/dev/null || echo OPEN) $title" ;;
+    # --json state,title asks for "<STATE> <title>", as its -q prints it. Else, as JSON, the issue's
+    # labels and comments, one per line of labels-<n> and comments-<n>, and the issues it is blocked
+    # by, one number per line of blocked-by-<n>, each in the state its issue-<n> file gives.
+    if [ "$7" = state,title ]; then
+      echo "$(cat "$TASK_TEST_STATE/issue-$3" 2>/dev/null || echo OPEN) $title"
+    else
+      cd "$TASK_TEST_STATE" || exit 1
+      blockers=$(for m in $(cat "blocked-by-$3" 2>/dev/null); do echo "$m $(cat "issue-$m" 2>/dev/null || echo OPEN)"; done)
+      jq -n --arg labels "$(cat "labels-$3" 2>/dev/null)" --arg comments "$(cat "comments-$3" 2>/dev/null)" \
+        --arg blockers "$blockers" '
+        def lines: split("\n") | map(select(. != ""));
+        {labels: ($labels | lines | map({name: .})),
+          blockedBy: {nodes: ($blockers | lines | map(split(" ") | {number: (.[0] | tonumber), state: .[1]}))},
+          comments: ($comments | lines | map({body: .}))}'
+    fi ;;
+  "issue comment")
+    n=$3; while [ $# -gt 0 ]; do [ "$1" != --body ] || echo "$2" >>"$TASK_TEST_STATE/comments-$n"; shift; done ;;
+  "issue edit")
+    # Like gh, it adds no label the repository lacks.
+    n=$3; while [ $# -gt 0 ]; do
+      if [ "$1" = --add-label ]; then
+        grep -qxF "$2" "$TASK_TEST_STATE/repo-labels" 2>/dev/null || exit 1
+        echo "$2" >>"$TASK_TEST_STATE/labels-$n"
+      fi
+      shift
+    done ;;
+  "label create")
+    # --force updates a label that exists, so the repository lists it once.
+    grep -qxF "$3" "$TASK_TEST_STATE/repo-labels" 2>/dev/null || echo "$3" >>"$TASK_TEST_STATE/repo-labels" ;;
   "pr list")
     while [ $# -gt 0 ]; do case "$1" in --head) branch=$2 ;; --state) state=$2 ;; esac; shift; done
     # --state merged asks whether a PR from the branch merged; --state all, for its newest PR.
@@ -352,8 +381,30 @@ check "finishes the closed task"               bash -c "test ! -e '$ISSUE16' && 
 check "lists every other task, and leaves out its own" bash -c "
   grep -q '^#11 ' '$WORK/out' && grep -q '^#13 ' '$WORK/out' && ! grep -q '^#15 ' '$WORK/out'"
 
+echo "-- park and block: a start refuses an issue that must wait, and says why"
+check "an issue parks where the label never was" task "$BACKEND" park 18 "planned in #19"
+check "which creates the label"                grep -qx backlog "$TASK_TEST_STATE/repo-labels"
+check "labels the issue"                       grep -qx backlog "$TASK_TEST_STATE/labels-18"
+check "and gives the reason in a comment"      grep -qx 'Parked: planned in #19' "$TASK_TEST_STATE/comments-18"
+refuses "a start refuses a parked issue, naming the reason" '^issue 18 is parked: planned in #19$' "$BACKEND" start 18
+check "and creates nothing"                    test ! -e "$WORK/repos/worktrees/18-task-18"
+echo "A comment of the owner's" >>"$TASK_TEST_STATE/comments-18"
+check "a park where the label is"              task "$BACKEND" park 18 "waits for the review"
+refuses "the reason named is the last one given" '^issue 18 is parked: waits for the review$' "$BACKEND" start 18
+printf '18\n5\n' >"$TASK_TEST_STATE/blocked-by-19"
+echo backlog >"$TASK_TEST_STATE/labels-19"
+refuses "a start refuses a blocked issue, naming its open blocker only" '^issue 19 is blocked by #18$' "$BACKEND" start 19
+refuses "and, parked too, the reason, even when no comment gives one" '^issue 19 is parked: no reason given$' "$BACKEND" start 19
+echo CLOSED >"$TASK_TEST_STATE/issue-18"
+run_in "$BACKEND" start 19
+check "a block clears itself when its blocker closes" test "$(cat "$WORK/out")" = 'issue 19 is parked: no reason given'
+rm "$TASK_TEST_STATE/labels-19"
+check "and a released issue starts"            task "$BACKEND" start 19
+check "with its worktree"                      test -d "$WORK/repos/worktrees/19-task-19/backend"
+
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"
+refuses "a park with no reason is refused"       '^usage:'              "$BACKEND" park 18
 
 echo "== $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
