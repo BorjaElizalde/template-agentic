@@ -112,6 +112,7 @@ pr_from() {  # pr_from <branch> <state> <isDraft> <statusCheckRollup>: the newes
     >"$TASK_TEST_STATE/pr-${1//\//-}"
 }
 status_line() { grep "^#$1 " "$WORK/out"; }  # the line the last run_in ... status printed for issue $1
+unknown_last() { tail -n 1 "$WORK/out" | grep -q '^The tasks are unknown: .*/task:status'; }  # the last run_in ended so
 refuses() {  # refuses <desc> <reason pattern> <checkout> <task.sh args...>: fails, and says why
   local out
   if out="$(bash "$3/.claude/skills/task/scripts/task.sh" "${@:4}" 2>&1)"; then fail=$((fail+1)); echo "FAIL $1 (it ran)"
@@ -322,6 +323,7 @@ check "and reports it"                         grep -qF '✓ issue 14 finished:'
 check "reports a refusal and starts anyway"    grep -qF '✗ issue 17 not finished:' "$WORK/out"
 check "then prints the status of what is left" bash -c "grep -q '^#17 ' '$WORK/out' && grep -q '^#11 ' '$WORK/out' && grep -q '^#13 ' '$WORK/out' && ! grep -q '^#14 ' '$WORK/out'"
 check "after the cleanup's lines"              awk '/^#/ { status = 1 } status && /^(✓|✗)/ { exit 1 }' "$WORK/out"
+check "and ends with the line that names /task:status" test "$(tail -n 1 "$WORK/out")" = 'In your first reply, report the status to the owner through /task:status.'
 rm "$ISSUE17/backend/notes.md"
 task "$BACKEND" finish 17 >/dev/null
 echo CLOSED >"$TASK_TEST_STATE/issue-13"
@@ -334,29 +336,21 @@ check "a session start where no task is, with gh and claude down" run_in "$FRONT
 check "says nothing: it calls neither"         test ! -s "$WORK/out"
 rm "$TASK_TEST_STATE/gh-down"
 check "claude agents can't answer: it still exits 0" run_in "$BACKEND" on-session-start
-check "and says the tasks are unknown"         grep -q 'tasks are unknown' "$WORK/out"
+check "and ends saying the tasks are unknown, naming /task:status" unknown_last
 rm "$TASK_TEST_STATE/claude-down"
 touch "$TASK_TEST_STATE/gh-down"
 check "gh can't answer: it still exits 0"      run_in "$BACKEND" on-session-start
-check "and says the tasks are unknown"         grep -q 'tasks are unknown' "$WORK/out"
+check "and ends saying the tasks are unknown, naming /task:status" unknown_last
 rm "$TASK_TEST_STATE/gh-down"
 
-echo "-- start: a cleanup, then every other task, marked when it needs attention"
-ISSUE15="$WORK/repos/worktrees/15-task-15"
+echo "-- start: a cleanup, then every other task"
 ISSUE16="$WORK/repos/worktrees/16-task-16"
-printf '%s idle\n%s\n' "$ISSUE11/backend" "$ISSUE13/backend" >"$TASK_TEST_STATE/running"
 check "backend starts issue 16"                task "$BACKEND" start 16
 echo CLOSED >"$TASK_TEST_STATE/issue-16"
 check "a start"                                run_in "$BACKEND" start 15
 check "finishes the closed task"               bash -c "test ! -e '$ISSUE16' && grep -qF '✓ issue 16 finished:' '$WORK/out'"
-check "marks an idle task"                     grep -qE '^#11 Task 11: session idle, .*, needs attention$' "$WORK/out"
-check "lists a busy one, unmarked"             bash -c "grep -q '^#13 Task 13: session busy,' '$WORK/out' && ! grep -qE '^#13 .*needs attention' '$WORK/out'"
-check "another start"                          run_in "$BACKEND" start 13
-check "marks a task with no session"           grep -qxF '#15 Task 15: no session, no PR, no transcript, needs attention' "$WORK/out"
-printf '%s\n' "$ISSUE11/backend" "$ISSUE13/backend" "$ISSUE15/backend" >"$TASK_TEST_STATE/running"
-check "a start with every other task busy"     run_in "$BACKEND" start 13
-check "lists them, marks none, and leaves out its own task" bash -c "
-  grep -q '^#11 ' '$WORK/out' && grep -q '^#15 ' '$WORK/out' && ! grep -q '^#13 ' '$WORK/out' && ! grep -q 'needs attention' '$WORK/out'"
+check "lists every other task, and leaves out its own" bash -c "
+  grep -q '^#11 ' '$WORK/out' && grep -q '^#13 ' '$WORK/out' && ! grep -q '^#15 ' '$WORK/out'"
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"
