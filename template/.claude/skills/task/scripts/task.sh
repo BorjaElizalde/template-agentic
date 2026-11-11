@@ -75,6 +75,16 @@ issue_branch() {
 		awk 'NR == 1 { print } END { exit NR == 0 }'
 }
 
+# The mode of the task on branch $1, from its type: design, whose session works the task out with
+# the owner, else execution, whose session works alone. Nothing else stores the mode, so a task
+# keeps it for life.
+task_mode() {
+	case $1 in
+	design/*) echo design ;;
+	*) echo execution ;;
+	esac
+}
+
 # The folder Claude Code writes the transcripts of the sessions in folder $1 to.
 transcript_dir() {
 	printf '%s/projects/%s' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "$(printf '%s' "$1" | tr -c 'a-zA-Z0-9' '-')"
@@ -111,18 +121,37 @@ point_memory() {
 	mv "$settings.tmp" "$settings"
 }
 
-# open_session <worktree> <name> <issue> [--continue]
+# A word quoted for the shell of a Terminal tab.
+quoted() {
+	local quote="'" escaped="'\\''"
+	printf "'%s'" "${1//$quote/$escaped}"
+}
+
+# open_session <worktree> <name> <issue> <mode> [--continue]
 open_session() {
 	# A session opened without a first prompt waits at an empty input, so this one sends it to its
 	# issue. One prompt serves a new session and a resumed one.
 	local first="Work on issue #$3 in $ISSUES_REPO. Read it with its comments: gh issue view $3 -R $ISSUES_REPO --comments. Carry it out until it is done as the issue says; if this session already worked on it, go on from where it stopped."
-	# exec leaves claude the tab's only process, so the tab is empty once claude exits. The first
-	# prompt comes after -n: --disallowed-tools takes every value up to the next option.
-	osascript - "$1" "$2" "${4:-}" \
-		"$MAIN/.claude/skills/task/session/settings.json" "$MAIN/.claude/skills/task/session/prompt.md" "$first" >/dev/null <<'APPLESCRIPT'
-on run {worktree, sessionName, resumeFlag, settingsFile, promptFile, firstPrompt}
+	local files=$MAIN/.claude/skills/task/session settings tools=" --disallowed-tools AskUserQuestion" command
+	settings=$files/settings.json
+	# Every session has its permission prompts denied. An execution session never waits for a
+	# person: it has no question tool, and its Stop hook sends it back to work when it ends its turn
+	# on a question. A design session asks the owner, so it keeps the tool and drops the hook:
+	# claude --settings takes one file or JSON string, so it gets the settings less the hook as JSON.
+	if [ "$4" = design ]; then
+		settings=$(jq -c 'del(.hooks.Stop)' "$settings")
+		tools=
+	fi
+	# exec leaves claude the tab's only process, so the tab is empty once claude exits. claude takes
+	# one appended system prompt, so the tab's shell joins the words both modes share and the mode's
+	# own. The first prompt comes after -n: --disallowed-tools takes every value up to the next option.
+	command="cd $(quoted "$1") && exec claude ${5:+$5 }--settings $(quoted "$settings")"
+	command+=" --append-system-prompt \"\$(cat $(quoted "$files/prompt.md") $(quoted "$files/$4.md"))\""
+	command+="$tools -n $(quoted "$2") $(quoted "$first")"
+	osascript - "$command" >/dev/null <<'APPLESCRIPT'
+on run {command}
 	tell application "Terminal"
-		do script "cd " & quoted form of worktree & " && exec claude " & resumeFlag & " --settings " & quoted form of settingsFile & " --append-system-prompt-file " & quoted form of promptFile & " --disallowed-tools AskUserQuestion -n " & quoted form of sessionName & " " & quoted form of firstPrompt
+		do script command
 		activate
 	end tell
 end run
@@ -185,9 +214,15 @@ unshipped() {
 	return 0
 }
 
-# Picks up whatever the issue already has: its worktree, else its branch, and its session.
+# Picks up whatever the issue already has: its worktree, else its branch, and its session, in the
+# mode of its branch. A mistyped type would fix the wrong mode for the task's life, so an unknown one
+# is refused before anything else.
 start_task() {
-	local issue=$1 type=$2 view title holds short slug worktree branch name tty
+	local issue=$1 type=$2 view title holds short slug worktree branch mode name tty
+	case $type in
+	feat | fix | refactor | chore | research | design) ;;
+	*) die "unknown type $type: a task is feat, fix, refactor, chore or research, in execution mode, or design, in design mode" ;;
+	esac
 	view=$(issue_view "$issue") || die "no issue $issue in $ISSUES_REPO"
 	title=${view#* }
 	[ "${view%% *}" = OPEN ] || die "issue $issue is ${view%% *}: a task starts from an open issue"
@@ -198,6 +233,7 @@ start_task() {
 	SESSIONS=$(claude agents --json)
 	task_lines "$issue"
 	if worktree=$(issue_worktree "$issue"); then
+		branch=$(git -C "$worktree" branch --show-current)
 		echo "✓ worktree exists: $worktree"
 	else
 		git fetch origin -q
@@ -221,17 +257,18 @@ start_task() {
 	fi
 	point_memory "$MAIN"
 	point_memory "$worktree"
+	mode=$(task_mode "$branch")
 	name="#$issue $REPO_NAME: $short"
 	if tty=$(session_tty "$worktree"); then
 		session_tab "$tty" focus
-		echo "✓ session already running, brought to the front: $name"
+		echo "✓ session already running in $mode mode, brought to the front: $name"
 	elif has_session_transcript "$worktree"; then
 		# claude --continue refuses to start where no session exists yet.
-		open_session "$worktree" "$name" "$issue" --continue
-		echo "✓ session resumed: $name"
+		open_session "$worktree" "$name" "$issue" "$mode" --continue
+		echo "✓ session resumed in $mode mode: $name"
 	else
-		open_session "$worktree" "$name" "$issue"
-		echo "✓ session opened: $name"
+		open_session "$worktree" "$name" "$issue" "$mode"
+		echo "✓ session opened in $mode mode: $name"
 	fi
 }
 
@@ -376,20 +413,24 @@ needs_attention() {
 	esac
 }
 
-# task_lines [<issue>]: one line per task worktree of this checkout, with its session, its PR and
-# when its session last wrote, ending in "needs attention" when it does; the issue given is left out.
+# task_lines [<issue>]: one line per task worktree of this checkout, with "design mode" for a design
+# task, its session, its PR and when its session last wrote, ending in "needs attention" when it
+# does; the issue given is left out.
 task_lines() {
-	local issue worktree session age view pr mark
+	local issue worktree session age view branch pr mode mark
 	for issue in $(task_issues); do
 		[ "$issue" != "${1:-}" ] || continue
 		worktree=$(issue_worktree "$issue")
 		session=$(session_line "$worktree")
 		age=$(transcript_age "$worktree")
 		view=$(issue_view "$issue")
-		pr=$(pr_line "$(git -C "$worktree" branch --show-current)")
+		branch=$(git -C "$worktree" branch --show-current)
+		pr=$(pr_line "$branch")
+		mode=
+		if [ "$(task_mode "$branch")" = design ]; then mode="design mode, "; fi
 		mark=
 		if needs_attention "$session" "$age"; then mark=", needs attention"; fi
-		echo "#$issue $(short_title "${view#* }"): $session, $pr, $(active_line "$age")$mark"
+		echo "#$issue $(short_title "${view#* }"): $mode$session, $pr, $(active_line "$age")$mark"
 	done
 }
 

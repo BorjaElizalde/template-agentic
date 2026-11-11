@@ -6,13 +6,17 @@ allowed-tools: Bash(bash:*), Bash(gh issue view:*)
 
 1. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" cleanup`, then
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" status`. The status lists every open issue once.
-   Under In progress, it prints one line per task: its session, its newest PR with that PR's
-   checks, and when the session last wrote. Then come Ready, Blocked, with the open issues each
-   waits on, and Parked, with each reason; a parked line also names an open blocker.
+   Under In progress, it prints one line per task: `design mode` for a design task, its session,
+   its newest PR with that PR's checks, and when the session last wrote. Then come Ready, Blocked,
+   with the open issues each waits on, and Parked, with each reason; a parked line also names an
+   open blocker.
 2. Read each task's issue with `gh issue view <n> -R BorjaElizalde/template-agentic --comments`, for its goal
    and any `Owner steps` comment, and the last message of each session that is idle or waiting.
-3. A line that ends in `needs attention` asks for a move. Make it by what the line says, and give
-   the task's card its mark:
+3. A line that ends in `needs attention` asks for a move. Make it by the first case that fits, and
+   give the task's card its mark:
+   - a design task, waiting, or idle with a question in its last message: the question is the
+     owner's, who answers it in its Terminal tab, which `/task:start <n>` brings to the front.
+     Never answer it for the owner, and never send the session back to work past it. ✋
    - idle, PR open and checks passed: review the PR; the owner merges it. 👀
    - checks failed: send the session back to work with SendMessage, saying what failed. ⏳
    - idle, no PR: its last message holds a result to close the issue on, a blocker, or a
