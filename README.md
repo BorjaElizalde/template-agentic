@@ -53,33 +53,94 @@ front while it runs and resumed when it doesn't. `/task:finish` closes the issue
 is delivered, then the session, the worktree and every local branch of the issue (`*/<n>-*`: a
 task can open a second branch for a follow-up PR); it refuses before it removes anything while one
 of those branches has commits on no remote branch and in no merged PR, or the worktree has
-uncommitted or untracked files. Given no issue, `/task:finish` finishes every task whose issue
-is closed, and `/task:start` does the same first: a PR merged on GitHub closes its issue, and the
-next start finishes its task.
+uncommitted or untracked files.
 
-`task.sh status` shows every task in one view. It first finishes every task whose issue is
-closed, as a start does, then prints one line per task worktree of this checkout: the issue and
-its short title, its session (`busy`, `idle`, `waiting`, or none), its newest PR with its state
-and check result, and how long ago the session last wrote its transcript. It prints nothing
-else, so a look costs the session that runs it a few lines; the backlog is `gh issue list`'s.
+Every open issue is in one of four states, each read from a fact GitHub already holds:
 
-The main session follows its tasks through `task.sh attention`: the same lines, for only the
-tasks that need attention. A task needs it when its session waits for an answer, or has been idle
-or gone for 10 minutes (`QUIET_MINUTES`) since it last wrote its transcript. A busy session is
+| State | How it is marked | Who clears it |
+|---|---|---|
+| Ready | Open, no `backlog` label, no open "blocked by" issue, no task worktree | nobody |
+| In progress | Has a task worktree | nobody |
+| Blocked | A "blocked by" link to an open issue | itself, when the blocker closes |
+| Parked | The `backlog` label, and a comment that starts with `Parked:` and gives the reason | the owner, by word |
+
+`task.sh start` refuses a blocked or a parked issue before it does anything else, and names the
+open blockers or the reason in the last `Parked:` comment, so no agent starts one. The owner never
+labels or links an issue by hand: the main session does it, as the start skill says. It links an
+issue with `gh issue edit --add-blocked-by`, and parks one only on the owner's word with
+`task.sh park <n> <reason>`, which posts the `Parked:` comment, then adds the label. The park
+creates the label on its first use in a repository, with `gh label create --force`, so no project
+needs a step to have it. Releasing removes the label. One label serves every reason: there is no
+label per reason, no project board, no issue type (GitHub offers them only to organizations) and
+no parent issue.
+
+To plan a backlog, the owner says "plan X", and the main session starts an ordinary `research`
+task. Its session studies the code and the open issues, then creates one issue per piece of work,
+each with its goal, its scope and what done means. "Blocked by" links put them in order, and each
+one is parked with a reason that names the planning issue. The result is a comment on the planning
+issue that lists them, which `/task:finish` accepts for a research task. The session never waits
+for the owner, who corrects the plan afterwards and tells the main session which issues to
+release.
+
+The main session follows its tasks through two commands of `task.sh`, and each does one thing:
+
+- `cleanup` finishes every task whose issue is closed, and prints one line per task it finished
+  or refused to finish, with the reason. A PR merged on GitHub closes its issue, but nothing else
+  finishes its task. `/task:finish` with no issue runs it.
+- `status` only reads, and shows the whole backlog: every open issue once, under the headings In
+  progress, Ready, Blocked and Parked, with no heading where no issue is. Under In progress is one
+  line per task worktree of this checkout: the issue and its short title, its session (`busy`,
+  `idle`, `waiting`, or none), its newest PR with its state and check result, and how long ago
+  the session last wrote its transcript. The other issues come from one `gh issue list`, one line
+  each with the whole title, lowest number first: a blocked line names the open issues it waits
+  on, and a parked line its reason. An issue goes under the first state that fits: in progress,
+  then parked, then blocked, then ready. So an issue a planning task left parked and blocked shows
+  under Parked, and its line names its open blocker too. An issue whose only task worktree is in
+  another repository of the project is not in progress here: it shows under the backlog heading
+  that fits. `status` calls `claude agents` only where there is a task worktree.
+
+A line ends in `needs attention` when the task's session waits for an answer, or has been idle or
+gone for 10 minutes (`QUIET_MINUTES`) since it last wrote its transcript. A busy session is
 working, and one that went quiet only just now often waits for a background check that wakes it
 when the check finishes. Idle notices (`SendMessage` with `notify_when_idle`) are not used: they
-can't be delayed, so they would fire on exactly those pauses. The list comes at three moments:
+can't be delayed, so they would fire on exactly those pauses.
 
-- `/task:start` prints it after its sweep, leaving out the task it starts;
-- a `SessionStart` hook in `settings.json` (`startup|resume`) puts it in the context of a session
-  that starts or resumes in a main checkout, so a restart forgets nothing;
-- a main session that runs a `/loop` can print it on each round.
+Both run by themselves, cleanup first, at two moments, where the status gives only its task lines,
+with no heading and no backlog:
 
-`attention` only reads, so a session start stays fast: it never sweeps, and a task whose issue is
-closed shows up until the next start finishes it. It prints nothing in a task worktree, so task
-sessions are untouched, nor when no task needs attention; where there is no task worktree it calls
-neither `gh` nor `claude`. When `gh` or `claude agents` can't answer, it says the tasks are unknown
-and exits 0, so the session starts anyway. The start skill says what to do with each line.
+- each `/task:start`, whose lines leave out the task it starts;
+- a session that starts or resumes in a main checkout, through a `SessionStart` hook in
+  `settings.json` (`startup|resume`) that runs `task.sh on-session-start` and puts the lines in
+  the session's context, so a restart forgets nothing.
+
+A main session that runs a `/loop` runs `status` on each round, which prints every task and the
+backlog even when no task needs attention. The hook makes a session start slower, since its
+cleanup can close sessions and remove worktrees. Claude Code runs it in the background, and the
+session's first answer waits for it. A hook can't call a skill or start a turn: it only adds its
+output to the session's context, which the owner doesn't see. So its output ends with one line
+that sends the session to `/task:status` for its first reply. Claude Code passes on 10,000
+characters of a hook's output, and only a preview of the first 2,000 when there are more, so the
+lines stay short: about 40 tasks fit. The backlog has no such bound, so the hook leaves it to
+`/task:status`. It prints nothing in a task worktree, so task sessions start untouched, nor where
+there is no task worktree, where it calls neither `gh` nor `claude`. A cleanup refusal is
+reported and the session starts anyway. When `gh` or `claude agents` can't answer, it says the
+tasks are unknown, and to report them through `/task:status` once they answer, and exits 0.
+
+The owner reads the status through `/task:status`. The script gives the facts and the main session
+writes the reply, since a script can't put a goal in plain words or say what the owner should do.
+The skill runs the cleanup and the status, reads each task's issue for its goal and any
+`Owner steps` comment, and reads the last message of each idle or waiting session. It acts on each
+line marked `needs attention` where the main session can, for example it sends a session back to
+fix failed checks. Then it answers with one card per task: the goal, where the task stands, and
+what the owner should do, with the main session's pick. The cards that need the owner come first.
+Three short lists follow the cards: Ready, Blocked and Parked, one line per issue. A list with no
+issue is left out, and a list of more than ten shows its first ten and how many more there are.
+A task whose issue is closed shows only in the closing "Cleaned up" list. The main session
+reports the status this way when the owner asks for it, in its first reply after a session start,
+and at the end of each `/task:start`; a `/loop` round does it when a line needs attention. The
+format is only in the skill, which loads when it is used, so a task session never carries it. The
+name keeps the plugin's prefix: a bare `/status` skill would replace Claude Code's built-in
+command.
 
 A task session is an interactive `claude` process in a Terminal tab (`open_session` in
 `task.sh`), never `claude -p`, the Agent SDK or an API key. `settings.json` also denies
@@ -95,11 +156,12 @@ session's own login, so it needs no API key either. `task.sh` finds a running se
 interactive session whose working directory is the worktree; it finds the session's Terminal tab
 by that process's tty.
 
-Both are skills of one plugin, `.claude/skills/task/`, so they share its `scripts/task.sh`
-through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a Makefile for them. Claude Code loads a
-plugin under `.claude/skills/` in place, with no install and no settings entry, from the folder a
-session starts in: the main checkout, or a task's worktree. Claude itself is started however the
-machine prefers, for example `alias claude-rc='caffeinate -i claude --remote-control'`.
+`/task:start`, `/task:finish` and `/task:status` are skills of one plugin, `.claude/skills/task/`,
+so they share its `scripts/task.sh` through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a
+Makefile for them. Claude Code loads a plugin under `.claude/skills/` in place, with no install
+and no settings entry, from the folder a session starts in: the main checkout, or a task's
+worktree. Claude itself is started however the machine prefers, for example
+`alias claude-rc='caffeinate -i claude --remote-control'`.
 
 ## What the project owns
 
@@ -141,9 +203,10 @@ the session prompt ask for issue comments. It grants no other `gh issue` call an
 which leaves each of them to the auto-mode classifier:
 
 - `gh issue close` is allowed only inside `/task:finish`, by its `allowed-tools`, because the next
-  sweep finishes a task whose issue is closed;
+  cleanup finishes a task whose issue is closed;
 - `gh issue delete` and `gh issue transfer` can't be undone;
-- `gh label` is used by no workflow of the template.
+- `gh label` runs only inside `task.sh park`, which a session calls through `bash`, as it calls
+  every `task.sh` command.
 
 ## CI
 

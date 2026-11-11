@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
-# The task lifecycle behind /task:start and /task:finish: one issue, one worktree, one session.
+# The task lifecycle behind /task:start and /task:finish: one issue, one worktree, one session. And
+# the parking of an issue that must not start yet.
 set -euo pipefail
 
-usage="usage: task.sh start <issue> [type] | finish <issue> | sweep | status | attention | point-memory"
+usage="usage: task.sh start <issue> [type] | finish <issue> | park <issue> <reason> | cleanup | status | on-session-start | point-memory"
 
 CALLER=$(pwd -P)
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -27,6 +28,33 @@ die() {
 # "<STATE> <title>" of an issue in the issues repository.
 issue_view() {
 	gh issue view "$1" -R "$ISSUES_REPO" --json state,title -q '.state + " " + .title'
+}
+
+# The jq definitions every view of an issue's holds shares, so each rule lives in one place. Over an
+# issue as gh gives it in JSON, blockers gives the open issues it is blocked by, and parked the
+# reason it is parked for, from the last comment that starts with "Parked:"; each gives nothing
+# where there is none.
+ISSUE_JQ='
+	def blockers: [.blockedBy.nodes[] | select(.state == "OPEN") | "#\(.number)"] | select(. != []) | join(", ");
+	def parked: select(any(.labels[]; .name == "backlog"))
+		| [.comments[].body | select(startswith("Parked:")) | sub("^Parked: *"; "")] | last // "no reason given";
+'
+
+# Why issue $1 must not start yet, one line per reason, else nothing.
+issue_holds() {
+	gh issue view "$1" -R "$ISSUES_REPO" --json number,labels,blockedBy,comments |
+		jq -r "$ISSUE_JQ"'"issue \(.number) is " + ("blocked by " + blockers, "parked: " + parked)'
+}
+
+# Parks issue $1 for reason $2: a comment that gives the reason, then the backlog label, so the label
+# never stands without its reason. The label is created on its first use in the issues repository;
+# --force updates one that exists.
+park() {
+	gh label create backlog -R "$ISSUES_REPO" --force --color ededed \
+		--description "Parked: no agent starts it until the owner releases it" >/dev/null
+	gh issue comment "$1" -R "$ISSUES_REPO" --body "Parked: $2" >/dev/null
+	gh issue edit "$1" -R "$ISSUES_REPO" --add-label backlog >/dev/null
+	echo "✓ issue $1 parked: $2"
 }
 
 # A title cut at a word boundary to 40 characters.
@@ -159,14 +187,16 @@ unshipped() {
 
 # Picks up whatever the issue already has: its worktree, else its branch, and its session.
 start_task() {
-	local issue=$1 type=$2 view title short slug worktree branch name tty
+	local issue=$1 type=$2 view title holds short slug worktree branch name tty
 	view=$(issue_view "$issue") || die "no issue $issue in $ISSUES_REPO"
 	title=${view#* }
 	[ "${view%% *}" = OPEN ] || die "issue $issue is ${view%% *}: a task starts from an open issue"
+	holds=$(issue_holds "$issue")
+	[ -z "$holds" ] || die "$holds"
 	short=$(short_title "$title")
-	sweep
+	cleanup
 	SESSIONS=$(claude agents --json)
-	task_lines attention "$issue"
+	task_lines "$issue"
 	if worktree=$(issue_worktree "$issue"); then
 		echo "✓ worktree exists: $worktree"
 	else
@@ -243,18 +273,23 @@ task_issues() {
 }
 
 # Finishes every task worktree of this checkout whose issue is closed: a PR merged on GitHub closes
-# its issue, but nothing finishes its task. Open issues are skipped without a word.
-sweep() {
-	local issue view
+# its issue, but nothing finishes its task. One line per task it finished or refused to finish;
+# open issues are skipped without a word.
+cleanup() {
+	local issue view out
 	# A worktree whose folder was deleted by hand still holds its branch until git forgets it.
 	git worktree prune
 	for issue in $(task_issues); do
 		view=$(issue_view "$issue") || continue
 		[ "${view%% *}" = CLOSED ] || continue
-		# A refusal exits, so each finish runs as a task.sh of its own: a refusal is reported and the
-		# sweep goes on. From the caller's folder, $0 resolves and finish sees a sweep from inside
-		# the worktree it would remove.
-		(cd "$CALLER" && bash "$0" finish "$issue") || true
+		# A refusal exits, so each finish runs as a task.sh of its own, whose last line says what it
+		# did or why it refused, and the cleanup goes on. From the caller's folder, $0 resolves and
+		# finish sees a cleanup from inside the worktree it would remove.
+		if out=$(cd "$CALLER" && bash "$0" finish "$issue" 2>&1); then
+			tail -n 1 <<<"$out"
+		else
+			echo "✗ issue $issue not finished: $(tail -n 1 <<<"$out")"
+		fi
 	done
 }
 
@@ -300,12 +335,31 @@ active_line() {
 	fi
 }
 
-# Sweeps first, so a look also finishes what is done. Then one line per task worktree of this
-# checkout, and nothing else: the backlog is gh issue list's.
+# Every open issue, under the first heading that fits: In progress, one task line per task worktree
+# of this checkout, then the backlog. It only reads, and where there is no task it calls no claude.
 status() {
-	sweep
-	SESSIONS=$(claude agents --json)
-	task_lines all
+	if [ -n "$(task_issues)" ]; then
+		echo "In progress:"
+		SESSIONS=$(claude agents --json)
+		task_lines
+	fi
+	backlog_lines
+}
+
+# The open issues with no task worktree of this checkout, under Ready, Blocked and Parked, one line
+# each, lowest number first; a heading with no issue is left out. Each issue goes under the first
+# that fits: Parked, then Blocked, then Ready, so a parked line also names its open blockers. A line
+# keeps the whole title, so the reply can say what the issue is: the backlog never goes through the
+# hook, whose bound the task lines' cut is for. gh lists 30 issues unless told more.
+backlog_lines() {
+	gh issue list -R "$ISSUES_REPO" --state open --limit 1000 --json number,title,labels,blockedBy,comments |
+		jq -r --argjson tasks "[$(task_issues | paste -sd , -)]" "$ISSUE_JQ"'
+		[sort_by(.number)[] | select(.number | IN($tasks[]) | not)
+			| [parked] as $parked | ($parked + ["blocked by " + blockers]) as $holds
+			| {heading: (if $parked != [] then "Parked" elif $holds != [] then "Blocked" else "Ready" end),
+				line: (["#\(.number) \(.title)", ($holds | select(. != []) | join("; "))] | join(": "))}]
+		| ("Ready", "Blocked", "Parked") as $heading | map(select(.heading == $heading) | .line)
+		| select(. != []) | "\($heading):", .[]'
 }
 
 # A session idle or gone for less than this many minutes since it last wrote is left alone: one
@@ -322,41 +376,48 @@ needs_attention() {
 	esac
 }
 
-# task_lines all|attention [<issue>]: one line per task worktree of this checkout, with its session,
-# its PR and when its session last wrote; the issue given is left out. With attention, only the
-# tasks that need it.
+# task_lines [<issue>]: one line per task worktree of this checkout, with its session, its PR and
+# when its session last wrote, ending in "needs attention" when it does; the issue given is left out.
 task_lines() {
-	local issue worktree session age view pr
+	local issue worktree session age view pr mark
 	for issue in $(task_issues); do
-		[ "$issue" != "${2:-}" ] || continue
+		[ "$issue" != "${1:-}" ] || continue
 		worktree=$(issue_worktree "$issue")
 		session=$(session_line "$worktree")
 		age=$(transcript_age "$worktree")
-		[ "$1" = all ] || needs_attention "$session" "$age" || continue
 		view=$(issue_view "$issue")
 		pr=$(pr_line "$(git -C "$worktree" branch --show-current)")
-		echo "#$issue $(short_title "${view#* }"): $session, $pr, $(active_line "$age")"
+		mark=
+		if needs_attention "$session" "$age"; then mark=", needs attention"; fi
+		echo "#$issue $(short_title "${view#* }"): $session, $pr, $(active_line "$age")$mark"
 	done
 }
 
-# The tasks that need attention, read only so it is fast: the SessionStart hook puts them in the
-# context of a session in the main checkout, and a /loop can print them on each round. It says
-# nothing in a task worktree, nor when no task needs attention, and it never fails a session start.
-attention() {
+# The SessionStart hook: a cleanup, then the task lines, in the context of a session that starts or
+# resumes in the main checkout, ending with the line that sends it to /task:status for the reply.
+# A hook can't call a skill, only add to the context. It says nothing in a task worktree, so task
+# sessions start untouched, nor where there is no task, and it never fails a session start.
+# Claude Code passes on 10,000 characters of a hook's output, and only a preview of the first 2,000
+# when there are more. A line is at most about 250, so 40 tasks fit; the backlog has no such bound,
+# so it is left to /task:status.
+on_session_start() {
 	[ "$(git -C "$CHECKOUT" rev-parse --absolute-git-dir)" = \
 		"$(git -C "$CHECKOUT" rev-parse --path-format=absolute --git-common-dir)" ] || return 0
 	[ -n "$(task_issues)" ] || return 0
-	trap '[ $? -eq 0 ] || { echo "task.sh attention failed, so the tasks are unknown: run it again once gh and claude agents answer."; exit 0; }' EXIT
+	trap '[ $? -eq 0 ] || { echo "The tasks are unknown: gh or claude agents did not answer. Report the status through /task:status once they do."; exit 0; }' EXIT
+	cleanup
 	SESSIONS=$(claude agents --json)
-	task_lines attention
+	task_lines
+	echo "In your first reply, report the status to the owner through /task:status."
 }
 
 case ${1:-} in
 start) [ $# -ge 2 ] || die "$usage"; start_task "$2" "${3:-feat}" ;;
 finish) [ $# -ge 2 ] || die "$usage"; finish_task "$2" ;;
-sweep) sweep ;;
+park) [ $# -ge 3 ] || die "$usage"; park "$2" "$3" ;;
+cleanup) cleanup ;;
 status) status ;;
-attention) attention ;;
+on-session-start) on_session_start ;;
 point-memory) point_memory "$CHECKOUT" && echo "✓ auto memory points at $CHECKOUT/.claude/memory" ;;
 *) die "$usage" ;;
 esac

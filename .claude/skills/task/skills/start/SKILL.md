@@ -1,7 +1,7 @@
 ---
 name: start
-description: Use to start, open or resume the session of any task or subagent — a new task, or an existing issue with or without a worktree or a session. Finds or creates the issue, creates or reuses its worktree, and opens, resumes or brings forward its session.
-allowed-tools: Bash(gh issue list:*), Bash(gh issue view:*), Bash(gh issue create:*), Bash(bash:*)
+description: Use to start, open or resume the session of any task or subagent — a new task, or an existing issue with or without a worktree or a session. Finds or creates the issue, creates or reuses its worktree, and opens, resumes or brings forward its session. Also use to park, release or link an issue, and to plan a backlog.
+allowed-tools: Bash(gh issue list:*), Bash(gh issue view:*), Bash(gh issue create:*), Bash(gh issue edit:*), Bash(bash:*)
 ---
 
 Every subagent session belongs to one issue in BorjaElizalde/template-agentic and works in its own worktree,
@@ -20,10 +20,12 @@ The same steps start a new task and pick up an existing one.
    needs goes in the issue, or the task rebuilds it.
 2. Pick the branch type: `feat`, `fix`, `refactor` or `chore` for a change, `research` for a task
    whose result is an answer. It names a new branch only: an issue that has a branch keeps it.
-3. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" start <n> <type>`. It first finishes every
-   task whose issue is closed, as a bare `/task:finish` does, and lists every other task that
-   needs attention, one line each, as `task.sh status` prints it. Then it picks up what the issue
-   already has:
+3. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" start <n> <type>`. Before anything else, it
+   refuses an issue that must wait (see below) and names its open blocker or the reason it is
+   parked: tell the owner, and start nothing in its place. Otherwise it first runs
+   `task.sh cleanup`, which finishes every task whose issue is closed, as a bare `/task:finish`
+   does, then prints the status line of every other task, with no backlog. Then it picks up what
+   the issue already has:
    - its worktree, else its branch (left without a worktree, or pushed from another clone), else
      a new branch from `origin/develop`;
    - its running session, brought to the front and never opened twice, else its last session,
@@ -31,14 +33,34 @@ The same steps start a new task and pick up an existing one.
 
    A new or resumed session starts with a prompt that sends it to the issue and its comments. A
    running session gets no prompt: send it what changed with SendMessage.
-4. Return the issue URL, the worktree path, the session name, what the script picked up, the
-   tasks it finished or refused to finish, and the tasks that need attention. Then act on each of
-   those, by what its line says:
-   - idle, PR open and checks passed: review the PR; the owner merges it;
-   - checks failed: send the session back to work with SendMessage, saying what failed;
-   - idle, no PR: read the session's last message, which holds a research result to close the
-     issue on, a blocker, or a question to answer;
-   - waiting: someone must answer in its Terminal tab;
-   - no session, issue open: resume it with `/task:start <n>`.
+4. Return the issue URL, the worktree path, the session name and what the script picked up. Then
+   report the status through `/task:status`.
 
-   A task whose issue is closed needs nothing: the next sweep finishes it.
+## Issues that must wait
+
+No agent starts an issue that is blocked or parked. GitHub holds both facts:
+
+- **Blocked:** a "blocked by" link to an open issue. The link is the reason, and it clears itself
+  when the blocker closes. Add one with
+  `gh issue edit <n> -R BorjaElizalde/template-agentic --add-blocked-by <m>`, or with `--blocked-by <m>` on
+  `gh issue create`; `--remove-blocked-by <m>` removes one.
+- **Parked:** the `backlog` label, with a comment that starts with `Parked:` and gives the reason.
+  Only the owner's word parks or releases an issue. Park it with
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" park <n> "<reason>"`, which posts the comment,
+  then adds the label, which it creates where it does not exist yet. Release it with
+  `gh issue edit <n> -R BorjaElizalde/template-agentic --remove-label backlog`.
+
+## Plan a backlog
+
+When the owner says "plan X", start a `research` task for it. Its issue body asks its session to:
+
+1. study the code and the open issues;
+2. create one issue per piece of work, whose body states its goal, its scope and what done means,
+   as step 1 asks of any issue;
+3. put them in order, creating each one `--blocked-by` the issues it waits for;
+4. park each one with
+   `bash .claude/skills/task/scripts/task.sh park <n> "planned in #<this issue>, waits for the owner's review"`;
+5. post, as its result, a comment on this issue that lists them in order.
+
+The session never waits for the owner. The owner corrects the plan afterwards, and tells the main
+session which issues to release.
