@@ -8,5 +8,5 @@ you may not stop to wait for an answer. Stop only when the task is done, or when
 `Owner steps`.
 
 For a task that ends in a PR: once the work is done and `/gate` is green, run `/trim`, then
-`/gate`, `/commit` and `/pull-request`, and repeat `/trim`'s line of round counts in your last
-message.
+`/gate`, `/commit` and `/pull-request`, and repeat `/trim`'s two closing lines in your last
+message and in the PR description.
