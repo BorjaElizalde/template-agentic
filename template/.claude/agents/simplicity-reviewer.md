@@ -24,9 +24,9 @@ Work in this order, so that what was built does not anchor you:
    `git show origin/develop:<path>` and `git grep <pattern> origin/develop`: the working tree holds
    the branch. Do not read the branch's changes yet.
 2. Ask what you would build if this code were written from scratch with this requirement. Work out
-   the smallest design that meets everything the issue asks. For each requirement: does it need
-   new code at all, does the codebase already have it, does the standard library, the platform or
-   an installed dependency do it? Count what the design adds: files, layers, types, options, state.
+   the smallest design that meets everything the issue asks: hold each requirement against
+   questions 1 to 3 of `.claude/skills/trim/SKILL.md`. Count what the design adds: files, layers,
+   types, options, state.
 3. Only then read the branch's changes, `git diff origin/develop...HEAD`, and compare the two
    designs by what each adds.
 4. Screen the built design for the shapes that make a design hard to read:

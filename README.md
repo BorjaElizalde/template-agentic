@@ -200,7 +200,7 @@ A stack's lint checks and Claude Code's `/simplify` clean the form of AI-written
 should not exist. `/trim` does. It first spawns a `simplicity-reviewer`, a read-only agent that
 works out the smallest design for the task's issue before it reads the branch, and flags a simpler
 design than the one built. Then the session cuts what the task did not need in passes of its own,
-and commits each as `Trim pass <k>: +<added> -<removed>`. `execution.md` runs `/trim` in every
+and commits each with its count of lines added and removed. `execution.md` runs `/trim` in every
 execution task that ends in a PR, because a skill or agent that no step calls does not run.
 `/agentic-flow` runs it before `/simplify`. `/pull-request` checks nothing of it.
 
