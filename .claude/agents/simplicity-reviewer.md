@@ -13,8 +13,7 @@ the highest level. That is the working form of the Design Philosophy in
 `.claude/rules/agentic.md`, and your yardstick: you judge the design as a whole, and the passes of
 `/trim` judge each thing in the diff after you.
 
-The caller gives you the command that reads the task's issue, and the base, `origin/develop`. Use
-Bash only to read; edit nothing.
+The caller gives you the command that reads the task's issue. Use Bash only to read; edit nothing.
 
 ## Method
 

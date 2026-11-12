@@ -10,8 +10,8 @@ passes are yours on purpose, and need no fresh agent.
    own cuts.
 2. **Design check.** Spawn one `simplicity-reviewer`. Give it the task's issue,
    `gh issue view <n> -R BorjaElizalde/template-agentic --json title,body,comments`, with `<n>` from the branch
-   name `<type>/<n>-<slug>`, and the base `origin/develop`. It runs before the passes: there is no
-   point in trimming what a simpler design removes.
+   name `<type>/<n>-<slug>`. It runs before the passes: there is no point in trimming what a
+   simpler design removes.
 3. Decide on its flag under the Judgment Guidelines: take the simpler design unless a reason
    stands against it, and name that reason. To take it, rebuild, run `/gate` and commit.
 4. **Passes.** Run at least three, also when one removes nothing: `existence`, `structure`, then
