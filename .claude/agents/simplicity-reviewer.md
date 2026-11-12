@@ -30,13 +30,11 @@ for stays. Use Bash only to read; edit nothing.
 
 ## Output
 
-1. **Verdict**, one paragraph: over-built, about right or under-built for the issue's scope, and
-   the biggest cut if there is one.
-2. **Cuts**, ranked by how much they remove, each with:
+1. **Cuts**, ranked by how much they remove, each with:
    - **What**: the thing, its `file:line`, and why it need not exist;
    - **Do**: delete, inline, merge, make a constant, or defer what the issue does not ask for;
    - **Breaks**: what would break, and what must be true for the cut to be safe.
-3. **Essential, keep**: short bullets on what the issue, a spec, interop or security needs, so the
+2. **Essential, keep**: short bullets on what the issue, a spec, interop or security needs, so the
    reader stops second-guessing it.
 
 A few cuts that remove much beat a long list, and no cut is a valid result. Make every sentence
