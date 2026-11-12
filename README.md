@@ -195,22 +195,13 @@ worktree. Claude itself is started however the machine prefers, for example
 
 ## Trim before the PR
 
-AI-written code is over-built: options, parameters, defensive branches, helpers and layers that
-nobody asked for. A stack's lint and duplicate-code checks and Claude Code's `/simplify` clean the
-form, and `/simplify` skips every fix that would change behaviour, so none of them removes a thing
-that should not exist. `/trim` does. In each round, a new `simplicity-reviewer`, a read-only agent,
-asks of the branch's changes "should this exist at all?" against the task's issue and the
-project's rules, and returns cuts ranked by how much they remove, with what must stay. A new
-reviewer each round is not anchored on the round before. The session applies the cuts that hold
-and commits the round as `Trim round <k>: +<added> -<removed>`, so the PR's commits show each
-round with no change to its description; a round with many `+` lines rewrote instead of removing.
-It runs at least three rounds, more while a round still cuts, up to five, then `/gate` once.
-
-`execution.md` puts `/trim` on the path of every execution task that ends in a PR, between a green
-`/gate` and `/pull-request`, because a skill that nothing on the path names does not run. The
-session's last message repeats every round's count, for example `Trim: +4 -41, +0 -9, +0 -0`.
-`/pull-request` checks nothing of it. `/agentic-flow` runs `/trim` before `/simplify`, so it
-never polishes code that a round is about to remove.
+A stack's lint checks and Claude Code's `/simplify` clean the form of AI-written code, and
+`/simplify` skips every fix that would change behaviour, so none of them removes a thing that
+should not exist. `/trim` does: in each round, a new `simplicity-reviewer`, a read-only agent, asks
+of the branch's changes "should this exist at all?", and the session commits the cuts that hold as
+`Trim round <k>: +<added> -<removed>`. `execution.md` runs it in every execution task that ends in
+a PR, because a skill that nothing on the path names does not run. `/agentic-flow` runs it before
+`/simplify`. `/pull-request` checks nothing of it.
 
 ## What the project owns
 
