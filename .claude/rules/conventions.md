@@ -2,13 +2,13 @@
 
 - Adapt to the existing code: before you extend a module, and above all before you create a file,
   read similar files beside it and match their structure, naming and idiom. Comment density is
-  not style to match: the rules below govern comments, even where neighboring files hold more.
+  not style to match: the rules below govern comments.
 
 ## Comments
 
-- Readable code comes first. Before you write a comment or a docstring, ask whether a clearer
-  name, a smaller function or a simpler structure would make it unnecessary, without hurting
-  performance or the design; if so, change the code instead.
+- Before you write a comment or a docstring, ask whether a clearer name, a smaller function or a
+  simpler structure would make it unnecessary, without hurting performance or the design; if so,
+  change the code instead.
 - Write a comment only to say why the obvious approach is wrong here, an outside constraint (how a
   provider, library or platform behaves), a safety, security or data-integrity rule or a contract
   callers must respect that the code does not show, or the reason for a skipped check. Inside the
@@ -27,7 +27,7 @@
   level, an option that skips tests, or a change to the gate, a git hook or CI that stops a tool
   from running or from failing. A stack's own rule lists its directives and the tools whose docs
   to read.
-- Both are the last resort. First check whether skipping is really the only way. Read the current
+- First check whether a skip or a loosened config is really the only way. Read the current
   documentation: the rule's page in the tool's docs and the docs of any library involved, since a
   newer version often adds a setting, an idiom or a typed API that makes the skip unnecessary.
   Then look for a cleaner approach: fix the code so the check passes, narrow the construct,
@@ -40,4 +40,4 @@
 - The reason goes after the directive, on the same line. When that line would pass the project's
   line length, or the directive must stand alone on its line, the reason goes on the comment lines
   directly above, and the line keeps only the directive. A config entry's reason goes on its line
-  or the comment lines above it; for a removed entry, in a comment where it was.
+  or the comment lines above it; when the loosening removes a line, in a comment where it was.
