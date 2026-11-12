@@ -198,18 +198,14 @@ worktree. Claude itself is started however the machine prefers, for example
 A stack's lint checks and Claude Code's `/simplify` clean the form of AI-written code, and
 `/simplify` skips every fix that would change behaviour, so none of them removes a thing that
 should not exist. `/trim` does. Each round spawns a new `simplicity-reviewer`, a read-only agent,
-with its own lens: round 1 looks for what should not exist, round 2 for what should not be its own
-thing, round 3 for what a reader stumbles on. The session commits the cuts that hold as
+and the session commits the cuts that hold as
 `Trim round <k>: +<added> -<removed>`. `execution.md` runs it in every execution task that ends in
 a PR, because a skill that nothing on the path names does not run. `/agentic-flow` runs it before
 `/simplify`. `/pull-request` checks nothing of it.
 
-The reviewer's text comes from three sources:
-[Ponytail](https://github.com/DietrichGebert/ponytail) gives the ordered questions, most of the
-cuts, the never-cut list and the rule of proof; [pstack](https://github.com/backnotprop/pstack)
-gives the reader test and the cuts of layers, state and instructions; and Cursor's
-[deslop](https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/deslop) gives the
-cuts of guards and comments.
+The reviewer's text draws on [Ponytail](https://github.com/DietrichGebert/ponytail),
+[pstack](https://github.com/backnotprop/pstack) and Cursor's
+[deslop](https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/deslop).
 
 ## What the project owns
 

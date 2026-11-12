@@ -9,4 +9,4 @@ you may not stop to wait for an answer. Stop only when the task is done, or when
 
 For a task that ends in a PR: once the work is done and `/gate` is green, run `/trim`, then
 `/gate`, `/commit` and `/pull-request`, and repeat `/trim`'s line of round counts in your last
-message. A task whose result is an answer has nothing to trim.
+message.
