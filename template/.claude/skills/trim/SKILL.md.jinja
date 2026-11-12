@@ -10,14 +10,13 @@ What a cut is, and how it is proven, is in `.claude/agents/simplicity-reviewer.m
 2. Run at least three rounds, also when a round removes nothing. After the third, go on while the
    last round made a cut, up to five rounds. Round 1 has the lens `existence`, round 2
    `structure`, round 3 `surface`, and a later round `all`. Round `<k>`:
-   1. Spawn a new `simplicity-reviewer`, never one from an earlier round, so it is not anchored on
-      that round. Give it the round's lens, the range `origin/develop...HEAD`, and the task's
-      issue, `gh issue view <n> -R {{ issues_repo }} --json title,body,comments`, with `<n>` from
-      the branch name `<type>/<n>-<slug>`.
+   1. Spawn a new `simplicity-reviewer`, so it is not anchored on an earlier round. Give it the
+      round's lens, the range `origin/develop...HEAD`, and the task's issue,
+      `gh issue view <n> -R {{ issues_repo }} --json title,body,comments`, with `<n>` from the
+      branch name `<type>/<n>-<slug>`.
    2. Apply the cuts that hold, under the Judgment Guidelines; a cut without its proof does not
-      hold. Be lazy about the solution, never about the change: a cut is done only when it
-      reaches the callers, the tests, the fixtures and the docs of what it removed. Say in one
-      line why each rejected cut stays.
+      hold. A cut is done only when it reaches the callers, the tests, the fixtures and the docs
+      of what it removed. Say in one line why each rejected cut stays.
    3. Stage the files the round changed, by name, and read its count from
       `git diff --cached --shortstat`. Watch the `+`: a round that adds many lines is rewriting,
       not trimming, so take the rewrite back. Commit a round that changed the tree with the

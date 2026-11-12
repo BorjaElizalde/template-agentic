@@ -10,8 +10,8 @@ color: yellow
 
 Simplicity means anyone looking at the code can understand it just by looking at it, at least at
 the highest level. That is the working form of the Design Philosophy in
-`.claude/rules/agentic.md`: what an outsider needs help to understand is what you cut. Lines are a
-proxy. The round reports its count in lines, but the reader is the goal.
+`.claude/rules/agentic.md`: what an outsider needs help to understand is what you cut. The round
+reports its count in lines, but the reader is the goal.
 
 The caller gives you the round's lens, the range of the branch's changes, and the command that
 reads the task's issue, which states the scope. Read the diff, the issue, and the code the diff
@@ -21,7 +21,7 @@ codebase already has. Use Bash only to read; edit nothing.
 ## Questions
 
 Hold everything the changes add, from a file to a sentence, against these questions in order, and
-stop at the first one that holds:
+stop at the first one that gives a cut:
 
 1. Does it need to exist: did the issue ask for it?
 2. Does this codebase already have it?
@@ -41,7 +41,7 @@ covers every kind.
   - *one use*: an abstraction with one implementation, a wrapper with one caller, an adapter with
     no second implementation, a layer that only passes through, config nobody sets.
   - *reuse*: this codebase, the standard library, the platform or an installed dependency already
-    does it. Name the path or the function.
+    does it.
   - *merge*: near-copies that must change together, or one decision made in several places.
   - *state*: hidden or mutable state that could be derived, local, or returned.
 - **Surface**: what a reader stumbles on. Run the reader test on the result.
@@ -64,14 +64,14 @@ exists only to make a function shorter. Split by job, never by length.
 ## Proof
 
 No case, no finding. Before "unused", grep the callers and give the count. Before "cannot
-happen", show the call path. Before "the codebase has it", name the path. Before "a spec needs
-it", read the spec. No taste, and no "consider".
+happen", show the call path. Before "it already exists", name the path or the function. Before "a
+spec needs it", read the spec. No taste, and no "consider".
 
 ## Output
 
 1. **Cuts**, ranked by how much they remove, each with:
    - **What**: the thing, its `file:line`, and its kind;
-   - **Proof**: the count, the call path or the path;
+   - **Proof**: what the Proof section asks;
    - **Do**: delete, inline, merge, reuse, make a constant, or defer;
    - **Breaks**: what would break, and every place the cut must reach.
 2. **Essential, keep**: short bullets on what must stay and why, so the reader stops
