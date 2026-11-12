@@ -202,7 +202,7 @@ works out the smallest design for the task's issue before it reads the branch, a
 design than the one built. Then the session cuts what the task did not need in passes of its own,
 and commits each with its count of lines added and removed. `execution.md` runs `/trim` in every
 execution task that ends in a PR, because a skill or agent that no step calls does not run.
-`/agentic-flow` runs it before `/simplify`. `/pull-request` checks nothing of it.
+`/pull-request` checks nothing of it.
 
 The text of both draws on [Ponytail](https://github.com/DietrichGebert/ponytail),
 [pstack](https://github.com/backnotprop/pstack) and Cursor's

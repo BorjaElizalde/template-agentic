@@ -123,7 +123,6 @@ expect "the trim skill spawns the simplicity reviewer with the issue, body inclu
 expect "the simplicity reviewer has no tool that edits" bash -c "
   grep -q '^tools: Read' '$REVIEWER' && ! grep -qE '^tools:.*(Edit|Write|Agent)' '$REVIEWER'"
 expect "an execution session runs /trim" grep -q '/trim' "$D/.claude/skills/task/session/execution.md"
-expect "/agentic-flow runs /trim before /simplify" grep -q '/trim.*/simplify' "$D/.claude/skills/agentic-flow/SKILL.md"
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
