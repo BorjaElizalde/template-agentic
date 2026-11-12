@@ -56,6 +56,15 @@ task can open a second branch for a follow-up PR); it refuses before it removes 
 of those branches has commits on no remote branch and in no merged PR, or the worktree has
 uncommitted or untracked files.
 
+An issue states the problem; the PR that closes it states the solution. The start skill's "Write
+an issue" sets the body's order: the problem, with whom it costs and the evidence, then what is
+true when it is solved, then, when there are any, the owner's decisions, the findings, and a
+proposed solution the session may improve or replace. So a reader who has only the issue can
+judge the work and tell when it is done, and the session is free to find a simpler design than
+the one proposed, or to find the aim again when that design fails. The title names the problem
+or the outcome. Only its first 40 characters derive anything: the branch, the session name and
+the status line. The rules say the same for an issue that no task starts from.
+
 A task starts in one of two modes, and its branch type is its mode from its start to its finish:
 
 | Mode | How its session works | Branch types | Result |
@@ -94,12 +103,13 @@ no parent issue.
 
 To plan a backlog, the owner says "plan X", and the main session starts an ordinary `research`
 task, or says "plan X with me", and the main session starts a `design` task. Either session studies
-the code and the open issues, then creates one issue per piece of work, each with its goal, its
-scope and what done means. "Blocked by" links put them in order, and each one is parked with a
-reason that names the planning issue. The result is a comment on the planning issue that lists
-them, which `/task:finish` accepts for a research or a design task. A research session never
-waits for the owner, who corrects the plan afterwards; a design session works it out with the
-owner as it goes. Either way, the owner tells the main session which issues to release.
+the code and the open issues, then creates one issue per piece of work, each written as above:
+the problem it solves first, then what is true when it is solved. "Blocked by" links put them in
+order, and each one is parked with a reason that names the planning issue. The result is a
+comment on the planning issue that lists them, which `/task:finish` accepts for a research or a
+design task. A research session never waits for the owner, who corrects the plan afterwards; a
+design session works it out with the owner as it goes. Either way, the owner tells the main
+session which issues to release.
 
 The main session follows its tasks through two commands of `task.sh`, and each does one thing:
 
