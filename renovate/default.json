@@ -1,24 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "The dependency-update rules every project made from the templates shares.",
-  "extends": ["config:recommended", "group:allNonMajor", ":disableDependencyDashboard"],
-  "schedule": ["* * 1 * *"],
-  "rangeStrategy": "bump",
-  "semanticCommits": "disabled",
-  "commitMessagePrefix": "renovate:",
-  "lockFileMaintenance": { "enabled": true, "schedule": ["* * 1 * *"] },
-  "packageRules": [
-    {
-      "matchPackageNames": ["python"],
-      "matchDatasources": ["docker", "python-version"],
-      "groupName": "python",
-      "rebaseWhen": "behind-base-branch"
-    },
-    {
-      "description": "Template updates reach projects within hours, each template layer in its own PR: the null groupName undoes group:allNonMajor.",
-      "matchManagers": ["copier"],
-      "schedule": ["at any time"],
-      "groupName": null
-    }
-  ]
+  "description": "The preset for a project made from the templates: the shared rules, and Renovate's github-actions manager kept off the templates' CI files, whose action pins arrive in the template's update PR.",
+  "extends": ["github>BorjaElizalde/template-agentic//renovate/base"],
+  "github-actions": {
+    "ignorePaths": [".github/workflows/gate.yaml", ".github/actions/stack-gate/**"]
+  }
 }

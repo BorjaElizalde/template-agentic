@@ -16,10 +16,11 @@ uvx copier update -a .copier-answers.agentic.yaml
 Every merge to `main` is a release: the `Build` workflow re-runs `make gate` on the merged result,
 then tags the next `YYYYMMDD.N` version (a PEP 440 version, which Copier and Renovate order by).
 Projects take it as an update PR (Renovate's Copier manager, or `copier update` by hand). The
-shared Renovate preset (see [What the project owns](#what-the-project-owns)) opens that PR at any
-time and outside every group, so a release reaches projects within hours, each template layer in
-its own PR. The template uses no unsafe Copier feature (Jinja extensions, migrations, tasks, or
-`_external_data` outside the project root), so an update runs without `--trust`.
+shared Renovate rules, `renovate/base.json` (see [What the project owns](#what-the-project-owns)),
+open that PR at any time and outside every group, so a release reaches projects within hours,
+each template layer in its own PR. The template uses no unsafe Copier feature (Jinja extensions,
+migrations, tasks, or `_external_data` outside the project root), so an update runs without
+`--trust`.
 
 ## Questions
 
@@ -201,23 +202,42 @@ the Judgment Guidelines in `.claude/rules/agentic.md` decide against. That rule 
 `paths:`, so Claude Code loads it in every session. Every other file belongs to this template:
 change it here, not in a project.
 
-The seeded `renovate.json` takes its rules from one shared preset, `renovate/default.json` at this
-repository's root, outside `template/` so it is never rendered. It extends
-`github>BorjaElizalde/template-agentic//renovate/default`, which Renovate reads from this
-repository's default branch, `develop`, with no tag pin: a rule change merged there reaches every
-project on its next Renovate run. This repository's own `renovate.json` extends it too. The preset
-runs Renovate on the 1st of each month. It puts every minor and patch update in one PR and each
-major update in its own, bumps the version ranges, refreshes the lock files, and moves the Python
-image and the Python version together. Template updates (the `copier` manager) are the exception:
-they come at any time and outside every group, so a release reaches a project within hours, each
-template layer in its own PR.
+The seeded `renovate.json` takes every rule from a shared preset in `renovate/` at this
+repository's root, outside `template/` so it is never rendered. The preset is two files:
 
-Beside the `extends`, the seeded file has only the `ignorePaths` that keep Renovate's
-github-actions manager off the template's CI files, so their action pins arrive only in the
-template's update PR. They stay out of the preset, which also serves this repository, whose CI
-files are its own. A repository that keeps its own `renovate.json` extends the preset and adds the
-same `ignorePaths`. A project adds its own rules as `packageRules` in its `renovate.json`: Renovate
-appends them after the preset's, so they win where both set an option.
+- `renovate/base.json` holds the rules. This repository's own `renovate.json` extends it, because
+  its CI files are its own and Renovate keeps their action pins current.
+- `renovate/default.json` extends `base` and adds the template's CI files to the github-actions
+  manager's `ignorePaths`, so their action pins arrive only in the template's update PR. A project
+  extends `default`.
+
+Renovate reads both files from this repository's default branch, `develop`, with no tag pin: a
+change merged there reaches every project on its next Renovate run. The rules run Renovate on the
+1st of each month. They put every minor and patch update in one PR and each major update in its
+own, bump the version ranges, refresh the lock files, and move the Python image and the Python
+version together. Template updates (the `copier` manager) are the exception: they come at any time
+and outside every group, so a release reaches a project within hours, each template layer in its
+own PR.
+
+The project's `renovate.json` is this pointer, which no release needs to change:
+
+```json
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Seeded once by the agentic template. Every rule comes from the shared preset; add the project's own as packageRules here, and no github-actions ignorePaths, which would replace the preset's list.",
+  "extends": ["github>BorjaElizalde/template-agentic//renovate/default"]
+}
+```
+
+A project made before release `20261110.1` has its rules in its own file. It replaces its
+`renovate.json` with the file above, once: `20261110.1` is the first release whose seed is the
+pointer, and the file is seeded once, so no update can deliver it. A repository that kept its own
+`renovate.json` at the first copy does the same, and moves its own rules into `packageRules`.
+
+A project adds its own rules as `packageRules` in its `renovate.json`: Renovate appends them after
+the preset's, so they win where both set an option. The project's file must not hold its own
+`github-actions.ignorePaths`. Renovate does not join two `ignorePaths` lists: the project's list
+replaces the shared one, and a template CI file left off it gets Renovate's PRs.
 
 ## One settings file for every stack
 

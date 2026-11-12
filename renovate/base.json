@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "The dependency-update rules the templates and every project made from them share.",
+  "extends": ["config:recommended", "group:allNonMajor", ":disableDependencyDashboard"],
+  "schedule": ["* * 1 * *"],
+  "rangeStrategy": "bump",
+  "semanticCommits": "disabled",
+  "commitMessagePrefix": "renovate:",
+  "lockFileMaintenance": { "enabled": true, "schedule": ["* * 1 * *"] },
+  "packageRules": [
+    {
+      "matchPackageNames": ["python"],
+      "matchDatasources": ["docker", "python-version"],
+      "groupName": "python",
+      "rebaseWhen": "behind-base-branch"
+    },
+    {
+      "description": "Template updates reach projects within hours, each template layer in its own PR: the null groupName undoes group:allNonMajor.",
+      "matchManagers": ["copier"],
+      "schedule": ["at any time"],
+      "groupName": null
+    }
+  ]
+}

@@ -69,14 +69,29 @@ GATE="$D/.github/workflows/gate.yaml"
 expect "the Gate workflow is a valid workflow" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows "$GATE"
 expect "the Gate workflow runs the stack's checks, never make" bash -c "
   grep -qx '      - uses: ./.github/actions/stack-gate' '$GATE' && ! grep -v '^[[:space:]]*#' '$GATE' | grep -qw make"
-expect "the shared preset and every renovate.json are valid Renovate config" uvx --quiet check-jsonschema \
-  --schemafile https://docs.renovatebot.com/renovate-schema.json "$ROOT/renovate/default.json" "$ROOT/renovate.json" "$D/renovate.json"
-expect "renovate.json takes its rules from the shared preset only" jq -e \
-  '.extends == ["github>BorjaElizalde/template-agentic//renovate/default"]' "$D/renovate.json"
+expect "both preset files and every renovate.json are valid Renovate config" uvx --quiet check-jsonschema \
+  --schemafile https://docs.renovatebot.com/renovate-schema.json \
+  "$ROOT/renovate/base.json" "$ROOT/renovate/default.json" "$ROOT/renovate.json" "$D/renovate.json"
+# "$schema" is a JSON key, not a shell variable. Tried double quotes, but then each " and $ of the
+# program needs a backslash.
+# shellcheck disable=SC2016
+expect "the project's renovate.json is the pointer to the project preset only" jq -e '
+  keys == ["$schema", "description", "extends"]
+  and .extends == ["github>BorjaElizalde/template-agentic//renovate/default"]' "$D/renovate.json"
+readme_prints_seed() {  # the README's one json block is the seeded renovate.json, line for line
+  diff <(awk '/^```/ { f = /^```json$/; next } f' "$ROOT/README.md") "$ROOT/template/renovate.json"
+}
+expect "the README prints the seeded renovate.json as it is" readme_prints_seed
 # $p is jq's variable. Tried double quotes, but then each " and $ of the program needs a backslash.
 # shellcheck disable=SC2016
-expect "Renovate leaves the template's CI files to the update PR" jq -e '.["github-actions"].ignorePaths as $p
-  | any($p[]; . == ".github/workflows/gate.yaml") and any($p[]; . == ".github/actions/stack-gate/**")' "$D/renovate.json"
+expect "the project preset is the shared rules, with Renovate off the template's CI files" jq -e '
+  .extends == ["github>BorjaElizalde/template-agentic//renovate/base"]
+  and (.["github-actions"].ignorePaths as $p
+    | any($p[]; . == ".github/workflows/gate.yaml") and any($p[]; . == ".github/actions/stack-gate/**"))' \
+  "$ROOT/renovate/default.json"
+expect "this repository takes the shared rules only, so Renovate keeps its own CI files' pins current" jq -e \
+  '.extends == ["github>BorjaElizalde/template-agentic//renovate/base"] and (has("github-actions") | not)' \
+  "$ROOT/renovate.json"
 expect "the release skill doesn't say CI runs make gate" bash -c "! grep -q 'make gate' '$D/.claude/skills/release/SKILL.md'"
 X="$OUT/existing"
 mkdir -p "$X"
