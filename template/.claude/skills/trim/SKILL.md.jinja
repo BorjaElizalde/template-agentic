@@ -11,13 +11,13 @@ A trim round asks one question of the branch's changes: should this exist at all
    last round made a cut, up to five rounds. Round `<k>`:
    1. Spawn a new `simplicity-reviewer`, never one from an earlier round, so it is not anchored on
       that round. Give it the range `origin/develop...HEAD` and the task's issue,
-      `gh issue view <n> -R {{ issues_repo }} --comments`, with `<n>` from the branch name
-      `<type>/<n>-<slug>`.
+      `gh issue view <n> -R {{ issues_repo }} --json title,body,comments`, with `<n>` from the
+      branch name `<type>/<n>-<slug>`.
    2. Apply the cuts that hold, under the Judgment Guidelines. A cut removes a thing: a parameter,
       a branch, an option, a helper, a layer, a file, and the tests of what it removed. Behaviour
       the issue asks for stays, and the same logic in fewer lines is not a cut. Say in one line
       why each rejected cut stays.
-   3. Stage every change with `git add -A`, in a call of its own, and read the round's count from
+   3. Stage the files the round changed, by name, in a call of its own, and read its count from
       `git diff --cached --shortstat`. Watch the `+`: a round that adds many lines is rewriting,
       not trimming, so take the rewrite back. Commit a round that changed the tree with the
       subject `Trim round <k>: +<added> -<removed>`, then state that count, `+0 -0` for a round
