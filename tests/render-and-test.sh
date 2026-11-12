@@ -116,10 +116,9 @@ expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/tas
 expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
 expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md' && grep -q 'gh issue view <n> -R acme/tasks --comments' '$D/.claude/skills/task/skills/status/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
-TRIM="$D/.claude/skills/trim/SKILL.md"
 REVIEWER="$D/.claude/agents/simplicity-reviewer.md"
 expect "the trim skill reads the task's issue, body included, from the issues repo" \
-  grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' "$TRIM"
+  grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' "$D/.claude/skills/trim/SKILL.md"
 expect "the simplicity reviewer has no tool that edits" bash -c "
   grep -q '^tools: Read' '$REVIEWER' && ! grep -qE '^tools:.*(Edit|Write|Agent)' '$REVIEWER'"
 expect "an execution session runs /trim" grep -q '/trim' "$D/.claude/skills/task/session/execution.md"

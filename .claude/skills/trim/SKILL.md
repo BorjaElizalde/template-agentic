@@ -3,8 +3,7 @@ name: trim
 description: Use once an execution task's work is done and `/gate` is green, before its PR. Removes in counted rounds what the task did not need.
 ---
 
-A trim round removes what the task did not need. What that is, and how a cut is proven, is in
-`.claude/agents/simplicity-reviewer.md`.
+What a cut is, and how it is proven, is in `.claude/agents/simplicity-reviewer.md`.
 
 1. When the tree is not clean, commit the work with `/commit`, so each round's commit holds only
    its own cuts.
@@ -19,10 +18,10 @@ A trim round removes what the task did not need. What that is, and how a cut is 
       hold. Be lazy about the solution, never about the change: a cut is done only when it
       reaches the callers, the tests, the fixtures and the docs of what it removed. Say in one
       line why each rejected cut stays.
-   3. Stage the files the round changed, by name, in a call of its own, and read its count from
+   3. Stage the files the round changed, by name, and read its count from
       `git diff --cached --shortstat`. Watch the `+`: a round that adds many lines is rewriting,
       not trimming, so take the rewrite back. Commit a round that changed the tree with the
       subject `Trim round <k>: +<added> -<removed>`, then state that count, `+0 -0` for a round
       with no change.
-3. Run no `/gate` between rounds: it runs once, after the last.
+3. Run no `/gate` between rounds.
 4. End with every round's count in one line, for example `Trim: +4 -41, +0 -9, +0 -0`.
