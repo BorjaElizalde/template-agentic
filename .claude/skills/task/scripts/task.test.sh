@@ -203,7 +203,7 @@ check "its memory points at itself"            test "$(memory_of "$ISSUE42/backe
 check "the main checkout's memory points at it" test "$(memory_of "$BACKEND")" = "$BACKEND/.claude/memory"
 check "its session opens with the issue name"  test "$(sessions '#42 backend: Name make close_claude_session in')" -eq 1
 check "and the start names its mode"           grep -qxF '✓ session opened in execution mode: #42 backend: Name make close_claude_session in' "$WORK/out"
-check "with a first prompt that reads its issue" bash -c "tail -n 1 '$TASK_TEST_STATE/osascript.log' | grep -qF 'gh issue view 42 -R acme/tasks --comments'"
+check "with a first prompt that reads its issue" bash -c "tail -n 1 '$TASK_TEST_STATE/osascript.log' | grep -qF 'gh issue view 42 -R acme/tasks --json title,body,comments'"
 check "an interactive claude, never -p or --print" interactive
 check "in execution mode: no question tool, a Stop hook, permission prompts denied" launches_in execution
 check "starting again resumes, creates nothing" task "$BACKEND" start 42

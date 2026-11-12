@@ -131,7 +131,7 @@ quoted() {
 open_session() {
 	# A session opened without a first prompt waits at an empty input, so this one sends it to its
 	# issue. One prompt serves a new session and a resumed one.
-	local first="Work on issue #$3 in $ISSUES_REPO. Read it with its comments: gh issue view $3 -R $ISSUES_REPO --comments. Carry it out until it is done as the issue says; if this session already worked on it, go on from where it stopped."
+	local first="Work on issue #$3 in $ISSUES_REPO. Read its title, body and comments: gh issue view $3 -R $ISSUES_REPO --json title,body,comments. Carry it out until it is done as the issue says; if this session already worked on it, go on from where it stopped."
 	local files=$MAIN/.claude/skills/task/session settings tools=" --disallowed-tools AskUserQuestion" command
 	settings=$files/settings.json
 	# Every session has its permission prompts denied. An execution session never waits for a
