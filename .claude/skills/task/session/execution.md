@@ -6,3 +6,7 @@ recommend, judged against the Judgment Guidelines; state it and the reason in yo
 continue. Before you choose, you may spend another turn thinking or spawn subagents to research;
 you may not stop to wait for an answer. Stop only when the task is done, or when it waits on
 `Owner steps`.
+
+For a task that ends in a PR: once the work is done and `/gate` is green, run `/trim`, then
+`/gate`, `/commit` and `/pull-request`, and repeat `/trim`'s two closing lines in your last
+message and in the PR description.
