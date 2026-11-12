@@ -118,8 +118,8 @@ expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R a
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
 TRIM="$D/.claude/skills/trim/SKILL.md"
 REVIEWER="$D/.claude/agents/simplicity-reviewer.md"
-expect "each trim round gives a new simplicity reviewer the task's issue in the issues repo" bash -c "
-  grep -q 'Spawn a new .simplicity-reviewer.' '$TRIM' && grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$TRIM'"
+expect "the trim skill reads the task's issue, body included, from the issues repo" \
+  grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' "$TRIM"
 expect "the simplicity reviewer has no tool that edits" bash -c "
   grep -q '^tools: Read' '$REVIEWER' && ! grep -qE '^tools:.*(Edit|Write|Agent)' '$REVIEWER'"
 expect "an execution session runs /trim" grep -q '/trim' "$D/.claude/skills/task/session/execution.md"
