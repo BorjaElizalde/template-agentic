@@ -1,7 +1,7 @@
 # template-agentic
 
 A [Copier](https://copier.readthedocs.io/) template for the language-neutral half of an agentic
-coding setup: the Claude Code guards and skills, and the issue → worktree → session
+coding setup: the Claude Code guards, skills and agents, and the issue → worktree → session
 workflow. A project applies it side by side with one stack layer (for example
 `template-python-service`), each layer with its own answers file.
 
