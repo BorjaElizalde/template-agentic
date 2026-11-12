@@ -15,7 +15,8 @@ the steps that need no reviewer.
    inheriting their decisions. End with **Assumptions** and **Tradeoffs**.
 3. If there is a plan, spawn the plan reviewer with its exact path. Resolve Must-Change findings
    before implementation.
-4. Implement, invoke `/gate`, invoke `/simplify develop...HEAD`, then invoke `/gate` again.
+4. Implement, invoke `/gate`, invoke `/trim`, invoke `/simplify develop...HEAD`, then invoke
+   `/gate` again.
 5. Commit with `/commit`; push and open the `develop` PR with `/pull-request` before review.
 6. Spawn the review wave with the explicit branch range, as `.claude/review-wave.md` describes.
    Add `memory-cleaner` when memory changed. Wait for every report.
