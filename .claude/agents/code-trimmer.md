@@ -1,5 +1,5 @@
 ---
-name: trim
+name: code-trimmer
 description: >-
   Cuts what the task's issue did not need from an execution task's open PR, in at least three
   passes, reports each pass's lines added and removed, then commits and pushes the cuts.
