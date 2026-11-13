@@ -19,9 +19,8 @@ Read the issue, then the branch's changes, `git diff origin/develop...HEAD`. Rea
 code around them and of their callers to establish behaviour, but report only what this change
 introduces or exposes.
 
-Read in full each file of `.claude/rules/` that applies: `agentic.md`, `conventions.md`, and a
-stack layer's own rule file when its `paths:` match a changed file. The rules are authoritative:
-hold the change to them, not to a checklist of your own.
+The rules of `.claude/rules/` are authoritative: hold the change to them, not to a checklist of
+your own. Read in full a stack layer's rule file whose `paths:` match a changed file.
 
 Others check the rest, so leave it out:
 

@@ -219,9 +219,9 @@ issue before it reads the branch, and presents alternative designs, each built t
 the one built. `execution.md` calls all three on every execution task's open PR, because an agent
 that no step calls does not run.
 
-The text of `code-trimmer` and `simplicity-reviewer` draws on [Ponytail](https://github.com/DietrichGebert/ponytail),
-[pstack](https://github.com/backnotprop/pstack) and Cursor's
-[deslop](https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/deslop).
+The text of `code-trimmer` and `simplicity-reviewer` draws on
+[Ponytail](https://github.com/DietrichGebert/ponytail),
+[pstack](https://github.com/backnotprop/pstack) and Cursor's [deslop](https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/deslop).
 
 ## What the project owns
 
