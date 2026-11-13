@@ -212,8 +212,8 @@ commits each with its count of lines added and removed. It did not build the wor
 that did audits its cuts from those counts and commits, and takes back a cut that the issue needs.
 Then the session spawns a `simplicity-reviewer`, a read-only agent that works out the smallest
 design for the issue before it reads the branch, and flags a simpler design than the trimmed one.
-`execution.md` runs both, in that order, in every execution task that ends in a PR, because an
-agent that no step calls does not run. `/pull-request` checks nothing of it.
+`execution.md` runs both in every execution task that ends in a PR, because an agent that no step
+calls does not run. `/pull-request` checks nothing of it.
 
 The text of both draws on [Ponytail](https://github.com/DietrichGebert/ponytail),
 [pstack](https://github.com/backnotprop/pstack) and Cursor's
