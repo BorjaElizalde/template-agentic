@@ -29,8 +29,7 @@ Run no gate: the caller runs it after you.
 ## Report
 
 For each pass, its count, then one line per cut with its proof, or for `+0 -0` one line on what
-the pass checked. Then name what you kept only because you could not prove its cut, for the caller
-to decide. End with one line, the counts in pass order:
+the pass checked. End with one line, the counts in pass order:
 
 ```
 Trim: +4 -41, +0 -9, +0 -0

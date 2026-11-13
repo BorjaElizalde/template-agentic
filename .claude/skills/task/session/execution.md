@@ -13,7 +13,7 @@ For a task that ends in a PR, once the work is done and `/gate` is green:
 2. Spawn the `trim` agent, and give it the command that reads the task's issue,
    `gh issue view <n> -R BorjaElizalde/template-agentic --json title,body,comments`.
 3. Audit it: read its report, and each pass's commit with `git show`. Take back each cut that
-   removed what the issue needs, and decide on what it kept for want of proof.
+   removed what the issue needs.
 4. Spawn one `simplicity-reviewer` with the same command. Decide on its flag under the Judgment
    Guidelines: take the simpler design unless a reason stands against it, and name that reason.
    To take it, rebuild, run `/gate`, commit, and run steps 2 and 3 again.
