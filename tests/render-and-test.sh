@@ -124,6 +124,10 @@ spawns_trim_then_reviewer() {
     grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' "$exec"
 }
 expect "an execution session spawns trim, then the simplicity reviewer, with the task's issue" spawns_trim_then_reviewer
+expect "with agent_merges an execution session merges its PR only after trim and the design check" bash -c "
+  grep -q 'stop before its merge step' '$AM/.claude/skills/task/session/execution.md' &&
+  grep -q '^4. Merge the PR' '$AM/.claude/skills/task/session/execution.md' &&
+  ! grep -qi 'merge' '$D/.claude/skills/task/session/execution.md'"
 REVIEWER="$D/.claude/agents/simplicity-reviewer.md"
 expect "the simplicity reviewer has no tool that edits" bash -c "
   grep -q '^tools: Read' '$REVIEWER' && ! grep -qE '^tools:.*(Edit|Write|Agent)' '$REVIEWER'"

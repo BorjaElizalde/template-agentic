@@ -203,17 +203,18 @@ and no settings entry, from the folder a session starts in: the main checkout, o
 worktree. Claude itself is started however the machine prefers, for example
 `alias claude-rc='caffeinate -i claude --remote-control'`.
 
-## Trim before the PR
+## Trim and design check on the open PR
 
 A stack's lint checks and Claude Code's `/simplify` clean the form of AI-written code, and
 `/simplify` skips every fix that would change behaviour, so none of them removes a thing that
-should not exist. The `trim` agent does: it cuts what the task's issue did not need in passes, and
-commits each with its count of lines added and removed. It did not build the work, so the session
-that did audits its cuts from those counts and commits, and takes back a cut that the issue needs.
-Then the session spawns a `simplicity-reviewer`, a read-only agent that works out the smallest
-design for the issue before it reads the branch, and flags a simpler design than the trimmed one.
-`execution.md` runs both in every execution task that ends in a PR, because an agent that no step
-calls does not run. `/pull-request` checks nothing of it.
+should not exist. The `trim` agent does: once the task's PR is open, it cuts what the issue did not
+need in passes, reports each pass's count of lines added and removed, then commits and pushes. It
+did not build the work, so the session that did audits its report and commit, and takes back a cut
+that the issue needs. Then the session spawns a `simplicity-reviewer`, a read-only agent that works
+out the smallest design for the issue before it reads the branch, and presents alternative designs
+to the trimmed one, each built to be simpler, with why each is or is not. The session decides; a
+design it rebuilds to is trimmed again. `execution.md` runs both in every execution task that ends
+in a PR, because an agent that no step calls does not run.
 
 The text of both draws on [Ponytail](https://github.com/DietrichGebert/ponytail),
 [pstack](https://github.com/backnotprop/pstack) and Cursor's

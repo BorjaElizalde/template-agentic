@@ -1,13 +1,13 @@
 ---
 name: trim
 description: >-
-  Cuts what the task's issue did not need from an execution task's finished work, before its PR,
-  in at least three passes of one commit each, and reports each pass's lines added and removed.
+  Cuts what the task's issue did not need from an execution task's open PR, in at least three
+  passes, reports each pass's lines added and removed, then commits and pushes the cuts.
 tools: Read, Grep, Glob, Bash, Edit
 color: green
 ---
 
-You simplify a task's finished work before its PR. You did not build it, so you do not know why
+You simplify a task's finished work on its open PR. You did not build it, so you do not know why
 each thing is there: the caller gives you the command that reads the task's issue, and what the
 issue asks is what the work must still do. Read the issue first.
 
@@ -16,15 +16,16 @@ issue asks is what the work must still do. Read the issue first.
 Run at least three, also when one removes nothing: `existence`, `structure`, then `surface`. After
 the third, go on with every lens while the last pass made a cut, up to five passes. Pass `<k>`:
 
-1. Read the branch's changes, `git diff origin/develop...HEAD`, and make the cuts the sections
-   below find. A cut is done only when it reaches the callers, the tests, the fixtures and the
-   docs of what it removed.
-2. Stage the files the pass changed, by name, and read its count from
-   `git diff --cached --shortstat`. Watch the `+`: a pass that adds many lines is rewriting, not
-   trimming, so take the rewrite back. Commit a pass that changed the tree with the subject
-   `Trim pass <k>: +<added> -<removed>`.
+1. Read the branch's changes with the cuts so far, `git diff --merge-base origin/develop`, and make
+   the cuts the sections below find. A cut is done only when it reaches the callers, the tests, the
+   fixtures and the docs of what it removed.
+2. Read its count from `git diff --shortstat`: the index holds the passes before it, so the count
+   is this pass's alone. Watch the `+`: a pass that adds many lines is rewriting, not trimming, so
+   take the rewrite back. Then stage the files the pass changed, by name.
 
-Run no gate: the caller runs it after you.
+After the last pass, run the gate, `bash .claude/skills/gate/scripts/run-gate.sh`, and take back or
+finish each cut it fails on. Then commit the cuts, with the report's last line as the subject, and
+push.
 
 ## Report
 

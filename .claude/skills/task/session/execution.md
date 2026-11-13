@@ -7,16 +7,13 @@ continue. Before you choose, you may spend another turn thinking or spawn subage
 you may not stop to wait for an answer. Stop only when the task is done, or when it waits on
 `Owner steps`.
 
-For a task that ends in a PR, once the work is done and `/gate` is green:
+For a task that ends in a PR, open the PR with `/pull-request` once the work is done. Then:
 
-1. Commit with `/commit`, so that each trim pass's commit holds only its own cuts.
-2. Spawn the `trim` agent, and give it the command that reads the task's issue,
+1. Spawn the `trim` agent, and give it the command that reads the task's issue,
    `gh issue view <n> -R BorjaElizalde/template-agentic --json title,body,comments`.
-3. Audit it: read its report, and each pass's commit with `git show`. Take back each cut that
-   removed what the issue needs.
-4. Spawn one `simplicity-reviewer` with the same command. Decide on its flag: take the simpler
-   design unless a reason stands against it. To take it, rebuild, run `/gate`, commit, and run
-   steps 2 and 3 again.
-5. Run `/gate`, `/commit` and `/pull-request`. End your last message and the PR description with
-   the trim agent's `Trim:` line, then the line
-   `Design: <the flag in a few words, or "no simpler design"> - <taken, or kept: why>`.
+   Audit its report and its commit, and take back each cut that removed what the issue needs.
+2. Spawn one `simplicity-reviewer` with the same command, and decide on its designs: take one it
+   shows simpler unless a reason stands against it. Rebuild to the design you take, and spawn
+   `trim` again on the result.
+3. Add to the PR description the trim agent's `Trim:` line, then the line
+   `Design: <the design you took, or "kept the built one"> - <why>`.
