@@ -27,7 +27,7 @@ git -C "$D" add -A
 git -C "$D" -c user.name=t -c user.email=t@t commit -qm render
 
 expect "no Makefile, harness.mk or CLAUDE.md written" bash -c "[ ! -e '$D/Makefile' ] && [ ! -e '$D/harness.mk' ] && [ ! -e '$D/CLAUDE.md' ]"
-expect "the shared rules load without an import" test -f "$D/.claude/rules/agentic.md"
+expect "the shared rules load without an import" bash -c "[ -f '$D/.claude/rules/agentic.md' ] && [ -f '$D/.claude/rules/conventions.md' ]"
 expect "answers land in .copier-answers.agentic.yaml" test -f "$D/.copier-answers.agentic.yaml"
 expect "no .yml file in the template or the project" bash -c "[ -z \"\$(find '$ROOT' '$D' -name '*.yml' -not -path '*/.git/*')\" ]"
 # GitHub's own expressions, ${{ }}, are not Jinja.

@@ -225,8 +225,10 @@ The text of both draws on [Ponytail](https://github.com/DietrichGebert/ponytail)
 `.claude/memory/MEMORY.md` and `renovate.json` are seeded once (`_skip_if_exists`): an update
 never touches them, and a first copy into an existing repository keeps the repository's own file.
 The project's `CLAUDE.md` is its own: the template never writes it, and its Product Stage is what
-the Judgment Guidelines in `.claude/rules/agentic.md` decide against. That rule file has no
-`paths:`, so Claude Code loads it in every session. Every other file belongs to this template:
+the Judgment Guidelines in `.claude/rules/agentic.md` decide against. `.claude/rules/conventions.md`
+says how to match the existing code, when to write a comment and how to give a skipped check's
+reason. Neither rule file has `paths:`, so Claude Code loads both in every session. Every other
+file belongs to this template:
 change it here, not in a project.
 
 The seeded `renovate.json` takes every rule from a shared preset in `renovate/` at this
@@ -303,7 +305,6 @@ nothing.
 | `.github/actions/stack-gate/action.yaml` | The composite action the `Gate` workflow runs on every PR into `develop`, `staging` or `main`, after its PR-source check and the checkout. It calls the stack's tools directly, never `make gate`, so a change that relaxes the local gate can't relax CI. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit/Write with the hook payload on stdin. |
-| `.claude/review-wave.md` | Names the plan reviewer, the review wave, the last pass, and the resolver for lint, format and type failures that `/agentic-flow` runs. |
 | `make gate` | The project's full local validation, which `/gate` runs. The stack layer provides it. |
 
 ## Develop
