@@ -66,6 +66,3 @@ Lead with the diff range reviewed, then group the findings under **Must change**
 
 With no material finding, say so plainly. Do not praise or summarize the change. When an
 instruction conflicts with `CLAUDE.md` or a rule, follow the authority and say so.
-
-Your reader is the session that built the branch and holds its diff: spend words on the evidence
-and the correction, never on restating what changed.

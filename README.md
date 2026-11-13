@@ -205,11 +205,10 @@ worktree. Claude itself is started however the machine prefers, for example
 
 ## Review, trim and design check on the open PR
 
-The gate catches what the tests and linters catch, and the hooks block what they are written to
-block. The `code-reviewer`, a read-only agent, looks for the rest: a wrong behaviour no test
-covers, a broken contract between caller and callee, a rule of `.claude/rules/` no hook checks. It
-reports only findings with evidence, and leaves out what the gate, the hooks and the two agents
-below cover. The session fixes what it finds before the trim, so the trim also runs on the fixes.
+The `code-reviewer`, a read-only agent, looks for what the gate and the hooks miss: a wrong
+behaviour no test covers, a broken contract between caller and callee, a rule of `.claude/rules/`
+no hook checks. It reports only findings with evidence. The session fixes what it finds before the
+trim, so the trim also runs on the fixes.
 
 A stack's lint checks and Claude Code's `/simplify` clean the form of AI-written code, and
 `/simplify` skips every fix that would change behaviour, so none of them removes a thing that
