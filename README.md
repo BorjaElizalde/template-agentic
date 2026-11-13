@@ -209,10 +209,10 @@ A stack's lint checks and Claude Code's `/simplify` clean the form of AI-written
 `/simplify` skips every fix that would change behaviour, so none of them removes a thing that
 should not exist. The `code-trimmer` agent does: it cuts what the task's issue did not need, in
 passes that each report their count of lines added and removed, so the session that built the work
-can audit them. The `simplicity-reviewer`, a read-only agent, works out the smallest design for the issue
-before it reads the branch, and presents alternative designs, each built to be simpler than the one
-built. `execution.md` calls both on every execution task's open PR, because an agent that no step
-calls does not run.
+can audit them. The `simplicity-reviewer`, a read-only agent, works out the smallest design for the
+issue before it reads the branch, and presents alternative designs, each built to be simpler than
+the one built. `execution.md` calls both on every execution task's open PR, because an agent that
+no step calls does not run.
 
 The text of both draws on [Ponytail](https://github.com/DietrichGebert/ponytail),
 [pstack](https://github.com/backnotprop/pstack) and Cursor's
