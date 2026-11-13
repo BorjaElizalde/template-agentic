@@ -223,8 +223,10 @@ The text of both draws on [Ponytail](https://github.com/DietrichGebert/ponytail)
 `.claude/memory/MEMORY.md` and `renovate.json` are seeded once (`_skip_if_exists`): an update
 never touches them, and a first copy into an existing repository keeps the repository's own file.
 The project's `CLAUDE.md` is its own: the template never writes it, and its Product Stage is what
-the Judgment Guidelines in `.claude/rules/agentic.md` decide against. That rule file has no
-`paths:`, so Claude Code loads it in every session. Every other file belongs to this template:
+the Judgment Guidelines in `.claude/rules/agentic.md` decide against. `.claude/rules/conventions.md`
+says how to match the existing code, when to write a comment and how to give a skipped check's
+reason. Neither rule file has `paths:`, so Claude Code loads both in every session. Every other
+file belongs to this template:
 change it here, not in a project.
 
 The seeded `renovate.json` takes every rule from a shared preset in `renovate/` at this
