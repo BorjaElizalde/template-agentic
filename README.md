@@ -178,11 +178,17 @@ A task session is an interactive `claude` process in a Terminal tab (`open_sessi
 These deny lines match only a command that starts that way, so a form like `claude --model x -p`
 still gets through.
 
+A session's `claude` command can be longer than the 1024 bytes a Terminal tab's tty holds on one
+line, so `open_session` writes it to `task-session.sh` in the worktree's git dir and types only
+`exec bash <launcher>`. The git dir keeps the launcher out of the work tree, which a finish needs
+clean, and `git worktree remove` deletes it. `start` then waits up to 30 seconds for the session in
+`claude agents --json`, and fails if none runs.
+
 Each text a session launches with lives in one file of `session/`. A `PermissionRequest` hook in
 `settings.json` denies every permission prompt, in both modes: nobody answers those. The system
 prompt is `prompt.md`, the words both modes share, then the mode's own words, `execution.md` or
-`design.md`. `claude` takes one appended system prompt, so the tab's shell joins the two files
-when it launches the session. Nobody answers an execution session, so it never waits for a person:
+`design.md`. `claude` takes one appended system prompt, so the launcher joins the two files when
+it launches the session. Nobody answers an execution session, so it never waits for a person:
 `--disallowed-tools AskUserQuestion` removes the question tool, `execution.md` tells it to take
 the option it would recommend and go on, and a `Stop` prompt hook in `settings.json` sends it back
 to work when it ends its turn on a question. The hook's model call runs on the session's own
