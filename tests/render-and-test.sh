@@ -127,8 +127,9 @@ expect "with agent_merges an execution session merges its PR only after code-tri
 REVIEWER="$D/.claude/agents/simplicity-reviewer.md"
 expect "the simplicity reviewer has no tool that edits" bash -c "
   grep -q '^tools: Read' '$REVIEWER' && ! grep -qE '^tools:.*(Edit|Write|Agent)' '$REVIEWER'"
+TRIMMER="$D/.claude/agents/code-trimmer.md"
 expect "code-trimmer edits and commits, and spawns no agent" bash -c "
-  grep -qE '^tools:.*Bash.*Edit' '$D/.claude/agents/code-trimmer.md' && ! grep -qE '^tools:.*Agent' '$D/.claude/agents/code-trimmer.md'"
+  grep -qE '^tools:.*Bash.*Edit' '$TRIMMER' && ! grep -qE '^tools:.*Agent' '$TRIMMER'"
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
