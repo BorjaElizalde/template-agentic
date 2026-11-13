@@ -178,14 +178,11 @@ A task session is an interactive `claude` process in a Terminal tab (`open_sessi
 These deny lines match only a command that starts that way, so a form like `claude --model x -p`
 still gets through.
 
-Terminal types a command into a new tab before the tab's shell reads it, and the tab's tty then
-holds at most 1024 bytes a line: it drops the rest, Enter among them. A session's `claude`
-command can be longer, so `open_session` writes it to a launcher, `task-session.sh` in the
-worktree's git dir, and types only `exec bash <launcher>`. The git dir keeps the launcher out of
-the work tree, which a finish needs clean, and `git worktree remove` deletes it. The launcher,
-then `claude`, each run in place of the tab's shell, so the tab is empty once the session exits.
-`start` then waits up to 30 seconds for the session in `claude agents --json`, and fails if none
-runs, without saying that one opened.
+A session's `claude` command can be longer than the 1024 bytes a Terminal tab's tty holds on one
+line, so `open_session` writes it to `task-session.sh` in the worktree's git dir and types only
+`exec bash <launcher>`. The git dir keeps the launcher out of the work tree, which a finish needs
+clean, and `git worktree remove` deletes it. `start` then waits up to 30 seconds for the session in
+`claude agents --json`, and fails if none runs.
 
 Each text a session launches with lives in one file of `session/`. A `PermissionRequest` hook in
 `settings.json` denies every permission prompt, in both modes: nobody answers those. The system

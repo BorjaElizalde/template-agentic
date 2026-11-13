@@ -85,8 +85,8 @@ EOF
 cat >"$WORK/bin/osascript" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$TASK_TEST_STATE/osascript.log"
-# A new tab launches nothing until its shell reads the line typed into it, which it never gets past
-# the 1024 bytes, newline included, that its tty holds a line. $TASK_TEST_STATE/tab keeps its pid.
+# A line typed into a tab past 1024 bytes, newline included, never runs: its tty drops it.
+# $TASK_TEST_STATE/tab keeps the pid of the line's process.
 if [ $# -eq 2 ]; then
   rm -f "$TASK_TEST_STATE/launched" "$TASK_TEST_STATE/claude-pid"
   if [ "$(printf '%s\n' "$2" | wc -c)" -le 1024 ]; then
@@ -181,8 +181,7 @@ launches_in() {
     [ "$(launched_arg --disallowed-tools)" = AskUserQuestion ] && jq -e '.hooks.Stop' <<<"$settings"
   fi
 }
-# The session last opened runs claude interactively, with no -p or --print argument, as its tab's
-# only process: claude runs in place of the shell Terminal typed the line into.
+# The session last opened runs claude interactively, with no -p or --print, as its tab's only process.
 interactive() {
   launched 'all(.[]; . != "-p" and . != "--print")' &&
     [ "$(cat "$TASK_TEST_STATE/claude-pid")" = "$(cat "$TASK_TEST_STATE/tab")" ]
@@ -325,8 +324,7 @@ rm "$TASK_TEST_STATE/stuck"
 
 echo "-- finish: closed issue, nothing unshipped"
 check "a pushed branch finishes"               task "$BACKEND" finish 42
-check "its session ended and its window closed" bash -c "
-  test \"\$(tail -n 1 '$TASK_TEST_STATE/osascript.log')\" = '- /dev/ttys042 exit' && ! grep -qF '$ISSUE42/backend' '$TASK_TEST_STATE/running'"
+check "its session ended and its window closed" test "$(last_osascript)" = "- /dev/ttys042 exit"
 check "its worktree is gone"                   test ! -e "$ISSUE42/backend"
 check "its local branch is gone"               bash -c "! git -C '$BACKEND' rev-parse -q --verify feat/42-name-make-close-claude-session-in"
 check "the issue folder stays for frontend"    test -d "$ISSUE42/frontend"

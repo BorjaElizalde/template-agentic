@@ -148,11 +148,9 @@ open_session() {
 	command="cd $(quoted "$1") && exec claude ${5:+$5 }--settings $(quoted "$settings")"
 	command+=" --append-system-prompt \"\$(cat $(quoted "$files/prompt.md") $(quoted "$files/$4.md"))\""
 	command+="$tools -n $(quoted "$2") $(quoted "$first")"
-	# Terminal types into a new tab before its shell reads, while the tty holds at most 1024 bytes a
-	# line (MAX_CANON) and drops the rest, Enter among them. So the tab gets only the short line that
-	# runs the command from a launcher, in the worktree's git dir: out of the work tree, which a
-	# finish needs clean, and removed with the worktree. The launcher, then claude, each run in place
-	# of the tab's shell, so claude is the tab's only process and the tab is empty once claude exits.
+	# The tty drops a typed line past 1024 bytes (MAX_CANON), so the tab types only a launcher that
+	# runs the command. The launcher sits in the worktree's git dir, out of the work tree that a
+	# finish needs clean. exec leaves claude the tab's only process, so the tab is empty once it exits.
 	launcher=$(git -C "$1" rev-parse --absolute-git-dir)/task-session.sh
 	printf '%s\n' "$command" >"$launcher"
 	osascript - "exec bash $(quoted "$launcher")" >/dev/null <<'APPLESCRIPT'
