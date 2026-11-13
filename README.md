@@ -203,16 +203,16 @@ and no settings entry, from the folder a session starts in: the main checkout, o
 worktree. Claude itself is started however the machine prefers, for example
 `alias claude-rc='caffeinate -i claude --remote-control'`.
 
-## Trim before the PR
+## Trim and design check on the open PR
 
 A stack's lint checks and Claude Code's `/simplify` clean the form of AI-written code, and
 `/simplify` skips every fix that would change behaviour, so none of them removes a thing that
-should not exist. `/trim` does. It first spawns a `simplicity-reviewer`, a read-only agent that
-works out the smallest design for the task's issue before it reads the branch, and flags a simpler
-design than the one built. Then the session cuts what the task did not need in passes of its own,
-and commits each with its count of lines added and removed. `execution.md` runs `/trim` in every
-execution task that ends in a PR, because a skill or agent that no step calls does not run.
-`/pull-request` checks nothing of it.
+should not exist. The `trim` agent does: it cuts what the task's issue did not need, in passes that
+each report their count of lines added and removed, so the session that built the work can audit
+them. The `simplicity-reviewer`, a read-only agent, works out the smallest design for the issue
+before it reads the branch, and presents alternative designs, each built to be simpler than the one
+built. `execution.md` calls both on every execution task's open PR, because an agent that no step
+calls does not run.
 
 The text of both draws on [Ponytail](https://github.com/DietrichGebert/ponytail),
 [pstack](https://github.com/backnotprop/pstack) and Cursor's
