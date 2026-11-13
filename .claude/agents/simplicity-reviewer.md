@@ -47,8 +47,7 @@ and others aimed at what the comparison or the screen found. Build each to be si
 elegant than the built design, and to meet every requirement of the issue. Then say whether it is
 simpler: name what it removes and what it adds, a layer, a file, a type, an option, a piece of
 state, a dependency, and prove it as the Proof section of `.claude/agents/trim.md` asks. The
-never-cut list of that file holds. An alternative that is not simpler still goes in your output,
-with why. The session decides which to take. No taste, and no "consider".
+never-cut list of that file holds. No taste, and no "consider".
 
 ## Output
 
