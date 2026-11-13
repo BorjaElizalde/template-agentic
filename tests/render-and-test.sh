@@ -116,17 +116,20 @@ expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/tas
 expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
 expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md' && grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/skills/status/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
-expect "an execution session spawns code-trimmer, then the simplicity reviewer, with the task's issue" bash -c "
-  grep -q '^1. Spawn the .code-trimmer. agent' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^2. Spawn one .simplicity-reviewer.' '$D/.claude/skills/task/session/execution.md' &&
+expect "an execution session spawns code-reviewer, code-trimmer, then the simplicity reviewer, with the task's issue" bash -c "
+  grep -q '^1. Spawn the .code-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^2. Spawn the .code-trimmer. agent' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^3. Spawn one .simplicity-reviewer.' '$D/.claude/skills/task/session/execution.md' &&
   grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/session/execution.md'"
-expect "with agent_merges an execution session merges its PR only after code-trimmer and the design check" bash -c "
+expect "with agent_merges an execution session merges its PR only after the review, code-trimmer and the design check" bash -c "
   grep -q 'stop before its merge step' '$AM/.claude/skills/task/session/execution.md' &&
-  grep -q '^4. Merge the PR' '$AM/.claude/skills/task/session/execution.md' &&
+  grep -q '^5. Merge the PR' '$AM/.claude/skills/task/session/execution.md' &&
   ! grep -qi 'merge' '$D/.claude/skills/task/session/execution.md'"
-REVIEWER="$D/.claude/agents/simplicity-reviewer.md"
-expect "the simplicity reviewer has no tool that edits" bash -c "
-  grep -q '^tools: Read' '$REVIEWER' && ! grep -qE '^tools:.*(Edit|Write|Agent)' '$REVIEWER'"
+for reviewer in code-reviewer simplicity-reviewer; do
+  REVIEWER="$D/.claude/agents/$reviewer.md"
+  expect "$reviewer has no tool that edits, nor memory, which adds Write and Edit" bash -c "
+    grep -q '^tools: Read' '$REVIEWER' && ! grep -qE '^(tools:.*(Edit|Write|Agent)|memory:)' '$REVIEWER'"
+done
 TRIMMER="$D/.claude/agents/code-trimmer.md"
 expect "code-trimmer edits and commits, and spawns no agent" bash -c "
   grep -qE '^tools:.*Bash.*Edit' '$TRIMMER' && ! grep -qE '^tools:.*Agent' '$TRIMMER'"
