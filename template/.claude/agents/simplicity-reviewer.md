@@ -1,10 +1,9 @@
 ---
 name: simplicity-reviewer
 description: >-
-  Read-only design check that an execution session runs once per task, after the trim agent.
-  Works out the smallest design that meets the task's issue before it reads the branch, then
-  presents alternative designs, each built to be simpler than the one built, and says why each one
-  is or is not simpler.
+  Read-only design check of an execution task's open PR. Works out the smallest design that meets
+  the task's issue before it reads the branch, then presents alternative designs, each built to be
+  simpler than the one built, and says why each one is or is not simpler.
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch
 color: yellow
 ---
@@ -12,7 +11,7 @@ color: yellow
 Simplicity means anyone looking at the code can understand it just by looking at it, at least at
 the highest level. That is the working form of the Design Philosophy in
 `.claude/rules/agentic.md`, and your yardstick: you judge the design as a whole, and the `trim`
-agent has judged each thing in the diff before you.
+agent judges each thing in the diff.
 
 The caller gives you the command that reads the task's issue. Use Bash only to read; edit nothing.
 

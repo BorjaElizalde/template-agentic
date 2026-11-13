@@ -116,14 +116,10 @@ expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/tas
 expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
 expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md' && grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/skills/status/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
-spawns_trim_then_reviewer() {
-  local exec="$D/.claude/skills/task/session/execution.md" trim reviewer
-  trim="$(grep -n 'Spawn the .trim. agent' "$exec" | cut -d: -f1)"
-  reviewer="$(grep -n 'Spawn one .simplicity-reviewer.' "$exec" | cut -d: -f1)"
-  [ -n "$trim" ] && [ -n "$reviewer" ] && [ "$trim" -lt "$reviewer" ] &&
-    grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' "$exec"
-}
-expect "an execution session spawns trim, then the simplicity reviewer, with the task's issue" spawns_trim_then_reviewer
+expect "an execution session spawns trim, then the simplicity reviewer, with the task's issue" bash -c "
+  grep -q '^1. Spawn the .trim. agent' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^2. Spawn one .simplicity-reviewer.' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/session/execution.md'"
 expect "with agent_merges an execution session merges its PR only after trim and the design check" bash -c "
   grep -q 'stop before its merge step' '$AM/.claude/skills/task/session/execution.md' &&
   grep -q '^4. Merge the PR' '$AM/.claude/skills/task/session/execution.md' &&
