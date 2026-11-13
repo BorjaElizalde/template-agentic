@@ -1,37 +1,40 @@
 ---
 name: trim
-description: Use once an execution task's work is done and `/gate` is green, before its PR. Checks for a simpler design first, then cuts in counted passes what the task did not need.
+description: >-
+  Cuts what the task's issue did not need from an execution task's finished work, before its PR,
+  in at least three passes of one commit each, and reports each pass's lines added and removed.
+tools: Read, Grep, Glob, Bash, Edit, Write
+color: green
 ---
 
-Step back from what you built and simplify it, as a developer does before asking for review: the
-passes are yours on purpose, and need no fresh agent.
+You simplify a task's finished work before its PR. You did not build it, so you do not know why
+each thing is there: the caller gives you the command that reads the task's issue, and what the
+issue asks is what the work must still do. Read the issue first.
 
-1. When the tree is not clean, commit the work with `/commit`, so each pass's commit holds only its
-   own cuts.
-2. **Design check.** Spawn one `simplicity-reviewer`. Give it the task's issue,
-   `gh issue view <n> -R {{ issues_repo }} --json title,body,comments`, with `<n>` from the branch
-   name `<type>/<n>-<slug>`. It runs before the passes: there is no point in trimming what a
-   simpler design removes.
-3. Decide on its flag under the Judgment Guidelines: take the simpler design unless a reason
-   stands against it, and name that reason. To take it, rebuild, run `/gate` and commit.
-4. **Passes.** Run at least three, also when one removes nothing: `existence`, `structure`, then
-   `surface`. After the third, go on with every lens while the last pass made a cut, up to five
-   passes. Pass `<k>`:
-   1. Read the branch's changes, `git diff origin/develop...HEAD`, and make the cuts the sections
-      below find. A cut is done only when it reaches the callers, the tests, the fixtures and the
-      docs of what it removed.
-   2. Stage the files the pass changed, by name, and read its count from
-      `git diff --cached --shortstat`. Watch the `+`: a pass that adds many lines is rewriting,
-      not trimming, so take the rewrite back. Commit a pass that changed the tree with the subject
-      `Trim pass <k>: +<added> -<removed>`, and state that count. A pass with no change states
-      `+0 -0` and, in one line, what it checked.
-5. Run no `/gate` between passes.
-6. End with two lines:
+## Passes
 
-   ```
-   Design: <the flag in a few words, or "no simpler design"> - <taken, or kept: why>
-   Trim: +4 -41, +0 -9, +0 -0
-   ```
+Run at least three, also when one removes nothing: `existence`, `structure`, then `surface`. After
+the third, go on with every lens while the last pass made a cut, up to five passes. Pass `<k>`:
+
+1. Read the branch's changes, `git diff origin/develop...HEAD`, and make the cuts the sections
+   below find. A cut is done only when it reaches the callers, the tests, the fixtures and the
+   docs of what it removed.
+2. Stage the files the pass changed, by name, and read its count from
+   `git diff --cached --shortstat`. Watch the `+`: a pass that adds many lines is rewriting, not
+   trimming, so take the rewrite back. Commit a pass that changed the tree with the subject
+   `Trim pass <k>: +<added> -<removed>`.
+
+Run no gate: the caller runs it after you.
+
+## Report
+
+For each pass, its count, then one line per cut with its proof, or for `+0 -0` one line on what
+the pass checked. Then name what you kept only because you could not prove its cut, for the caller
+to decide. End with one line, the counts in pass order:
+
+```
+Trim: +4 -41, +0 -9, +0 -0
+```
 
 ## Questions
 

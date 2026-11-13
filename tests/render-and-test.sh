@@ -116,13 +116,19 @@ expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/tas
 expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
 expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md' && grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/skills/status/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
+spawns_trim_then_reviewer() {  # in execution.md, with the issue, body included, from the issues repo
+  local exec="$D/.claude/skills/task/session/execution.md" trim reviewer
+  trim="$(grep -n 'Spawn the .trim. agent' "$exec" | cut -d: -f1)"
+  reviewer="$(grep -n 'Spawn one .simplicity-reviewer.' "$exec" | cut -d: -f1)"
+  [ -n "$trim" ] && [ -n "$reviewer" ] && [ "$trim" -lt "$reviewer" ] &&
+    grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' "$exec"
+}
+expect "an execution session spawns trim, then the simplicity reviewer, with the task's issue" spawns_trim_then_reviewer
 REVIEWER="$D/.claude/agents/simplicity-reviewer.md"
-expect "the trim skill spawns the simplicity reviewer with the issue, body included, from the issues repo" bash -c "
-  grep -q 'Spawn one .simplicity-reviewer.' '$D/.claude/skills/trim/SKILL.md' &&
-  grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/trim/SKILL.md'"
 expect "the simplicity reviewer has no tool that edits" bash -c "
   grep -q '^tools: Read' '$REVIEWER' && ! grep -qE '^tools:.*(Edit|Write|Agent)' '$REVIEWER'"
-expect "an execution session runs /trim" grep -q '/trim' "$D/.claude/skills/task/session/execution.md"
+expect "the trim agent edits and commits, and spawns no agent" bash -c "
+  grep -qE '^tools:.*Bash.*Edit' '$D/.claude/agents/trim.md' && ! grep -qE '^tools:.*Agent' '$D/.claude/agents/trim.md'"
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
