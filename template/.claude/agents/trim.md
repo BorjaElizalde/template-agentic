@@ -3,7 +3,7 @@ name: trim
 description: >-
   Cuts what the task's issue did not need from an execution task's finished work, before its PR,
   in at least three passes of one commit each, and reports each pass's lines added and removed.
-tools: Read, Grep, Glob, Bash, Edit, Write
+tools: Read, Grep, Glob, Bash, Edit
 color: green
 ---
 
