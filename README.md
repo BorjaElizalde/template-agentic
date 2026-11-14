@@ -16,10 +16,11 @@ uvx copier update -a .copier-answers.agentic.yaml
 Every merge to `main` is a release: the `Build` workflow re-runs `make gate` on the merged result,
 then tags the next `YYYYMMDD.N` version (a PEP 440 version, which Copier and Renovate order by).
 Projects take it as an update PR (Renovate's Copier manager, or `copier update` by hand). The
-shared Renovate preset (see [What the project owns](#what-the-project-owns)) opens that PR at any
-time and outside every group, so a release reaches projects within hours, each template layer in
-its own PR. The template uses no unsafe Copier feature (Jinja extensions, migrations, tasks, or
-`_external_data` outside the project root), so an update runs without `--trust`.
+shared Renovate rules, `renovate/base.json` (see [What the project owns](#what-the-project-owns)),
+open that PR at any time and outside every group, so a release reaches projects within hours,
+each template layer in its own PR. The template uses no unsafe Copier feature (Jinja extensions,
+migrations, tasks, or `_external_data` outside the project root), so an update runs without
+`--trust`.
 
 ## Questions
 
@@ -54,6 +55,15 @@ is delivered, then the session, the worktree and every local branch of the issue
 task can open a second branch for a follow-up PR); it refuses before it removes anything while one
 of those branches has commits on no remote branch and in no merged PR, or the worktree has
 uncommitted or untracked files.
+
+An issue states the problem; the PR that closes it states the solution. The start skill's "Write
+an issue" sets the body's order: the problem, with whom it costs and the evidence, then what is
+true when it is solved, then, when there are any, the owner's decisions, the findings, and a
+proposed solution the session may improve or replace. So a reader who has only the issue can
+judge the work and tell when it is done, and the session is free to find a simpler design than
+the one proposed, or to find the aim again when that design fails. The title names the problem
+or the outcome. Only its first 40 characters derive anything: the branch, the session name and
+the status line. The rules say the same for an issue that no task starts from.
 
 A task starts in one of two modes, and its branch type is its mode from its start to its finish:
 
@@ -93,12 +103,13 @@ no parent issue.
 
 To plan a backlog, the owner says "plan X", and the main session starts an ordinary `research`
 task, or says "plan X with me", and the main session starts a `design` task. Either session studies
-the code and the open issues, then creates one issue per piece of work, each with its goal, its
-scope and what done means. "Blocked by" links put them in order, and each one is parked with a
-reason that names the planning issue. The result is a comment on the planning issue that lists
-them, which `/task:finish` accepts for a research or a design task. A research session never
-waits for the owner, who corrects the plan afterwards; a design session works it out with the
-owner as it goes. Either way, the owner tells the main session which issues to release.
+the code and the open issues, then creates one issue per piece of work, each written as above:
+the problem it solves first, then what is true when it is solved. "Blocked by" links put them in
+order, and each one is parked with a reason that names the planning issue. The result is a
+comment on the planning issue that lists them, which `/task:finish` accepts for a research or a
+design task. A research session never waits for the owner, who corrects the plan afterwards; a
+design session works it out with the owner as it goes. Either way, the owner tells the main
+session which issues to release.
 
 The main session follows its tasks through two commands of `task.sh`, and each does one thing:
 
@@ -167,11 +178,17 @@ A task session is an interactive `claude` process in a Terminal tab (`open_sessi
 These deny lines match only a command that starts that way, so a form like `claude --model x -p`
 still gets through.
 
+A session's `claude` command can be longer than the 1024 bytes a Terminal tab's tty holds on one
+line, so `open_session` writes it to `task-session.sh` in the worktree's git dir and types only
+`exec bash <launcher>`. The git dir keeps the launcher out of the work tree, which a finish needs
+clean, and `git worktree remove` deletes it. `start` then waits up to 30 seconds for the session in
+`claude agents --json`, and fails if none runs.
+
 Each text a session launches with lives in one file of `session/`. A `PermissionRequest` hook in
 `settings.json` denies every permission prompt, in both modes: nobody answers those. The system
 prompt is `prompt.md`, the words both modes share, then the mode's own words, `execution.md` or
-`design.md`. `claude` takes one appended system prompt, so the tab's shell joins the two files
-when it launches the session. Nobody answers an execution session, so it never waits for a person:
+`design.md`. `claude` takes one appended system prompt, so the launcher joins the two files when
+it launches the session. Nobody answers an execution session, so it never waits for a person:
 `--disallowed-tools AskUserQuestion` removes the question tool, `execution.md` tells it to take
 the option it would recommend and go on, and a `Stop` prompt hook in `settings.json` sends it back
 to work when it ends its turn on a question. The hook's model call runs on the session's own
@@ -192,32 +209,74 @@ and no settings entry, from the folder a session starts in: the main checkout, o
 worktree. Claude itself is started however the machine prefers, for example
 `alias claude-rc='caffeinate -i claude --remote-control'`.
 
+## Review, trim and design check on the open PR
+
+The `code-reviewer`, a read-only agent, looks for what the gate and the hooks miss: a wrong
+behaviour no test covers, a broken contract between caller and callee, a rule of `.claude/rules/`
+no hook checks. It reports only findings with evidence. The session fixes what it finds before the
+trim, so the trim also runs on the fixes.
+
+A stack's lint checks and Claude Code's `/simplify` clean the form of AI-written code, and
+`/simplify` skips every fix that would change behaviour, so none of them removes a thing that
+should not exist. The `code-trimmer` agent does: it cuts what the task's issue did not need, in
+passes that each report their count of lines added and removed, so the session that built the work
+can audit them. The `simplicity-reviewer`, a read-only agent, works out the smallest design for the
+issue before it reads the branch, and presents alternative designs, each built to be simpler than
+the one built. `execution.md` calls all three on every execution task's open PR, because an agent
+that no step calls does not run.
+
+The text of `code-trimmer` and `simplicity-reviewer` draws on
+[Ponytail](https://github.com/DietrichGebert/ponytail),
+[pstack](https://github.com/backnotprop/pstack) and Cursor's
+[deslop](https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/deslop).
+
 ## What the project owns
 
 `.claude/memory/MEMORY.md` and `renovate.json` are seeded once (`_skip_if_exists`): an update
 never touches them, and a first copy into an existing repository keeps the repository's own file.
 The project's `CLAUDE.md` is its own: the template never writes it, and its Product Stage is what
-the Judgment Guidelines in `.claude/rules/agentic.md` decide against. That rule file has no
-`paths:`, so Claude Code loads it in every session. Every other file belongs to this template:
+the Judgment Guidelines in `.claude/rules/agentic.md` decide against. `.claude/rules/conventions.md`
+says how to match the existing code, when to write a comment and how to give a skipped check's
+reason. Neither rule file has `paths:`, so Claude Code loads both in every session. Every other
+file belongs to this template:
 change it here, not in a project.
 
-The seeded `renovate.json` takes its rules from one shared preset, `renovate/default.json` at this
-repository's root, outside `template/` so it is never rendered. It extends
-`github>BorjaElizalde/template-agentic//renovate/default`, which Renovate reads from this
-repository's default branch, `develop`, with no tag pin: a rule change merged there reaches every
-project on its next Renovate run. This repository's own `renovate.json` extends it too. The preset
-runs Renovate on the 1st of each month. It puts every minor and patch update in one PR and each
-major update in its own, bumps the version ranges, refreshes the lock files, and moves the Python
-image and the Python version together. Template updates (the `copier` manager) are the exception:
-they come at any time and outside every group, so a release reaches a project within hours, each
-template layer in its own PR.
+The seeded `renovate.json` takes every rule from a shared preset in `renovate/` at this
+repository's root, outside `template/` so it is never rendered. The preset is two files:
 
-Beside the `extends`, the seeded file has only the `ignorePaths` that keep Renovate's
-github-actions manager off the template's CI files, so their action pins arrive only in the
-template's update PR. They stay out of the preset, which also serves this repository, whose CI
-files are its own. A repository that keeps its own `renovate.json` extends the preset and adds the
-same `ignorePaths`. A project adds its own rules as `packageRules` in its `renovate.json`: Renovate
-appends them after the preset's, so they win where both set an option.
+- `renovate/base.json` holds the rules. This repository's own `renovate.json` extends it, because
+  its CI files are its own and Renovate keeps their action pins current.
+- `renovate/default.json` extends `base` and adds the template's CI files to the github-actions
+  manager's `ignorePaths`, so their action pins arrive only in the template's update PR. A project
+  extends `default`.
+
+Renovate reads both files from this repository's default branch, `develop`, with no tag pin: a
+change merged there reaches every project on its next Renovate run. The rules run Renovate on the
+1st of each month. They put every minor and patch update in one PR and each major update in its
+own, bump the version ranges, refresh the lock files, and move the Python image and the Python
+version together. Template updates (the `copier` manager) are the exception: they come at any time
+and outside every group, so a release reaches a project within hours, each template layer in its
+own PR.
+
+The project's `renovate.json` is this pointer, which no release needs to change:
+
+```json
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Seeded once by the agentic template. Every rule comes from the shared preset; add the project's own as packageRules here, and no github-actions ignorePaths, which would replace the preset's list.",
+  "extends": ["github>BorjaElizalde/template-agentic//renovate/default"]
+}
+```
+
+A project made before release `20261110.1` has its rules in its own file. It replaces its
+`renovate.json` with the file above, once: `20261110.1` is the first release whose seed is the
+pointer, and the file is seeded once, so no update can deliver it. A repository that kept its own
+`renovate.json` at the first copy does the same, and moves its own rules into `packageRules`.
+
+A project adds its own rules as `packageRules` in its `renovate.json`: Renovate appends them after
+the preset's, so they win where both set an option. The project's file must not hold its own
+`github-actions.ignorePaths`. Renovate does not join two `ignorePaths` lists: the project's list
+replaces the shared one, and a template CI file left off it gets Renovate's PRs.
 
 ## One settings file for every stack
 
@@ -256,7 +315,6 @@ nothing.
 | `.github/actions/stack-gate/action.yaml` | The composite action the `Gate` workflow runs on every PR into `develop`, `staging` or `main`, after its PR-source check and the checkout. It calls the stack's tools directly, never `make gate`, so a change that relaxes the local gate can't relax CI. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit/Write with the hook payload on stdin. |
-| `.claude/review-wave.md` | Names the plan reviewer, the review wave, the last pass, and the resolver for lint, format and type failures that `/agentic-flow` runs. |
 | `make gate` | The project's full local validation, which `/gate` runs. The stack layer provides it. |
 
 ## Develop
