@@ -19,5 +19,3 @@ For a task that ends in a PR, open the PR with `/pull-request` once the work is 
    shows simpler unless a reason stands against it. Rebuild to the design you take and push it.
    When the rebuild adds code, run steps 1 and 2 again on the result; a line it only shortens or
    rewraps adds none.
-4. Add to the PR description the `Trim:` line of each `code-trimmer` run, then the line
-   `Design: <the design you took, or "kept the built one"> - <why>`.

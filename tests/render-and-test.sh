@@ -123,7 +123,7 @@ expect "an execution session spawns code-reviewer, code-trimmer, then the simpli
   grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/session/execution.md'"
 expect "with agent_merges an execution session merges its PR only after the review, code-trimmer and the design check" bash -c "
   grep -q 'stop before its merge step' '$AM/.claude/skills/task/session/execution.md' &&
-  grep -q '^5. Merge the PR' '$AM/.claude/skills/task/session/execution.md' &&
+  grep -q '^4. Merge the PR' '$AM/.claude/skills/task/session/execution.md' &&
   ! grep -qi 'merge' '$D/.claude/skills/task/session/execution.md'"
 for reviewer in code-reviewer simplicity-reviewer; do
   REVIEWER="$D/.claude/agents/$reviewer.md"
