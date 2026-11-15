@@ -101,7 +101,7 @@ expect "a first copy keeps the project's renovate.json" bash -c "[ \"\$(cat '$X/
 expect "the task plugin's manifest names it task" bash -c "[ \"\$(jq -r .name '$D/.claude/skills/task/.claude-plugin/plugin.json')\" = task ]"
 expect "no .claude/scripts folder is rendered" test ! -e "$D/.claude/scripts"
 expect "every script parses" bash -c "for f in \$(find '$D' -name '*.sh'); do bash -n \"\$f\" || exit 1; done"
-expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$ROOT/tests' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
+expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$ROOT/tests' '$ROOT/bundle.sh' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
 expect "bash-guard suite" bash "$D/.claude/hooks/bash-guard.test.sh"
 expect "worktree-guard suite" bash "$D/.claude/hooks/worktree-guard.test.sh"
 expect "practices protocol suite" bash "$D/.claude/hooks/practices/guard.test.sh"
@@ -116,12 +116,13 @@ expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/tas
 expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
 expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md' && grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/skills/status/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
-expect "an execution session spawns code-reviewer, code-trimmer, then the simplicity reviewer, with the task's issue" bash -c "
+expect "an execution session spawns code-reviewer, code-trimmer, then the simplicity reviewer, with the task's issue, and only code-trimmer on a small change" bash -c "
+  grep -q '^Skip steps 1 and 3 when the change is small' '$D/.claude/skills/task/session/execution.md' &&
   grep -q '^1. Spawn the .code-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
   grep -q '^2. Spawn the .code-trimmer. agent' '$D/.claude/skills/task/session/execution.md' &&
   grep -q '^3. Spawn one .simplicity-reviewer.' '$D/.claude/skills/task/session/execution.md' &&
   grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/session/execution.md'"
-expect "with agent_merges an execution session merges its PR only after the review, code-trimmer and the design check" bash -c "
+expect "with agent_merges an execution session merges its PR as its last step" bash -c "
   grep -q 'stop before its merge step' '$AM/.claude/skills/task/session/execution.md' &&
   grep -q '^4. Merge the PR' '$AM/.claude/skills/task/session/execution.md' &&
   ! grep -qi 'merge' '$D/.claude/skills/task/session/execution.md'"
@@ -135,6 +136,48 @@ expect "code-trimmer edits and commits, and spawns no agent" bash -c "
   grep -qE '^tools:.*Bash.*Edit' '$TRIMMER' && ! grep -qE '^tools:.*Agent' '$TRIMMER'"
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
+
+release() {
+  git -C "$1" add -A && git -C "$1" -c user.name=t -c user.email=t@t commit -qm "$2" && git -C "$1" tag "$2"
+}
+S="$OUT/stack"
+cp -R "$OUT/src/tests/stack" "$S"
+git -C "$S" init -q
+bash "$OUT/src/bundle.sh" "$S"
+release "$S" v1
+NEXT="$OUT/next"
+cp -R "$OUT/src" "$NEXT"
+printf 'probe\n' >"$NEXT/template/update-probe.txt"
+rm "$NEXT/template/.claude/skills/commit/SKILL.md"
+printf '{}\n' >"$NEXT/template/renovate.json"
+bash "$NEXT/bundle.sh" "$S"
+printf 'gate:\n\t@echo v2\n' >"$S/template/Makefile"
+release "$S" v2
+
+TWO="$OUT/two-layers"
+uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks "$OUT/src" "$TWO"
+# Copier reads an !include that matches no file as empty, and this copy of tests/stack has no agentic/.
+uvx --quiet copier copy --quiet --defaults "$OUT/src/tests/stack" "$TWO"
+B="$OUT/bundled"
+uvx --quiet copier copy --quiet --defaults --vcs-ref v1 --data issues_repo=acme/tasks "$S" "$B"
+bundled_like_two_layers() {
+  diff -rq --exclude '.copier-answers.*' "$TWO" "$B" | sed 's/^/FAIL /' &&
+    [ "$(cd "$B" && ls -d .copier-answers.*)" = .copier-answers.stack.yaml ] &&
+    grep -qx 'issues_repo: acme/tasks' "$B/.copier-answers.stack.yaml" && grep -qx 'package_name: app' "$B/.copier-answers.stack.yaml"
+}
+expect "a copy of a stack template that bundles this one gives the two layers' files, with one answers file" bundled_like_two_layers
+git -C "$B" init -q
+git -C "$B" add -A
+git -C "$B" -c user.name=t -c user.email=t@t commit -qm copy
+(cd "$B" && uvx --quiet copier update --quiet --defaults -a .copier-answers.stack.yaml --vcs-ref v2)
+expect "copier update across a bundled release delivers this template's change, without --trust" bash -c "
+  [ -f '$B/update-probe.txt' ] && [ ! -e '$B/.claude/skills/commit/SKILL.md' ] && grep -qx '_commit: v2' '$B/.copier-answers.stack.yaml'"
+expect "the update keeps the files both layers seed once" bash -c "
+  cmp -s '$OUT/src/template/renovate.json' '$B/renovate.json' && cmp -s '$OUT/src/tests/stack/template/Makefile' '$B/Makefile'"
+expect "bundle.sh --check passes the stack template's bundle of its own version" bash "$NEXT/bundle.sh" --check "$S"
+expect "bundle.sh --check fails the stack template's bundle of another version" bash -c "! bash '$OUT/src/bundle.sh' --check '$S'"
+expect "bundle.sh refuses a stack template that has its own copy of a file it bundles" bash -c "
+  mkdir -p '$OUT/clash/template' && cp '$OUT/src/template/renovate.json' '$OUT/clash/template/' && ! bash '$OUT/src/bundle.sh' '$OUT/clash'"
 
 # This repository is a project of its own template: on a copy of the working tree, make render
 # (which the pre-commit hook runs on every commit that changes template/) must leave .claude/ as it is.

@@ -1,0 +1,13 @@
+# A stack template for the gate: bundle.sh writes the agentic/copier.yaml it includes.
+!include agentic/copier.yaml
+---
+_subdirectory: template
+_answers_file: .copier-answers.stack.yaml
+
+_skip_if_exists:
+  - Makefile
+
+package_name:
+  type: str
+  help: The application's package directory
+  default: app
