@@ -86,11 +86,13 @@ cat >"$WORK/bin/osascript" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$TASK_TEST_STATE/osascript.log"
 # A line typed into a tab past 1024 bytes, newline included, never runs: its tty drops it.
-# $TASK_TEST_STATE/tab keeps the pid of the line's process.
+# $TASK_TEST_STATE/tab keeps the pid of the line's process. The tab's shell has a folder hook, as
+# zsh's chpwd is: each cd it runs exports TAB_HOOK_FOLDER, the folder it entered.
 if [ $# -eq 2 ]; then
-  rm -f "$TASK_TEST_STATE/launched" "$TASK_TEST_STATE/claude-pid"
+  rm -f "$TASK_TEST_STATE/launched" "$TASK_TEST_STATE/claude-pid" "$TASK_TEST_STATE/hook-folder"
   if [ "$(printf '%s\n' "$2" | wc -c)" -le 1024 ]; then
-    bash -s <<<"$2" &
+    bash -s <<<"cd() { builtin cd \"\$@\" && export TAB_HOOK_FOLDER=\$PWD; }
+$2" &
     echo $! >"$TASK_TEST_STATE/tab"
     wait
   fi
@@ -111,7 +113,7 @@ EOF
 # it can't answer. Any other call launches a session, which fails while $TASK_TEST_STATE/no-start
 # exists, else adds its folder to running: its arguments go to $TASK_TEST_STATE/launched, each ended
 # by a NUL, since the system prompt spans lines, and joined on one line of launches; its pid to
-# claude-pid.
+# claude-pid; the folder its tab's hook exported to hook-folder.
 cat >"$WORK/bin/claude" <<'EOF'
 #!/usr/bin/env bash
 if [ "$*" != "agents --json" ]; then
@@ -119,6 +121,7 @@ if [ "$*" != "agents --json" ]; then
   printf '%s\0' "$@" >"$TASK_TEST_STATE/launched"
   echo "${*//$'\n'/ }" >>"$TASK_TEST_STATE/launches"
   echo $$ >"$TASK_TEST_STATE/claude-pid"
+  echo "${TAB_HOOK_FOLDER:-}" >"$TASK_TEST_STATE/hook-folder"
   pwd -P >>"$TASK_TEST_STATE/running"
   exit 0
 fi
@@ -222,6 +225,7 @@ check "its session opens with the issue name"  test "$(sessions '#42 backend: Na
 check "and the start names its mode"           grep -qxF '✓ session opened in execution mode: #42 backend: Name make close_claude_session in' "$WORK/out"
 check "with a first prompt that reads its issue" bash -c "tail -n 1 '$TASK_TEST_STATE/launches' | grep -qF 'gh issue view 42 -R acme/tasks --json title,body,comments'"
 check "an interactive claude, never -p or --print, the tab's only process" interactive
+check "with the folder hooks of its tab's shell run in its worktree" test "$(cat "$TASK_TEST_STATE/hook-folder")" = "$ISSUE42/backend"
 check "in execution mode: no question tool, a Stop hook, permission prompts denied" launches_in execution
 sessions_exit
 check "starting again resumes, creates nothing" task "$BACKEND" start 42

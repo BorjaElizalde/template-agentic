@@ -145,15 +145,17 @@ open_session() {
 	# claude takes one appended system prompt, so the launcher joins the words both modes share and
 	# the mode's own. The first prompt comes after -n: --disallowed-tools takes every value up to the
 	# next option.
-	command="cd $(quoted "$1") && exec claude ${5:+$5 }--settings $(quoted "$settings")"
+	command="exec claude ${5:+$5 }--settings $(quoted "$settings")"
 	command+=" --append-system-prompt \"\$(cat $(quoted "$files/prompt.md") $(quoted "$files/$4.md"))\""
 	command+="$tools -n $(quoted "$2") $(quoted "$first")"
 	# The tty drops a typed line past 1024 bytes (MAX_CANON), so Terminal types only the line that
 	# runs a launcher. The launcher sits in the worktree's git dir, out of the work tree that a
-	# finish needs clean. exec leaves claude the tab's only process, so the tab is empty once it exits.
+	# finish needs clean. The tab's own shell enters the worktree, so the folder hooks it runs on a cd
+	# (zsh's chpwd, direnv) give claude the environment of a claude typed there. exec leaves claude
+	# the tab's only process, so the tab is empty once it exits.
 	launcher=$(git -C "$1" rev-parse --absolute-git-dir)/task-session.sh
 	printf '%s\n' "$command" >"$launcher"
-	osascript - "exec bash $(quoted "$launcher")" >/dev/null <<'APPLESCRIPT'
+	osascript - "cd $(quoted "$1") && exec bash $(quoted "$launcher")" >/dev/null <<'APPLESCRIPT'
 on run {command}
 	tell application "Terminal"
 		do script command
