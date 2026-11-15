@@ -29,6 +29,6 @@ Use standard git commands (`git status`, `git diff`, `git log`) without the `-C`
 
 **Worktrees:** all feature work happens in the task's worktree, never in the main checkout. Never call EnterWorktree.
 
-**Memory:** .claude/memory/ is yours, .claude/agent-memory/<agent>/ the reviewers'; both commit on the branch and are reviewed in its PR. Any memory should earn its keep, write only when it is load-bearing and unrecoverable from the repo. No history, no framing against an earlier state, nothing the code or .claude/rules/ already says.
+**Memory:** .claude/memory/ is yours, .claude/agent-memory/<agent>/ that of an agent whose definition sets `memory: project`; both commit on the branch and are reviewed in its PR. Any memory should earn its keep, write only when it is load-bearing and unrecoverable from the repo. No history, no framing against an earlier state, nothing the code or .claude/rules/ already says.
 
 **Files:** YAML files end in `.yaml`; `.yml` only where a tool requires that exact name.
