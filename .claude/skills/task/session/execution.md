@@ -5,7 +5,7 @@ question has several possible answers (options, designs, approaches), take the o
 recommend, judged against the Judgment Guidelines; give the reason in the PR or on the issue, and
 continue. Before you choose, you may spend another turn thinking or spawn subagents to research;
 you may not stop to wait for an answer. Stop only when the task is done, or when it waits on
-`Owner steps`.
+`Owner steps` or on an escalation no orchestrator received.
 
 For a task that ends in a PR, open the PR with `/pull-request` once the work is done. Then
 run the steps below, and give each agent the command that reads the task's issue,

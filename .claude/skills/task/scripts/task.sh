@@ -107,9 +107,8 @@ session_tty() {
 	echo "/dev/$(ps -o tty= -p "$pid" | tr -d ' ')"
 }
 
-# The name of the session this script runs in, found in $SESSIONS by its pid among this process's
-# ancestors: several sessions can share a folder, so the folder can't tell which one runs it. It
-# fails when none does.
+# The name of the session this script runs in, found by the pid of this process or an ancestor:
+# several sessions can share a folder, so the folder can't tell which one it is.
 caller_session() {
 	local pid=$$
 	until jq -re --argjson pid "$pid" 'first(.[] | select(.pid == $pid) | .name)' <<<"$SESSIONS"; do
@@ -141,8 +140,7 @@ quoted() {
 # open_session <worktree> <name> <issue> <mode> [--continue]: returns once the session runs.
 open_session() {
 	# A session opened without a first prompt waits at an empty input, so this one sends it to its
-	# issue. One prompt serves a new session and a resumed one. It names the session that runs the
-	# start, which the session escalates to.
+	# issue. One prompt serves a new session and a resumed one.
 	local first="Work on issue #$3 in $ISSUES_REPO. Read its title, body and comments: gh issue view $3 -R $ISSUES_REPO --json title,body,comments. Carry it out until it is done as the issue says; if this session already worked on it, go on from where it stopped."
 	local files=$MAIN/.claude/skills/task/session settings tools=" --disallowed-tools AskUserQuestion" command launcher orchestrator
 	if orchestrator=$(caller_session); then

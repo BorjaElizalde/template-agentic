@@ -213,9 +213,12 @@ closes next: `/task:status` reads a session's last message only while its task r
 finishes the task of a closed issue. `task.sh start` names the orchestrator in its first prompt:
 the session in `claude agents --json` whose pid is the start's own process or an ancestor of it,
 since several sessions can share a folder. A start that resumes a session names the session that
-resumes it. A send to a session that has exited fails ("No agent named … is reachable"); then, and
-when no session ran the start, the task waits on the escalation, which its last message holds for
-`/task:status` to read. The last message holds the result or what the task waits on, and nothing
+resumes it; a running session keeps the name it launched with. A send to a session that has exited
+fails ("No agent named … is reachable"). The orchestrator gets the message directly only when its
+permission mode is in the task session's class: a task session starts in the project's default
+mode, and an orchestrator that bypasses permission prompts holds the message for the owner's
+approval, then drops it after five minutes. When no session ran the start, or the send does not
+deliver, the task waits on the escalation, which its last message holds for `/task:status` to read. The last message holds the result or what the task waits on, and nothing
 else: the reasons for the session's choices go in the PR or on the issue.
 
 `/task:start`, `/task:finish` and `/task:status` are skills of one plugin, `.claude/skills/task/`,

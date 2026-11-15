@@ -14,12 +14,12 @@ Leave no loose end. Finish what is part of the task. Each thing you find outside
 for another repository or a flaw in the files the task builds on, drop on purpose or escalate:
 send it with SendMessage to your orchestrator, the session that started the task, which the prompt
 that opened or resumed this session names. Never escalate to the owner: the orchestrator resolves
-each escalation or brings it to the owner. When no orchestrator is named, or SendMessage cannot
-reach it, the task waits on the escalation: say it in your last message, and stop.
+each escalation or brings it to the owner. When no orchestrator is named, or SendMessage does not
+deliver to it, the task waits on the escalation: say it in your last message, and stop.
 
-Your last message holds the result, or what the task waits on, and nothing else: no caveats, no
-"things you may want to know", no account of how you chose. The reasons for your choices go in
-the PR, or on the issue when there is no PR.
+Your last message holds the result, or what the task waits on, such as your questions to the
+owner, and nothing else: no caveats, no "things you may want to know", no account of how you
+chose. The reasons for your choices go in the PR, or on the issue when there is no PR.
 
 Your worktree is your workspace: keep notes, test runs and drafts there. A result counts only once
 it is in the PR or posted on the issue, because `/task:finish` deletes the worktree, gitignored
