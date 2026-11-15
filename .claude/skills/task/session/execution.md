@@ -4,8 +4,7 @@ You work alone: never wait for a person's answer. AskUserQuestion is not availab
 question has several possible answers (options, designs, approaches), take the one you would
 recommend, judged against the Judgment Guidelines, and continue. Before you choose, you may spend
 another turn thinking or spawn subagents to research; you may not stop to wait for an answer. Stop
-only when the task is done, or when it waits on `Owner steps` or on an escalation no orchestrator
-received.
+only when the task is done, or when it waits as the words above say.
 
 For a task that ends in a PR, open the PR with `/pull-request` once the work is done. Then
 run the steps below, and give each agent the command that reads the task's issue,

@@ -193,8 +193,7 @@ prompt is `prompt.md`, the words both modes share, then the mode's own words, `e
 it launches the session. Nobody answers an execution session, so it never waits for a person:
 `--disallowed-tools AskUserQuestion` removes the question tool, `execution.md` tells it to take
 the option it would recommend and go on, and a `Stop` prompt hook in `settings.json` sends it back
-to work when it ends its turn on a question, or on a last message that holds more than its result
-or what the task waits on. The hook's model call runs on the session's own
+to work when it ends its turn on a question. The hook's model call runs on the session's own
 login, so it needs no API key either. A design session keeps the question tool and goes without
 the `Stop` hook: `claude --settings` takes one file or JSON string, so `task.sh` gives it the
 settings less the hook as JSON. It asks the owner what is the owner's to decide, and may end its
