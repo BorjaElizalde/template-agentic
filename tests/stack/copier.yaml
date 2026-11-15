@@ -1,0 +1,14 @@
+# A stack template for the gate: it carries template-agentic through bundle.sh, which writes
+# agentic/copier.yaml and adds the agentic files to template/.
+!include agentic/copier.yaml
+---
+_subdirectory: template
+_answers_file: .copier-answers.stack.yaml
+
+_skip_if_exists:
+  - Makefile
+
+package_name:
+  type: str
+  help: The application's package directory
+  default: app
