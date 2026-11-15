@@ -180,9 +180,11 @@ still gets through.
 
 A session's `claude` command can be longer than the 1024 bytes a Terminal tab's tty holds on one
 line, so `open_session` writes it to `task-session.sh` in the worktree's git dir and types only
-`exec bash <launcher>`. The git dir keeps the launcher out of the work tree, which a finish needs
-clean, and `git worktree remove` deletes it. `start` then waits up to 30 seconds for the session in
-`claude agents --json`, and fails if none runs.
+`cd <worktree> && exec bash <launcher>`. The tab's own shell enters the worktree, so its folder
+hooks (zsh's `chpwd`, direnv) give the session the environment of a `claude` typed there, such as
+a `CLAUDE_CONFIG_DIR` set per folder. The git dir keeps the launcher out of the work tree, which a
+finish needs clean, and `git worktree remove` deletes it. `start` then waits up to 30 seconds for
+the session in `claude agents --json`, and fails if none runs.
 
 Each text a session launches with lives in one file of `session/`. A `PermissionRequest` hook in
 `settings.json` denies every permission prompt, in both modes: nobody answers those. The system
