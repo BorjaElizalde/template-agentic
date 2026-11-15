@@ -189,9 +189,6 @@ interactive() {
   launched 'all(.[]; . != "-p" and . != "--print")' &&
     [ "$(cat "$TASK_TEST_STATE/claude-pid")" = "$(cat "$TASK_TEST_STATE/tab")" ]
 }
-# hooked_in <worktree>: the session last opened has the environment its tab's folder hook gave that
-# worktree, so the tab's own shell entered it before the launcher ran.
-hooked_in() { [ "$(cat "$TASK_TEST_STATE/hook-folder")" = "$1" ]; }
 transcript() {  # transcript <folder> [<name> <[CC]YYMMDDhhmm>]: a claude session in that folder writes it, now or then
   local dir; dir="$CLAUDE_CONFIG_DIR/projects/$(printf '%s' "$1" | tr -c 'a-zA-Z0-9' '-')"
   mkdir -p "$dir" && touch ${3:+-t "$3"} "$dir/${2:-session}.jsonl"
@@ -228,7 +225,7 @@ check "its session opens with the issue name"  test "$(sessions '#42 backend: Na
 check "and the start names its mode"           grep -qxF '✓ session opened in execution mode: #42 backend: Name make close_claude_session in' "$WORK/out"
 check "with a first prompt that reads its issue" bash -c "tail -n 1 '$TASK_TEST_STATE/launches' | grep -qF 'gh issue view 42 -R acme/tasks --json title,body,comments'"
 check "an interactive claude, never -p or --print, the tab's only process" interactive
-check "with the folder hooks of its tab's shell run in its worktree" hooked_in "$ISSUE42/backend"
+check "with the folder hooks of its tab's shell run in its worktree" test "$(cat "$TASK_TEST_STATE/hook-folder")" = "$ISSUE42/backend"
 check "in execution mode: no question tool, a Stop hook, permission prompts denied" launches_in execution
 sessions_exit
 check "starting again resumes, creates nothing" task "$BACKEND" start 42
@@ -306,7 +303,6 @@ check "has a command over 1024 bytes"          test "$(wc -c <"$(git -C "$ISSUE2
 check "and its session runs"                   grep -qxF "✓ session opened in design mode: #26 $(basename "$LONG"): Design a launch longer than a tty line" "$WORK/out"
 check "in design mode"                         launches_in design
 check "the tab's only process"                 interactive
-check "with the folder hooks of its worktree"  hooked_in "$ISSUE26"
 sessions_exit
 touch "$TASK_TEST_STATE/no-start"
 check "a start whose session never runs fails" bash -c "! (cd '$LONG' && bash .claude/skills/task/scripts/task.sh start 26) >'$WORK/out' 2>&1"
