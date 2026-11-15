@@ -204,22 +204,9 @@ session back to work past it. `task.sh` finds a running session in
 interactive session whose working directory is the worktree; it finds the session's Terminal tab
 by that process's tty.
 
-A task session leaves no loose end. It finishes what is part of its task, and each thing it finds
-outside it, it drops on purpose or escalates to its orchestrator, the session that started the
-task, never to the owner. The orchestrator resolves each escalation or brings it to the owner. The
-escalation is a `SendMessage`, so it reaches the orchestrator at once, also when the task's issue
-closes next: `/task:status` reads a session's last message only while its task runs, and a cleanup
-finishes the task of a closed issue. `task.sh start` names the orchestrator in its first prompt:
-the session in `claude agents --json` whose pid is `CLAUDE_PID`, which Claude Code sets in its
-Bash commands, since several sessions can share a folder. A start that resumes a session names the
-session that resumes it; a running session keeps the name it launched with. A send to a session
-that has exited fails ("No agent named … is reachable"). The orchestrator gets the message directly
-only when its permission mode is in the task session's class: a task session starts in the
-project's default mode, and an orchestrator that bypasses permission prompts holds the message for
-the owner's approval, then drops it after five minutes. When no session ran the start, or the send
-does not deliver, the task waits on the escalation, which its last message holds for
-`/task:status` to read. The last message holds the result or what the task waits on, and nothing
-else: the reasons for the session's choices go in the PR or on the issue.
+A task session escalates what it finds outside its task with `SendMessage` to its orchestrator,
+never to the owner. `task.sh start` names the orchestrator in the first prompt: the session in
+`claude agents --json` whose pid is `CLAUDE_PID`, which Claude Code sets in its Bash commands.
 
 `/task:start`, `/task:finish` and `/task:status` are skills of one plugin, `.claude/skills/task/`,
 so they share its `scripts/task.sh` through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a
