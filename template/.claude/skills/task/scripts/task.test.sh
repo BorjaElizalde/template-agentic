@@ -15,6 +15,7 @@ WORK="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$WORK"' EXIT
 export TASK_TEST_STATE="$WORK/state"
 export CLAUDE_CONFIG_DIR="$WORK/claude"
+unset CLAUDE_PID  # a start runs from no session, unless a check names the pid of one
 pass=0; fail=0
 
 mkdir -p "$WORK/bin" "$TASK_TEST_STATE" "$WORK/seed/.claude/skills/task/scripts" "$WORK/repos"
@@ -109,12 +110,11 @@ exit 0
 EOF
 # claude agents --json, as Claude Code prints it. Each line of $TASK_TEST_STATE/running,
 # "<folder> [<status>]", is a background session, then an interactive one, busy unless the line
-# says else, with pid 4242 on line 1, 4243 on line 2. While $TASK_TEST_STATE/orchestrator holds a
-# pid, an interactive session of that pid, named "the orchestrator", comes first. While
-# $TASK_TEST_STATE/claude-down exists, it can't answer. Any other call launches a session, which
-# fails while $TASK_TEST_STATE/no-start exists, else adds its folder to running: its arguments go
-# to $TASK_TEST_STATE/launched, each ended by a NUL, since the system prompt spans lines, and joined
-# on one line of launches; its pid to claude-pid; the folder its tab's hook exported to hook-folder.
+# says else, with pid 4242 on line 1, 4243 on line 2. While $TASK_TEST_STATE/claude-down exists,
+# it can't answer. Any other call launches a session, which fails while $TASK_TEST_STATE/no-start
+# exists, else adds its folder to running: its arguments go to $TASK_TEST_STATE/launched, each ended
+# by a NUL, since the system prompt spans lines, and joined on one line of launches; its pid to
+# claude-pid; the folder its tab's hook exported to hook-folder.
 cat >"$WORK/bin/claude" <<'EOF'
 #!/usr/bin/env bash
 if [ "$*" != "agents --json" ]; then
@@ -127,19 +127,16 @@ if [ "$*" != "agents --json" ]; then
   exit 0
 fi
 [ ! -f "$TASK_TEST_STATE/claude-down" ] || exit 1
-running=$TASK_TEST_STATE/running
-[ -f "$running" ] || running=/dev/null
-jq -Rn --arg orchestrator "$(cat "$TASK_TEST_STATE/orchestrator" 2>/dev/null)" '
-  [$orchestrator | select(. != "") | {pid: tonumber, cwd: "/", kind: "interactive", name: "the orchestrator", status: "busy"}]
-  + ([inputs | capture("^(?<cwd>[^ ]+)( (?<status>.+))?$")] | to_entries | map(
-    {id: "b0b0b0b0", cwd: .value.cwd, kind: "background", name: "a background session", state: "blocked"},
-    {pid: (4242 + .key), cwd: .value.cwd, kind: "interactive", name: "a task session", status: (.value.status // "busy")}))' \
-  "$running"
+[ -f "$TASK_TEST_STATE/running" ] || { echo '[]'; exit 0; }
+jq -Rn '[inputs | capture("^(?<cwd>[^ ]+)( (?<status>.+))?$")] | to_entries | map(
+  {id: "b0b0b0b0", cwd: .value.cwd, kind: "background", name: "a background session", state: "blocked"},
+  {pid: (4242 + .key), cwd: .value.cwd, kind: "interactive", name: "a task session", status: (.value.status // "busy")})' \
+  "$TASK_TEST_STATE/running"
 EOF
-# The tty of pid 4242 is ttys042, of 4243 ttys043; any other question goes to the real ps.
+# The tty of pid 4242 is ttys042, of 4243 ttys043.
 cat >"$WORK/bin/ps" <<'EOF'
 #!/usr/bin/env bash
-if [ "$1 $2 $3" = "-o tty= -p" ]; then printf 'ttys%03d    \n' $(($4 - 4200)); else exec /bin/ps "$@"; fi
+[ "$1 $2 $3" = "-o tty= -p" ] && printf 'ttys%03d    \n' $(($4 - 4200))
 EOF
 printf '#!/usr/bin/env bash\n' >"$WORK/bin/sleep"
 chmod +x "$WORK/bin/gh" "$WORK/bin/osascript" "$WORK/bin/claude" "$WORK/bin/ps" "$WORK/bin/sleep"
@@ -247,12 +244,11 @@ refuses "a closed issue does not start"          'is CLOSED'            "$BACKEN
 echo "-- start: an existing issue picks up its session"
 transcript "$ISSUE42/backend"
 sessions_exit
-echo $$ >"$TASK_TEST_STATE/orchestrator"
-check "a session with a transcript, started from a session" task "$BACKEND" start 42
+echo "$BACKEND" >"$TASK_TEST_STATE/running"
+CLAUDE_PID=4242 check "a session with a transcript, started from a session in the main checkout" task "$BACKEND" start 42
 check "resumes it with --continue"             launched 'index("--continue") != null'
 check "and the same first prompt"              bash -c "tail -n 1 '$TASK_TEST_STATE/launches' | grep -qF 'Work on issue #42 in acme/tasks.'"
-check "which names that session its orchestrator" bash -c "tail -n 1 '$TASK_TEST_STATE/launches' | grep -qF 'Your orchestrator, the session that started this task, is \`the orchestrator\`.'"
-rm "$TASK_TEST_STATE/orchestrator"
+check "which names that session its orchestrator" bash -c "tail -n 1 '$TASK_TEST_STATE/launches' | grep -qF 'Your orchestrator, the session that started this task, is \`a task session\`.'"
 check "still interactive"                      interactive
 echo "$ISSUE42/backend" >"$TASK_TEST_STATE/running"
 check "a running session"                      task "$BACKEND" start 42

@@ -34,9 +34,8 @@ The same steps start a new task and pick up an existing one.
    - its running session, brought to the front and never opened twice, else its last session,
      resumed, else a new one, in the mode of its branch, which the session line names.
 
-   A new or resumed session starts with a prompt that sends it to the issue and its comments, and
-   names this session as its orchestrator. A running session gets no prompt: send it what changed
-   with SendMessage.
+   A new or resumed session starts with a prompt that sends it to the issue and its comments. A
+   running session gets no prompt: send it what changed with SendMessage.
 4. Return the issue URL, the worktree path, the session name, its mode and what the script picked
    up. Then report the status through `/task:status`.
 
