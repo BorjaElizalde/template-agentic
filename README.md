@@ -222,8 +222,15 @@ should not exist. The `code-trimmer` agent does: it cuts what the task's issue d
 passes that each report their count of lines added and removed, so the session that built the work
 can audit them. The `simplicity-reviewer`, a read-only agent, works out the smallest design for the
 issue before it reads the branch, and presents alternative designs, each built to be simpler than
-the one built. `execution.md` calls all three on every execution task's open PR, because an agent
-that no step calls does not run.
+the one built.
+
+`execution.md` calls the `code-trimmer` on every execution task's open PR, because an agent that
+no step calls does not run. It calls the `code-reviewer` before the trim and the
+`simplicity-reviewer` after it only when the session judges the change large enough to need them:
+on a small change, a bug fix or a small extension, the two cost more than the work and change
+little. The session judges by what the change does, not by its line count, which a `template/`
+mirror doubles and a wide mechanical rename inflates at low risk. A rebuild to the
+`simplicity-reviewer`'s design that adds code gets the review and the trim again.
 
 The text of `code-trimmer` and `simplicity-reviewer` draws on
 [Ponytail](https://github.com/DietrichGebert/ponytail),
