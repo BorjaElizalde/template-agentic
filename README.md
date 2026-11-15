@@ -2,8 +2,9 @@
 
 A [Copier](https://copier.readthedocs.io/) template for the language-neutral half of an agentic
 coding setup: the Claude Code guards, skills and agents, and the issue → worktree → session
-workflow. A project applies it side by side with one stack layer (for example
-`template-python-service`), each layer with its own answers file.
+workflow. A repository with no stack layer applies it alone. A stack template (for example
+`template-python-service`) carries it inside, so a project of that stack applies the stack
+template only: see [Bundle into a stack template](#bundle-into-a-stack-template).
 
 ## Apply and update
 
@@ -18,9 +19,10 @@ then tags the next `YYYYMMDD.N` version (a PEP 440 version, which Copier and Ren
 Projects take it as an update PR (Renovate's Copier manager, or `copier update` by hand). The
 shared Renovate rules, `renovate/base.json` (see [What the project owns](#what-the-project-owns)),
 open that PR at any time and outside every group, so a release reaches projects within hours,
-each template layer in its own PR. The template uses no unsafe Copier feature (Jinja extensions,
-migrations, tasks, or `_external_data` outside the project root), so an update runs without
-`--trust`.
+each template in its own PR. A project of a stack template gets the release later, with the
+stack template's release that bundles it. The template uses no unsafe Copier feature (Jinja
+extensions, migrations, tasks, or `_external_data` outside the project root), so an update runs
+without `--trust`.
 
 ## Questions
 
@@ -324,6 +326,48 @@ nothing.
 | `.claude/hooks/stack/format.sh` | Runs after every Edit/Write with the hook payload on stdin. |
 | `make gate` | The project's full local validation, which `/gate` runs. The stack layer provides it. |
 
+## Bundle into a stack template
+
+Copier has no setting that makes one template include another, so a stack template carries a copy
+of this one, which `bundle.sh` writes. A project then applies the stack template only: one
+`copier copy`, one answers file and one update PR, with both layers at the versions that the
+stack template's release holds. Run the script from a clone of this repository at the version to
+bundle:
+
+```bash
+git clone --quiet --depth 1 --branch <version> https://github.com/BorjaElizalde/template-agentic.git <clone>
+bash <clone>/bundle.sh <stack-template>            # bundle that version into the stack template
+bash <clone>/bundle.sh --check <stack-template>    # fail when the stack template's bundle is not that version's
+```
+
+The script copies this template's `template/` files into the stack template's `template/`, and its
+`copier.yaml` to `agentic/copier.yaml`. It lists the files it bundled in `agentic/files` and
+removes them first on its next run, so a file that a later version drops leaves the stack
+template too. It refuses a stack template that has its own copy of a file it bundles, so a release
+here can't replace a stack template's file.
+
+The stack template:
+
+- Opens its `copier.yaml` with `!include agentic/copier.yaml` and `---`, then gives its own
+  settings and questions. Copier joins the `_skip_if_exists` lists of the two documents, so the
+  files each layer seeds stay the project's. For every other setting the stack template's
+  document wins, so it names its own `_answers_file`, and a question it names as one of this
+  template's replaces that question, so it uses names of its own. Its questions come after this
+  template's, so they and its files may read this template's answers.
+- Has no answers-file template of its own: the bundle brings `{{ _copier_conf.answers_file }}.jinja`.
+- Runs the script in its agentic update PR, at the version that PR brings, and runs `--check` in
+  its gate at the version it records, so the gate fails on a stale bundle or on a bundled file
+  changed by hand. A stack template that applies this template to itself already records that
+  version: the `_commit` of its `.copier-answers.agentic.yaml`, which Renovate's Copier manager
+  moves in each agentic update PR.
+
+A project applies and updates the stack template alone:
+
+```bash
+uvx copier copy <stack-template-url> .
+uvx copier update -a <the stack template's answers file>
+```
+
 ## Develop
 
 This repository works on the same three branches as every project. Feature PRs squash into
@@ -342,8 +386,13 @@ commit that changes `template/` and stops the commit when it re-rendered somethi
 re-render is staged with the change. Once per clone, run `uvx pre-commit install` and
 `bash .claude/skills/task/scripts/task.sh point-memory`.
 
-`make gate` renders the template, runs shellcheck on every script in the render and in `tests/`,
-and runs the rendered suites, which cover every hook and script. It also runs `make render` on a
+`make gate` renders the template, runs shellcheck on every script in the render, in `tests/` and
+`bundle.sh`, and runs the rendered suites, which cover every hook and script. It bundles the
+working tree into a copy of `tests/stack`, a small stack template, and proves that `copier copy`
+of it gives the files of the two layers applied one after the other, with one answers file;
+that `copier update` across its next release, which bundles a change made here, delivers that
+change without `--trust` and keeps the files both layers seed once; and that `bundle.sh --check`
+passes the bundle of its own version only. It also runs `make render` on a
 copy of the working tree and fails when that changes `.claude/`, for a commit made without the
 hook. The `Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`,
 after it checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or
