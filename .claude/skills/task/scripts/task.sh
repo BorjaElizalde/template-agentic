@@ -107,6 +107,17 @@ session_tty() {
 	echo "/dev/$(ps -o tty= -p "$pid" | tr -d ' ')"
 }
 
+# The name of the session this script runs in, found in $SESSIONS by its pid among this process's
+# ancestors: several sessions can share a folder, so the folder can't tell which one runs it. It
+# fails when none does.
+caller_session() {
+	local pid=$$
+	until jq -re --argjson pid "$pid" 'first(.[] | select(.pid == $pid) | .name)' <<<"$SESSIONS"; do
+		pid=$(ps -o ppid= -p "$pid" | tr -d ' ')
+		[ "${pid:-0}" -gt 1 ] || return 1
+	done
+}
+
 # "session busy|idle|waiting" of the session running in folder $1, else "no session".
 session_line() {
 	session "$1" | jq -r '"session " + .status' || echo "no session"
@@ -130,9 +141,13 @@ quoted() {
 # open_session <worktree> <name> <issue> <mode> [--continue]: returns once the session runs.
 open_session() {
 	# A session opened without a first prompt waits at an empty input, so this one sends it to its
-	# issue. One prompt serves a new session and a resumed one.
+	# issue. One prompt serves a new session and a resumed one. It names the session that runs the
+	# start, which the session escalates to.
 	local first="Work on issue #$3 in $ISSUES_REPO. Read its title, body and comments: gh issue view $3 -R $ISSUES_REPO --json title,body,comments. Carry it out until it is done as the issue says; if this session already worked on it, go on from where it stopped."
-	local files=$MAIN/.claude/skills/task/session settings tools=" --disallowed-tools AskUserQuestion" command launcher
+	local files=$MAIN/.claude/skills/task/session settings tools=" --disallowed-tools AskUserQuestion" command launcher orchestrator
+	if orchestrator=$(caller_session); then
+		first+=" Your orchestrator, the session that started this task, is \`$orchestrator\`."
+	fi
 	settings=$files/settings.json
 	# Every session has its permission prompts denied. An execution session never waits for a
 	# person: it has no question tool, and its Stop hook sends it back to work when it ends its turn

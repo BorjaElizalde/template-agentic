@@ -193,7 +193,8 @@ prompt is `prompt.md`, the words both modes share, then the mode's own words, `e
 it launches the session. Nobody answers an execution session, so it never waits for a person:
 `--disallowed-tools AskUserQuestion` removes the question tool, `execution.md` tells it to take
 the option it would recommend and go on, and a `Stop` prompt hook in `settings.json` sends it back
-to work when it ends its turn on a question. The hook's model call runs on the session's own
+to work when it ends its turn on a question, or on a last message that holds more than its result
+or what the task waits on. The hook's model call runs on the session's own
 login, so it needs no API key either. A design session keeps the question tool and goes without
 the `Stop` hook: `claude --settings` takes one file or JSON string, so `task.sh` gives it the
 settings less the hook as JSON. It asks the owner what is the owner's to decide, and may end its
@@ -203,6 +204,19 @@ session back to work past it. `task.sh` finds a running session in
 `claude agents --json`, the supported way to read session state from outside Claude Code, as the
 interactive session whose working directory is the worktree; it finds the session's Terminal tab
 by that process's tty.
+
+A task session leaves no loose end. It finishes what is part of its task, and each thing it finds
+outside it, it drops on purpose or escalates to its orchestrator, the session that started the
+task, never to the owner. The orchestrator resolves each escalation or brings it to the owner. The
+escalation is a `SendMessage`, so it reaches the orchestrator at once, also when the task's issue
+closes next: `/task:status` reads a session's last message only while its task runs, and a cleanup
+finishes the task of a closed issue. `task.sh start` names the orchestrator in its first prompt:
+the session in `claude agents --json` whose pid is the start's own process or an ancestor of it,
+since several sessions can share a folder. A start that resumes a session names the session that
+resumes it. A send to a session that has exited fails ("No agent named … is reachable"); then, and
+when no session ran the start, the task waits on the escalation, which its last message holds for
+`/task:status` to read. The last message holds the result or what the task waits on, and nothing
+else: the reasons for the session's choices go in the PR or on the issue.
 
 `/task:start`, `/task:finish` and `/task:status` are skills of one plugin, `.claude/skills/task/`,
 so they share its `scripts/task.sh` through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a

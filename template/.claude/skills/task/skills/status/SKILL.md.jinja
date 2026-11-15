@@ -27,6 +27,8 @@ allowed-tools: Bash(bash:*), Bash(gh issue view:*)
    - no session: resume it with `/task:start <n>`. ⏳
 
    `Owner steps` the owner has not taken yet make the mark ✋. Every other task is running: ⏳.
+   An escalation in a last message is one the session's orchestrator could not receive: resolve
+   it, or bring it to the owner on the card.
 4. Reply in plain words: short sentences, the answer first, and no hashes, file paths or commands
    unless the owner needs one to act.
    - Open with one line: how many cards need the owner.
