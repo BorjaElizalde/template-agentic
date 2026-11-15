@@ -228,8 +228,7 @@ the one built.
 no step calls does not run. It calls the `code-reviewer` before the trim and the
 `simplicity-reviewer` after it only when the session judges the change large enough to need them:
 on a small change, a bug fix or a small extension, the two cost more than the work and change
-little. A rebuild to the `simplicity-reviewer`'s design that adds code gets the review and the trim
-again.
+little.
 
 The text of `code-trimmer` and `simplicity-reviewer` draws on
 [Ponytail](https://github.com/DietrichGebert/ponytail),
