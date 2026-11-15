@@ -136,10 +136,7 @@ expect "code-trimmer edits and commits, and spawns no agent" bash -c "
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
-# tests/stack is a stack template that carries this one through bundle.sh. Its release v1 bundles
-# the working tree; v2 bundles a next version that adds a file, drops one and changes a seed, and
-# changes the stack's own seed.
-release() {  # release <repo> <tag>: commit the working tree and tag it
+release() {
   git -C "$1" add -A && git -C "$1" -c user.name=t -c user.email=t@t commit -qm "$2" && git -C "$1" tag "$2"
 }
 S="$OUT/stack"
@@ -157,11 +154,12 @@ printf 'gate:\n\t@echo v2\n' >"$S/template/Makefile"
 release "$S" v2
 
 TWO="$OUT/two-layers"
-uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks "$OUT/src" "$TWO"
+# agentic.conf names the answers file, so both renders name the bundled project's.
+uvx --quiet copier copy --quiet --defaults -a .copier-answers.stack.yaml --data issues_repo=acme/tasks "$OUT/src" "$TWO"
 uvx --quiet copier copy --quiet --defaults "$OUT/src/tests/stack" "$TWO"
 B="$OUT/bundled"
 uvx --quiet copier copy --quiet --defaults --vcs-ref v1 --data issues_repo=acme/tasks "$S" "$B"
-bundled_like_two_layers() {  # the bundled stack renders the two layers' files, with one answers file
+bundled_like_two_layers() {
   diff -rq --exclude '.copier-answers.*' "$TWO" "$B" | sed 's/^/FAIL /' &&
     [ "$(cd "$B" && ls -d .copier-answers.*)" = .copier-answers.stack.yaml ] &&
     grep -qx 'issues_repo: acme/tasks' "$B/.copier-answers.stack.yaml" && grep -qx 'package_name: app' "$B/.copier-answers.stack.yaml"

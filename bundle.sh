@@ -10,7 +10,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 listing() { (cd "$1" && find . -type f | sed 's#^\./##' | LC_ALL=C sort); }
 
-bundle() {  # bundle <stack>
+bundle() {
   local bundled="$1/agentic/files" clash f
   mkdir -p "$1/agentic"
   touch "$bundled"
@@ -22,7 +22,7 @@ bundle() {  # bundle <stack>
   cp "$ROOT/copier.yaml" "$1/agentic/copier.yaml"
 }
 
-check() {  # check <stack>: a fresh bundle into a copy of the stack's bundle changes nothing
+check() {
   copy="$(mktemp -d)"
   trap 'rm -rf "$copy"' EXIT
   cp -R "$1/agentic" "$1/template" "$copy/"

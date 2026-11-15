@@ -345,8 +345,9 @@ The stack template:
 - Opens its `copier.yaml` with `!include agentic/copier.yaml` and `---`, then gives its own
   settings and questions. Copier joins the `_skip_if_exists` lists of the two documents, so the
   files each layer seeds stay the project's. For every other setting the stack template's
-  document wins, so it names its own `_answers_file`. Its questions come after this template's,
-  so they and its files may read this template's answers.
+  document wins, so it names its own `_answers_file`, and a question it names as one of this
+  template's replaces that question, so it uses names of its own. Its questions come after this
+  template's, so they and its files may read this template's answers.
 - Has no answers-file template of its own: the bundle brings `{{ _copier_conf.answers_file }}.jinja`.
 - Runs the script in its agentic update PR, at the version that PR brings, and runs `--check` in
   its gate at the version it records, so the gate fails on a stale bundle or on a bundled file
@@ -381,7 +382,7 @@ re-render is staged with the change. Once per clone, run `uvx pre-commit install
 
 `make gate` renders the template, runs shellcheck on every script in the render, in `tests/` and
 `bundle.sh`, and runs the rendered suites, which cover every hook and script. It bundles the
-working tree into `tests/stack`, a small stack template, and proves that a copy of it gives the
+working tree into a copy of `tests/stack`, a small stack template, and proves that a copy of it gives the
 files of this template and the stack layer copied one after the other, with one answers file;
 that `copier update` across its next release, which bundles a change made here, delivers that
 change without `--trust` and keeps the files both layers seed once; and that `bundle.sh --check`
