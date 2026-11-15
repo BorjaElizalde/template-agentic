@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Bundles this checkout of template-agentic into a stack template, so a project applies the stack
-# template alone: this template's template/ files go into the stack's template/, and its copier.yaml
-# into agentic/copier.yaml, which the stack's copier.yaml includes. agentic/files lists the bundled
-# files, so the next run removes the ones a later version drops. Run it from a clone at the version:
+# Bundles this checkout of template-agentic into a stack template, whose copier.yaml includes the
+# agentic/copier.yaml it writes. agentic/files lists the bundled files, so the next run removes the
+# ones a later version drops. Run it from a clone at the version:
 #   bash bundle.sh <stack-template>            bundle that version into the stack template
-#   bash bundle.sh --check <stack-template>    fail when the stack's bundle differs from that version's
+#   bash bundle.sh --check <stack-template>    fail when the stack's bundle is not that version's
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 

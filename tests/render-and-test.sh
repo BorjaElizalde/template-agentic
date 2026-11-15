@@ -168,8 +168,7 @@ expect "a copy of a stack template that bundles this one gives the two layers' f
 git -C "$B" init -q
 git -C "$B" add -A
 git -C "$B" -c user.name=t -c user.email=t@t commit -qm copy
-(cd "$B" && GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  uvx --quiet copier update --quiet --skip-answered --defaults -a .copier-answers.stack.yaml --vcs-ref v2)
+(cd "$B" && uvx --quiet copier update --quiet --defaults -a .copier-answers.stack.yaml --vcs-ref v2)
 expect "copier update across a bundled release delivers this template's change, without --trust" bash -c "
   [ -f '$B/update-probe.txt' ] && [ ! -e '$B/.claude/skills/commit/SKILL.md' ] && grep -qx '_commit: v2' '$B/.copier-answers.stack.yaml'"
 expect "the update keeps the files both layers seed once" bash -c "

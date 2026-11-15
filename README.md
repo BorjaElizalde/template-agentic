@@ -337,8 +337,7 @@ The script copies this template's `template/` files into the stack template's `t
 `copier.yaml` to `agentic/copier.yaml`. It lists the files it bundled in `agentic/files` and
 removes them first on its next run, so a file that a later version drops leaves the stack
 template too. It refuses a stack template that has its own copy of a file it bundles, so a release
-here can't replace a stack template's file. `--check` bundles into a copy of the stack template's
-`agentic/` and `template/`, and fails when that changes anything.
+here can't replace a stack template's file.
 
 The stack template:
 
@@ -382,13 +381,13 @@ re-render is staged with the change. Once per clone, run `uvx pre-commit install
 
 `make gate` renders the template, runs shellcheck on every script in the render, in `tests/` and
 `bundle.sh`, and runs the rendered suites, which cover every hook and script. It bundles the
-working tree into a copy of `tests/stack`, a small stack template, and proves that a copy of it gives the
-files of this template and the stack layer copied one after the other, with one answers file;
+working tree into a copy of `tests/stack`, a small stack template, and proves that `copier copy`
+of it gives the files of the two layers applied one after the other, with one answers file;
 that `copier update` across its next release, which bundles a change made here, delivers that
 change without `--trust` and keeps the files both layers seed once; and that `bundle.sh --check`
-passes the bundle of its own version only. It also runs `make render` on a copy of the working
-tree and fails when that changes `.claude/`, for a commit made without the hook. The `Gate`
-workflow runs the same target on every PR into `develop`, `staging` or `main`, after it checks
-where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or a `bugfix/*` PR
-of one commit, from this repository's own branches. `Build` runs the gate again on `main` before
-it tags.
+passes the bundle of its own version only. It also runs `make render` on a
+copy of the working tree and fails when that changes `.claude/`, for a commit made without the
+hook. The `Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`,
+after it checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or
+a `bugfix/*` PR of one commit, from this repository's own branches. `Build` runs the gate again on
+`main` before it tags.

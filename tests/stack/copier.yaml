@@ -1,5 +1,4 @@
-# A stack template for the gate: it carries template-agentic through bundle.sh, which writes
-# agentic/copier.yaml and adds the agentic files to template/.
+# A stack template for the gate: bundle.sh writes the agentic/copier.yaml it includes.
 !include agentic/copier.yaml
 ---
 _subdirectory: template
