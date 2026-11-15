@@ -206,6 +206,10 @@ session back to work past it. `task.sh` finds a running session in
 interactive session whose working directory is the worktree; it finds the session's Terminal tab
 by that process's tty.
 
+A task session escalates what it finds outside its task with `SendMessage` to its orchestrator,
+never to the owner. `task.sh start` names the orchestrator in the first prompt: the session in
+`claude agents --json` whose pid is `CLAUDE_PID`, which Claude Code sets in its Bash commands.
+
 `/task:start`, `/task:finish` and `/task:status` are skills of one plugin, `.claude/skills/task/`,
 so they share its `scripts/task.sh` through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a
 Makefile for them. Claude Code loads a plugin under `.claude/skills/` in place, with no install
