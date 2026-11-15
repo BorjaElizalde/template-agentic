@@ -154,8 +154,8 @@ printf 'gate:\n\t@echo v2\n' >"$S/template/Makefile"
 release "$S" v2
 
 TWO="$OUT/two-layers"
-# agentic.conf names the answers file, so both renders name the bundled project's.
-uvx --quiet copier copy --quiet --defaults -a .copier-answers.stack.yaml --data issues_repo=acme/tasks "$OUT/src" "$TWO"
+uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks "$OUT/src" "$TWO"
+# Copier reads an !include that matches no file as empty, and this copy of tests/stack has no agentic/.
 uvx --quiet copier copy --quiet --defaults "$OUT/src/tests/stack" "$TWO"
 B="$OUT/bundled"
 uvx --quiet copier copy --quiet --defaults --vcs-ref v1 --data issues_repo=acme/tasks "$S" "$B"
