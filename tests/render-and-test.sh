@@ -193,7 +193,7 @@ make_claude() {  # make_claude <PATH> <expected output> <make arguments...>; the
     { printf 'FAIL make claude ran:\n%s\n' "$out"; return 1; }
 }
 expect "make claude keeps the machine awake and gives claude its flag, args and the prompt as one argument" make_claude \
-  "$SI/caffeinate:$SI/claude:$PATH" "$(printf '%s\n' 'caffeinate -is' --remote-control --continue '/loop check the board; then stop')" \
+  "$SI/caffeinate:$SI/claude:$PATH" "$(printf '%s\n' 'caffeinate -is' --remote-control --continue -- '/loop check the board; then stop')" \
   args=--continue 'prompt=/loop check the board; then stop'
 expect "with no caffeinate and no prompt, make claude starts claude alone, with no empty argument" make_claude \
   "$SI/claude" --remote-control

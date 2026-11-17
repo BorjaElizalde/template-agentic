@@ -6,13 +6,13 @@
 .DEFAULT_GOAL := help
 
 # Claude Code keeps a Mac awake only while a session is busy, and never against system sleep.
-KEEP_AWAKE ?= $(if $(shell command -v caffeinate),caffeinate -is)
+KEEP_AWAKE ?= $(if $(shell command -v caffeinate 2>/dev/null),caffeinate -is)
 CLAUDE_FLAGS ?= --remote-control
 
 .PHONY: help claude
 help: ## List every target, under the file that defines it.
 	@awk -F ':.*## ' '/^[a-zA-Z0-9_-]+:.*## / { if (FILENAME != f) { f = FILENAME; printf "\n%s\n", f } printf "  %-14s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-# make exports a variable given on its command line, so the shell passes the prompt as one argument.
+# The shell reads prompt, which make exports; -- stops a flag like --remote-control [name] taking it.
 claude: ## Start Claude with Remote Control and keep the machine awake: args="--continue" prompt="/loop ..."
-	@$(KEEP_AWAKE) claude $(CLAUDE_FLAGS) $(args) $${prompt:+"$$prompt"}
+	@$(KEEP_AWAKE) claude $(CLAUDE_FLAGS) $(args) $${prompt:+-- "$$prompt"}

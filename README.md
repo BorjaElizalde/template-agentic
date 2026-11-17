@@ -223,8 +223,11 @@ worktree. The main session starts with `make claude`: see
 Claude the same way and lists its make targets in one place:
 
 - `make claude` starts Claude in the folder with Remote Control, and keeps the Mac awake until
-  Claude exits. `args` passes flags to `claude`, and `prompt` passes one argument, or none when it
-  is not given: `make claude args="--continue" prompt="/loop check the board; then stop"`.
+  Claude exits. `args` passes flags to `claude`, and `prompt` passes one argument after `--`, or
+  none when it is not given:
+  `make claude args="--continue" prompt="/loop check the board; then stop"`. The `--` ends the
+  options, so a flag with an optional value, such as `--remote-control [name]` or `--resume [value]`,
+  never takes the prompt as that value.
 - `make help` lists each described target (`<target>: ## <description>`) of the project's
   `Makefile` and of every fragment it includes, under the file that defines it, so a reader sees
   which layer owns a target. The fragment sets `.DEFAULT_GOAL := help`, so a bare `make` lists the
@@ -247,8 +250,9 @@ with no stack layer includes the fragment from its own `Makefile`:
 include .claude/agentic.mk
 ```
 
-A stack template's fragment includes it the same way, so a project `Makefile` that includes only
-the stack fragment gets both. Make resolves an `include` path from the folder it runs in, so run
+A stack template's fragment includes it the same way, so a project of a stack template includes
+only the stack fragment: a second include of `.claude/agentic.mk` defines its targets twice. Make
+resolves an `include` path from the folder it runs in, so run
 `make` in the project's root, or as `make -C <project>`.
 
 A project extends the fragments from its own `Makefile` in three ways:
