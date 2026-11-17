@@ -4,7 +4,7 @@ A [Copier](https://copier.readthedocs.io/) template for the language-neutral hal
 coding setup: the Claude Code hooks, rules, skills and agents, the issue → worktree → session
 task workflow, and the `Gate` workflow. A stack template, such as `template-python-service`,
 carries it inside each of its releases and fills its plug-in points for one stack, so a project
-applies the stack template only, with one answers file and one update PR.
+applies the stack template only.
 
 ## Bundle into a stack template
 
@@ -37,7 +37,7 @@ does:
    `{{ _copier_conf.answers_file }}.jinja`.
 4. Start the validator of a question that has no default with
    `{% if 'issues_repo' not in _copier_answers %}`, whose message says to copy a release tag. It
-   stops a copy of a branch, which holds no bundle.
+   stops a copy of a branch.
 
 ## What a stack template supplies
 
@@ -45,7 +45,7 @@ A stack template supplies these files in its `template/`, so that each project g
 
 | File | Contract |
 |---|---|
-| `.github/actions/stack-gate/action.yaml` | The composite action that the `Gate` workflow runs on every PR into `develop`, `staging` or `main`, after its PR-source check and the checkout. It calls the stack's tools directly, never `make gate`. |
+| `.github/actions/stack-gate/action.yaml` | The composite action that the `Gate` workflow runs on every PR into `develop`, `staging` or `main`, after the checkout. It calls the stack's tools directly, never `make gate`. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit/Write with the hook payload on stdin. |
 
