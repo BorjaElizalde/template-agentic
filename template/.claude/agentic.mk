@@ -13,5 +13,5 @@ help: ## List every target, under the file that defines it.
 	@awk -F ':.*## ' '/^[a-zA-Z0-9_-]+:.*## / { if (FILENAME != f) { f = FILENAME; printf "\n%s\n", f } printf "  %-14s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 # The shell reads prompt, which make exports; -- stops a flag like --remote-control [name] taking it.
-claude: ## Start Claude with Remote Control and keep the machine awake: args="--continue" prompt="/loop ..."
+claude: ## Start Claude here and keep the machine awake until it exits: args="--continue" prompt="/loop ..."
 	@$(KEEP_AWAKE) claude $(CLAUDE_FLAGS) $(args) $${prompt:+-- "$$prompt"}
