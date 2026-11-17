@@ -46,12 +46,10 @@ An issue states the problem; the task that starts from it finds the solution, an
 closes it states it. A reader who has only the issue must see why the work exists, whether it is
 worth doing, and when it is done. The session reads it to find the simplest design, and to find
 its way back when a design fails: a problem leaves it free to do both, where a prescribed solution
-ties it to one design. A solution in the issue also becomes a requirement, since the reviewers
-hold the branch to what the issue asks.
+ties it to one design.
 
 So an issue holds no part of a solution: no design, no change to make, no option tried and no
-advice on how to build it. The owner's decisions are the one exception. A comment that briefs a
-task on its issue keeps the same rule.
+advice on how to build it. The owner's decisions are the one exception.
 
 The title names the problem or the outcome, not a step to take: "A restart wipes a task's input
 files", not "Move task inputs out of /tmp". Its first 40 characters name the task's branch,
@@ -72,12 +70,10 @@ a file, a text or a step that only one design has. For a research or a design ta
 its result goes: a PR, or a comment on the issue.
 
 ## The owner's decisions
-Only what the owner decided, quoted in the owner's words with the date, which the session follows.
-What anyone else chose stays out of the issue.
+Only what the owner decided, quoted in the owner's words, which the session follows.
 
 ## Findings
-What an earlier discussion found out about the problem, so the session does not find it again:
-where the problem lives in the code, and what that code and the tools it uses do today.
+What an earlier discussion found out about the problem, so the session does not find it again.
 ```
 
 The issue is the session's whole brief: it sees nothing of the conversation that started it, so
