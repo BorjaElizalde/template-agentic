@@ -214,8 +214,54 @@ never to the owner. `task.sh start` names the orchestrator in the first prompt: 
 so they share its `scripts/task.sh` through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a
 Makefile for them. Claude Code loads a plugin under `.claude/skills/` in place, with no install
 and no settings entry, from the folder a session starts in: the main checkout, or a task's
-worktree. Claude itself is started however the machine prefers, for example
-`alias claude-rc='caffeinate -i claude --remote-control'`.
+worktree. The main session starts with `make claude`: see
+[Start Claude and list the make targets](#start-claude-and-list-the-make-targets).
+
+## Start Claude and list the make targets
+
+`.claude/agentic.mk` is a make fragment this template owns and updates, so every project starts
+Claude the same way and lists its make targets in one place:
+
+- `make claude` starts Claude in the folder with Remote Control, and keeps the Mac awake until
+  Claude exits. `args` passes flags to `claude`, and `prompt` passes one argument, or none when it
+  is not given: `make claude args="--continue" prompt="/loop check the board; then stop"`.
+- `make help` lists each described target (`<target>: ## <description>`) of the project's
+  `Makefile` and of every fragment it includes, under the file that defines it, so a reader sees
+  which layer owns a target. The fragment sets `.DEFAULT_GOAL := help`, so a bare `make` lists the
+  targets instead of running the first one, which in a stack fragment can change files.
+
+Remote Control is the target's `--remote-control` flag (`CLAUDE_FLAGS`), not the
+`remoteControlAtStartup` setting, which turns it on for every interactive session and which Claude
+Code reads from user or managed settings only. So the session started with `make claude` has it,
+and task sessions don't. The keep-awake is `caffeinate -is` (`KEEP_AWAKE`): Claude Code runs its
+own `caffeinate -i` only while a session is busy, so it holds nothing while a session waits for a
+Remote Control message or a `/loop` wake-up, and it never blocks system sleep. `KEEP_AWAKE` is the
+fragment's only OS-specific part: where there is no `caffeinate` it is empty, and `make claude`
+starts Claude without it. The rest needs only POSIX `sh` and GNU Make 3.81, which macOS ships.
+
+The template ships the fragment, never a `Makefile`: a stack template seeds the project's
+`Makefile`, and `bundle.sh` refuses a stack template's own copy of a file it bundles. A project
+with no stack layer includes the fragment from its own `Makefile`:
+
+```make
+include .claude/agentic.mk
+```
+
+A stack template's fragment includes it the same way, so a project `Makefile` that includes only
+the stack fragment gets both. Make resolves an `include` path from the folder it runs in, so run
+`make` in the project's root, or as `make -C <project>`.
+
+A project extends the fragments from its own `Makefile` in three ways:
+
+- its own targets, each with a `## ` description so that `make help` lists it;
+- a prerequisite on a fragment's target: `gate: rules` runs the project's `rules` with the
+  fragment's checks, before the fragment's `gate` recipe;
+- a variable set after the include: `CLAUDE_FLAGS =` drops Remote Control, and
+  `.DEFAULT_GOAL := run` makes a bare `make` run `run`.
+
+It never gives a fragment's target a second recipe: make runs the later one, but every call then
+warns `overriding commands for target`. So a project that wrote its own `claude` or `help` target
+deletes it.
 
 ## Review, trim and design check on the open PR
 
@@ -359,6 +405,8 @@ The stack template:
   template's replaces that question, so it uses names of its own. Its questions come after this
   template's, so they and its files may read this template's answers.
 - Has no answers-file template of its own: the bundle brings `{{ _copier_conf.answers_file }}.jinja`.
+- Has a make fragment that opens with `include .claude/agentic.mk` and holds `make gate`, and
+  seeds a `Makefile` that includes that fragment, so `make help` lists the three files' targets.
 - Runs the script in its agentic update PR, at the version that PR brings, and runs `--check` in
   its gate at the version it records, so the gate fails on a stale bundle or on a bundled file
   changed by hand. A stack template that applies this template to itself already records that
@@ -387,16 +435,19 @@ project gets. Being the source, it has no answers file for Copier or Renovate to
 `make render` makes `.claude/` match a render of the working tree, leaving the paths this
 repository owns (the memory stores and the local settings). A pre-commit hook runs it on every
 commit that changes `template/` and stops the commit when it re-rendered something, so the
-re-render is staged with the change. Once per clone, run `uvx pre-commit install` and
+re-render is staged with the change. Its `Makefile` includes `.claude/agentic.mk`, so
+`make claude` and `make help` work here too. Once per clone, run `uvx pre-commit install` and
 `bash .claude/skills/task/scripts/task.sh point-memory`.
 
 `make gate` renders the template, runs shellcheck on every script in the render, in `tests/` and
 `bundle.sh`, and runs the rendered suites, which cover every hook and script. It bundles the
 working tree into a copy of `tests/stack`, a small stack template, and proves that `copier copy`
 of it gives the files of the two layers applied one after the other, with one answers file;
-that `copier update` across its next release, which bundles a change made here, delivers that
-change without `--trust` and keeps the files both layers seed once; and that `bundle.sh --check`
-passes the bundle of its own version only. It also runs `make render` on a
+that a bare `make` in that copy lists a target of its `Makefile`, of the stack fragment and of
+`.claude/agentic.mk`, and `make claude` gives a stand-in `claude` its arguments, with and without
+`caffeinate`; that `copier update` across its next release, which bundles a change made here,
+delivers that change without `--trust` and keeps the files both layers seed once; and that
+`bundle.sh --check` passes the bundle of its own version only. It also runs `make render` on a
 copy of the working tree and fails when that changes `.claude/`, for a commit made without the
 hook. The `Gate` workflow runs the same target on every PR into `develop`, `staging` or `main`,
 after it checks where the PR comes from: `main` takes `staging`, and `staging` takes `develop` or

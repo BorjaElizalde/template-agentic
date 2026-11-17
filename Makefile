@@ -1,12 +1,12 @@
-# The template's gate: render it the way a project gets it, then run every rendered suite.
+include .claude/agentic.mk
+
 .PHONY: gate render
-gate:
+gate: ## Render the template the way a project gets it, then run every rendered suite.
 	@bash tests/render-and-test.sh
 
 OWNED := --exclude /memory/ --exclude /agent-memory/ --exclude /settings.local.json
 
-# Make .claude/ match a render of the working tree, except the paths this repository owns.
-render:
+render: ## Make .claude/ match a render of the working tree, except the paths this repository owns.
 	@. .claude/agentic.conf && tmp="$$(mktemp -d)" && trap 'rm -rf "$$tmp"' EXIT && \
 	  mkdir "$$tmp/src" && tar --exclude .git -cf - . | tar -xf - -C "$$tmp/src" && \
 	  uvx --quiet copier copy --quiet --defaults --data "issues_repo=$$ISSUES_REPO" \

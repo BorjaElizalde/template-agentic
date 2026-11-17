@@ -26,7 +26,7 @@ git -C "$D" init -q
 git -C "$D" add -A
 git -C "$D" -c user.name=t -c user.email=t@t commit -qm render
 
-expect "no Makefile, harness.mk or CLAUDE.md written" bash -c "[ ! -e '$D/Makefile' ] && [ ! -e '$D/harness.mk' ] && [ ! -e '$D/CLAUDE.md' ]"
+expect "the make fragment is .claude/agentic.mk, and no Makefile or CLAUDE.md is written" bash -c "[ -f '$D/.claude/agentic.mk' ] && [ ! -e '$D/Makefile' ] && [ ! -e '$D/CLAUDE.md' ]"
 expect "the shared rules load without an import" bash -c "[ -f '$D/.claude/rules/agentic.md' ] && [ -f '$D/.claude/rules/conventions.md' ]"
 expect "answers land in .copier-answers.agentic.yaml" test -f "$D/.copier-answers.agentic.yaml"
 expect "no .yml file in the template or the project" bash -c "[ -z \"\$(find '$ROOT' '$D' -name '*.yml' -not -path '*/.git/*')\" ]"
@@ -166,6 +166,37 @@ bundled_like_two_layers() {
     grep -qx 'issues_repo: acme/tasks' "$B/.copier-answers.stack.yaml" && grep -qx 'package_name: app' "$B/.copier-answers.stack.yaml"
 }
 expect "a copy of a stack template that bundles this one gives the two layers' files, with one answers file" bundled_like_two_layers
+help_lists_each_layer() {  # each target of make help, after the file it is listed under
+  local owners
+  owners="$(cd "$B" && make -s | awk '/^[^ ]/ { f = $0 } /^  / { print f, $1 }')"
+  [ "$owners" = "$(printf '%s\n' 'Makefile run' 'stack.mk gate' '.claude/agentic.mk help' '.claude/agentic.mk claude')" ] ||
+    { printf 'FAIL make help listed:\n%s\n' "$owners"; return 1; }
+}
+expect "in the copy, bare make lists the targets of its Makefile, the stack fragment and this template's, each under its file" help_lists_each_layer
+SI="$OUT/stand-ins"
+mkdir -p "$SI/claude" "$SI/caffeinate"
+cat >"$SI/claude/claude" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$@"
+EOF
+cat >"$SI/caffeinate/caffeinate" <<'EOF'
+#!/bin/sh
+echo "caffeinate $1"
+shift
+exec "$@"
+EOF
+chmod +x "$SI/claude/claude" "$SI/caffeinate/caffeinate"
+MAKE_BIN="$(command -v make)"
+make_claude() {  # make_claude <PATH> <expected output> <make arguments...>; the stand-ins print what ran
+  local out
+  out="$(cd "$B" && PATH="$1" "$MAKE_BIN" -s claude "${@:3}")" && [ "$out" = "$2" ] ||
+    { printf 'FAIL make claude ran:\n%s\n' "$out"; return 1; }
+}
+expect "make claude keeps the machine awake and gives claude its flag, args and the prompt as one argument" make_claude \
+  "$SI/caffeinate:$SI/claude:$PATH" "$(printf '%s\n' 'caffeinate -is' --remote-control --continue '/loop check the board; then stop')" \
+  args=--continue 'prompt=/loop check the board; then stop'
+expect "with no caffeinate and no prompt, make claude starts claude alone, with no empty argument" make_claude \
+  "$SI/claude" --remote-control
 git -C "$B" init -q
 git -C "$B" add -A
 git -C "$B" -c user.name=t -c user.email=t@t commit -qm copy
