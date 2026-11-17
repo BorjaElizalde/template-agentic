@@ -8,11 +8,10 @@ applies the stack template only, with one answers file and one update PR.
 
 ## Bundle into a stack template
 
-Copier has no setting that makes one template include another, so a stack template's release
-carries a copy of this one, which `bundle.sh` writes: it copies this template's `template/` into
-the stack template's `template/`, and its `copier.yaml` to `agentic/copier.yaml`. It refuses a
-stack template that has its own copy of a file it bundles. `template-python-service` takes it this
-way:
+A stack template's release carries a copy of this one, which `bundle.sh` writes: it copies this
+template's `template/` into the stack template's `template/`, and its `copier.yaml` to
+`agentic/copier.yaml`. It refuses a stack template that has its own copy of a file it bundles.
+`template-python-service` takes it this way:
 
 - It applies this template to its own repository. Its `.copier-answers.agentic.yaml` then
   records the version that a release bundles, and Renovate's Copier manager moves that version in
@@ -49,17 +48,17 @@ A stack template supplies these fixed names:
 | `make gate` | The project's full local validation, which `/gate` runs. |
 
 This template ships no `Makefile`. The stack template seeds the project's `Makefile`, which
-includes the stack's make fragment, and that fragment includes this template's:
+includes the stack's make fragment, and that fragment must include this template's:
 
 ```make
 include .claude/agentic.mk
 ```
 
 `.claude/agentic.mk` gives `make claude` and `make help`. The project's `Makefile` includes only
-the stack fragment, since a second include defines each target twice. The stack fragment describes
-each target on its rule line, as `gate: ## <description>`, which `make help` lists. It extends a
-target of `agentic.mk` only with a prerequisite or a variable set after the include, never with a
-second recipe, which make warns about on every call.
+the stack fragment, since a second include defines each target twice. The stack fragment must
+describe each target on its rule line, as `gate: ## <description>`, for `make help` to list it.
+It extends a target of `agentic.mk` only with a prerequisite or a variable set after the include,
+never with a second recipe, which make warns about on every call.
 
 The stack's rules go in `.claude/rules/`, beside `agentic.md` and `conventions.md`. One of them
 lists the stack's skipped-check directives and the tools whose docs to read, which

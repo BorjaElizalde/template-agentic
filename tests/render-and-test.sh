@@ -60,7 +60,7 @@ expect "with agent_merges settings.json allows gh pr merge" jq -e "$MERGE_ALLOWE
 # shellcheck disable=SC2016
 expect "settings.json denies claude -p and claude --print" jq -e '.permissions.deny as $d
   | all("Bash(claude -p:*)", "Bash(claude --print:*)"; IN($d[]))' "$D/.claude/settings.json"
-# Only /task:finish closes an issue and only task.sh park labels one; delete and transfer are final.
+# Only /task:finish closes an issue, only task.sh park runs gh label; delete and transfer are final.
 expect "settings.json allows gh issue create, list, view, comment and edit, and no other gh issue or gh label call" jq -e '
   [.permissions.allow[] | select(startswith("Bash(gh issue") or startswith("Bash(gh label"))] | sort
   == ["Bash(gh issue comment:*)", "Bash(gh issue create:*)", "Bash(gh issue edit:*)", "Bash(gh issue list:*)", "Bash(gh issue view:*)"]' \
