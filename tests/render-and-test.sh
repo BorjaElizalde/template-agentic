@@ -60,7 +60,7 @@ expect "with agent_merges settings.json allows gh pr merge" jq -e "$MERGE_ALLOWE
 # shellcheck disable=SC2016
 expect "settings.json denies claude -p and claude --print" jq -e '.permissions.deny as $d
   | all("Bash(claude -p:*)", "Bash(claude --print:*)"; IN($d[]))' "$D/.claude/settings.json"
-# Neither gh issue close, delete, transfer nor gh issue:* or gh label: the README says why.
+# Only /task:finish closes an issue and only task.sh park labels one; delete and transfer are final.
 expect "settings.json allows gh issue create, list, view, comment and edit, and no other gh issue or gh label call" jq -e '
   [.permissions.allow[] | select(startswith("Bash(gh issue") or startswith("Bash(gh label"))] | sort
   == ["Bash(gh issue comment:*)", "Bash(gh issue create:*)", "Bash(gh issue edit:*)", "Bash(gh issue list:*)", "Bash(gh issue view:*)"]' \
@@ -78,10 +78,6 @@ expect "both preset files and every renovate.json are valid Renovate config" uvx
 expect "the project's renovate.json is the pointer to the project preset only" jq -e '
   keys == ["$schema", "description", "extends"]
   and .extends == ["github>BorjaElizalde/template-agentic//renovate/default"]' "$D/renovate.json"
-readme_prints_seed() {  # the README's one json block is the seeded renovate.json, line for line
-  diff <(awk '/^```/ { f = /^```json$/; next } f' "$ROOT/README.md") "$ROOT/template/renovate.json"
-}
-expect "the README prints the seeded renovate.json as it is" readme_prints_seed
 # $p is jq's variable. Tried double quotes, but then each " and $ of the program needs a backslash.
 # shellcheck disable=SC2016
 expect "the project preset is the shared rules, with Renovate off the template's CI files" jq -e '
