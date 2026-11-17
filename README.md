@@ -21,7 +21,7 @@ does:
 
    The copy writes `.copier-answers.agentic.yaml`, which records the version to bundle and which
    Renovate's Copier manager moves in an update PR. It also brings the `Gate` workflow, so put the
-   stack template's own CI checks in its `.github/actions/stack-gate/action.yaml`. Make its
+   stack template's own CI checks in `.github/actions/stack-gate/action.yaml` at its root. Make its
    `renovate.json` extend `renovate/base`, with only `.github/workflows/gate.yaml` in
    `github-actions.ignorePaths`, so that Renovate updates that action's pins.
 2. On each release, clone this repository at the recorded version, run `bash <clone>/bundle.sh .`
@@ -35,12 +35,13 @@ does:
    template does not use. They come after this template's questions, so they and its files may
    read this template's answers. Add no answers-file template: the bundle brings
    `{{ _copier_conf.answers_file }}.jinja`.
-4. Start a question's validator with `{% if 'issues_repo' not in _copier_answers %}`, whose message
-   says to copy a release tag. It stops a copy of a branch, which holds no bundle.
+4. Start the validator of a question that has no default with
+   `{% if 'issues_repo' not in _copier_answers %}`, whose message says to copy a release tag. It
+   stops a copy of a branch, which holds no bundle.
 
 ## What a stack template supplies
 
-A stack template supplies these files:
+A stack template supplies these files in its `template/`, so that each project gets them:
 
 | File | Contract |
 |---|---|
@@ -61,9 +62,9 @@ target on its rule line, as `gate: ## <description>`, for `make help` to list it
 target of `agentic.mk` only with a prerequisite or a variable set after the include, never with a
 second recipe.
 
-The stack's rules go in `.claude/rules/`, beside `agentic.md` and `conventions.md`. One of them
-lists the stack's skipped-check directives and the tools whose docs to read, which
-`conventions.md` leaves to the stack.
+The stack's rules go in its `template/.claude/rules/`, beside the bundled `agentic.md` and
+`conventions.md`. One of them lists the stack's skipped-check directives and the tools whose docs
+to read, which `conventions.md` leaves to the stack.
 
 Claude Code reads one shared project settings file, `.claude/settings.json`, and this template
 renders it for every stack. A new stack adds its permissions and environment to
