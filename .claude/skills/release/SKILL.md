@@ -40,9 +40,8 @@ promotion PR for a leg → adopt it rather than opening a second.
    stopped there.
 2. `gh pr create --head <src> --base <dst>`, title at most 72 characters in the form
    `Release: <themes> to <dst>`, and a body a person can follow without the diffs open: first why
-   these changes ship, the problems they solve; then what each theme includes, in plain prose with
-   its PR numbers. Leave out the `gate` check and the merge method: they are the same in every
-   release.
+   these changes ship; then what each theme includes, in plain prose with its PR numbers. Leave out
+   the `gate` check and the merge method.
 3. Run `bash "${CLAUDE_SKILL_DIR}/scripts/await-checks.sh" <pr>` in the background. Exit 3 (no
    check ever registered) is a red.
 4. Merge. After the last leg, read the merge commit:

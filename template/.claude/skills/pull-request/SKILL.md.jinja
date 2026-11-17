@@ -27,7 +27,7 @@ allowed-tools: Bash(git branch:*), Bash(git rev-parse:*), Bash(git status:*), Ba
    can follow without the diff open:
    - Open with why the PR exists: the problem it solves, or the need behind it.
    - Then say what it changes, in plain prose.
-   - Leave out a test plan and the gate result: every PR passes `/gate` before it opens.
+   - Leave out a test plan and the gate result.
    - On a `<type>/<n>-<slug>` branch, add `Closes {{ issues_repo }}#<n>`: task issues
      live in that repo.
 {%- if agent_merges %}
