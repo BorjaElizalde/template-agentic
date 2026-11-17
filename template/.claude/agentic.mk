@@ -1,8 +1,7 @@
 # From the agentic template: change the template, not this copy.
-# make claude starts Claude, and make help lists the described targets of the project's Makefile
-# and of every fragment it includes. The project's Makefile, or the stack template's fragment it
-# includes, includes this file. A project extends it with its own targets, prerequisites and
-# variables set after the include, never with a second recipe for a target here.
+# The project's Makefile, or the stack template's fragment it includes, includes this file. A
+# project extends it with its own targets, prerequisites and variables set after the include,
+# never with a second recipe for a target here.
 .DEFAULT_GOAL := help
 
 # Claude Code keeps a Mac awake only while a session is busy, and never against system sleep.

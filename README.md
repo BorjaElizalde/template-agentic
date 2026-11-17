@@ -214,8 +214,7 @@ never to the owner. `task.sh start` names the orchestrator in the first prompt: 
 so they share its `scripts/task.sh` through `${CLAUDE_PLUGIN_ROOT}` and no repository needs a
 Makefile for them. Claude Code loads a plugin under `.claude/skills/` in place, with no install
 and no settings entry, from the folder a session starts in: the main checkout, or a task's
-worktree. The main session starts with `make claude`: see
-[Start Claude and list the make targets](#start-claude-and-list-the-make-targets).
+worktree. The main session starts with `make claude`.
 
 ## Start Claude and list the make targets
 
@@ -225,9 +224,7 @@ Claude the same way and lists its make targets in one place:
 - `make claude` starts Claude in the folder with Remote Control, and keeps the Mac awake until
   Claude exits. `args` passes flags to `claude`, and `prompt` passes one argument after `--`, or
   none when it is not given:
-  `make claude args="--continue" prompt="/loop check the board; then stop"`. The `--` ends the
-  options, so a flag with an optional value, such as `--remote-control [name]` or `--resume [value]`,
-  never takes the prompt as that value.
+  `make claude args="--continue" prompt="/loop check the board; then stop"`.
 - `make help` lists each described target (`<target>: ## <description>`) of the project's
   `Makefile` and of every fragment it includes, under the file that defines it, so a reader sees
   which layer owns a target. The fragment sets `.DEFAULT_GOAL := help`, so a bare `make` lists the
@@ -409,8 +406,6 @@ The stack template:
   template's replaces that question, so it uses names of its own. Its questions come after this
   template's, so they and its files may read this template's answers.
 - Has no answers-file template of its own: the bundle brings `{{ _copier_conf.answers_file }}.jinja`.
-- Has a make fragment that opens with `include .claude/agentic.mk` and holds `make gate`, and
-  seeds a `Makefile` that includes that fragment, so `make help` lists the three files' targets.
 - Runs the script in its agentic update PR, at the version that PR brings, and runs `--check` in
   its gate at the version it records, so the gate fails on a stale bundle or on a bundled file
   changed by hand. A stack template that applies this template to itself already records that
