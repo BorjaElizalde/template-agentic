@@ -19,10 +19,10 @@ allowed-tools: Bash(git branch:*), Bash(git rev-parse:*), Bash(git status:*), Ba
 1. Stop on `develop`, `staging`, or `main`; a dirty tree; or an empty diff from `origin/develop`.
 2. Require a current-session green `/gate` result for the current tree fingerprint. Stop if absent.
 3. Return any open PR with the same head and base instead of creating a duplicate.
-4. Bring the branch up to date with `git merge --no-edit origin/develop`, which the context
-   fetched: a PR whose branch lacks `develop`'s newest commits opens with a failed `up-to-date`
-   check. When the merge changes the tree or stops on a conflict, stop and report it: the gate
-   must pass on the result first.
+4. Bring the branch up to date with `git fetch origin develop`, then
+   `git merge --no-edit origin/develop`: a PR whose branch lacks `develop`'s newest commits opens
+   with a failed `up-to-date` check. When the merge changes the tree or stops on a conflict, stop
+   and report it: the gate must pass on the result first.
 5. Push with `git push -u origin HEAD` unless the upstream is already
    `origin/<current-branch>`; new worktrees initially track their base, `origin/develop`.
 6. Read `git diff origin/develop...HEAD` and, when the branch is named `<type>/<n>-<slug>`, its

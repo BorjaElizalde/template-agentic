@@ -36,7 +36,8 @@ expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '
 expect "by default the pull-request skill leaves the merge to the owner" bash -c "! grep -q 'gh pr merge' '$D/.claude/skills/pull-request/SKILL.md'"
 expect "the pull-request skill merges origin/develop into the branch before it pushes, and is allowed to" bash -c "
   grep -q '^allowed-tools:.*Bash(git merge:\*)' '$D/.claude/skills/pull-request/SKILL.md' &&
-  grep -q '^4. Bring the branch up to date with .git merge --no-edit origin/develop.' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -A1 '^4. Bring the branch up to date with .git fetch origin develop., then' '$D/.claude/skills/pull-request/SKILL.md' |
+    grep -q '^   .git merge --no-edit origin/develop.' &&
   grep -q '^5. Push with' '$D/.claude/skills/pull-request/SKILL.md'"
 AM="$OUT/agent-merges"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data agent_merges=true "$OUT/src" "$AM"
@@ -81,19 +82,24 @@ expect "the Gate workflow skips a draft, and runs when one is marked ready" bash
 expect "the Branch protection job reports as branch-protection on a PR into staging or main, and as up-to-date otherwise" bash -c "
   [ \"\$(uvx --quiet yq -r '.jobs[\"branch-protection\"].name' '$BRANCH_PROTECTION')\" = \
     \"\\\${{ github.event_name == 'pull_request' && github.base_ref != 'develop' && 'branch-protection' || 'up-to-date' }}\" ]"
-# A stub gh: the open PRs' heads are a and b, b lacks two of develop's commits, statuses are logged.
+# A stub gh answers through each call's own --jq: every head but a lacks two of develop's commits,
+# c is this repository's staging, d has its failed status, e is a fork's main. Statuses are logged.
 export UP_TO_DATE="$OUT/up-to-date"
 mkdir -p "$UP_TO_DATE/bin"
 for step in 1 2; do
   { echo '#!/usr/bin/env bash'; uvx --quiet yq -r ".jobs[\"branch-protection\"].steps[$step].run" "$BRANCH_PROTECTION"; } >"$UP_TO_DATE/step$step.sh"
 done
+jq -n '[["a", "feat/1-a", false], ["b", "fix/2-b", false], ["c", "staging", false], ["d", "feat/4-d", false], ["e", "main", true]]
+  | map({headRefOid: .[0], headRefName: .[1], isCrossRepository: .[2]})' >"$UP_TO_DATE/prs"
 cat >"$UP_TO_DATE/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-case "$*" in
-  "pr list --repo acme/app --base develop "*) printf 'a\nb\n' ;;
-  "api repos/acme/app/compare/develop...a --jq .behind_by") echo 0 ;;
-  "api repos/acme/app/compare/develop...b --jq .behind_by") echo 2 ;;
-  "api repos/acme/app/statuses/"*) echo "$*" >>"$UP_TO_DATE/statuses" ;;
+case "$1 $2" in
+  "pr list") jq -r "${@: -1}" "$UP_TO_DATE/prs" ;;
+  "api repos/acme/app/compare/develop...a") echo 0 ;;
+  "api repos/acme/app/compare/develop..."*) echo 2 ;;
+  "api repos/acme/app/commits/d/status") jq -n '{statuses: [{context: "up-to-date"}]}' | jq "${@: -1}" ;;
+  "api repos/acme/app/commits/"*) jq -n '{statuses: [{context: "gate"}]}' | jq "${@: -1}" ;;
+  "api repos/acme/app/statuses/"*) echo "$2" >>"$UP_TO_DATE/statuses" ;;
   *) exit 64 ;;
 esac
 EOF
@@ -105,10 +111,9 @@ expect "a PR into develop whose head holds develop's commits passes up-to-date" 
 fails_a_stale_pr() { ! up_to_date 1 b && grep -q "^::error::This branch lacks develop's newest commits (2)" "$UP_TO_DATE/out"; }
 expect "a PR into develop whose head lacks develop's commits fails up-to-date, and is told to merge develop" fails_a_stale_pr
 marks_the_stale_prs() {
-  up_to_date 2 && [ "$(wc -l <"$UP_TO_DATE/statuses")" -eq 1 ] &&
-    grep -q '^api repos/acme/app/statuses/b .*-f state=failure -f context=up-to-date ' "$UP_TO_DATE/statuses"
+  up_to_date 2 && [ "$(paste -sd ' ' "$UP_TO_DATE/statuses")" = "repos/acme/app/statuses/b repos/acme/app/statuses/e" ]
 }
-expect "a push to develop puts a failed up-to-date status on the head of each open PR that lacks its commits, and on no other" marks_the_stale_prs
+expect "a push to develop marks each open PR that lacks its commits, but one from this repository's staging or main and one marked before" marks_the_stale_prs
 expect "both preset files and every renovate.json are valid Renovate config" uvx --quiet check-jsonschema \
   --schemafile https://docs.renovatebot.com/renovate-schema.json \
   "$ROOT/renovate/base.json" "$ROOT/renovate/default.json" "$ROOT/renovate.json" "$D/renovate.json"
