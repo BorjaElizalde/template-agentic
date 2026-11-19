@@ -162,6 +162,16 @@ expect "with agent_merges an execution session merges its PR as its last step" b
   grep -q 'stop before its merge step' '$AM/.claude/skills/task/session/execution.md' &&
   grep -q '^4. Merge the PR' '$AM/.claude/skills/task/session/execution.md' &&
   ! grep -qi 'merge' '$D/.claude/skills/task/session/execution.md'"
+expect "an execution session posts its plan with task.sh plan before it builds" bash -c "
+  grep -q '^For a task that ends in a PR, plan before you build' '$D/.claude/skills/task/session/execution.md' &&
+  grep -qF 'bash .claude/skills/task/scripts/task.sh plan <n> <file>' '$D/.claude/skills/task/session/execution.md' &&
+  grep -qF '| plan <issue> <file> |' '$D/.claude/skills/task/scripts/task.sh'"
+expect "the pull-request skill reads the task's plan, and the PR says where it departs from it" bash -c "
+  grep -qF 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -q 'Where the change departs from the task.s plan' '$D/.claude/skills/pull-request/SKILL.md'"
+expect "the simplicity reviewer first reads the issue without the comment under the heading task.sh gives a plan" bash -c "
+  grep -qx \"PLAN_HEADING='## Plan'\" '$D/.claude/skills/task/scripts/task.sh' &&
+  grep -qF 'startswith(\"## Plan\")' '$D/.claude/agents/simplicity-reviewer.md'"
 for reviewer in code-reviewer simplicity-reviewer; do
   REVIEWER="$D/.claude/agents/$reviewer.md"
   expect "$reviewer has no tool that edits, nor memory, which adds Write and Edit" bash -c "
