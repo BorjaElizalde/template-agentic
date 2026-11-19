@@ -82,8 +82,8 @@ expect "the Gate workflow skips a draft, and runs when one is marked ready" bash
 expect "the Branch protection job reports as branch-protection on a PR into staging or main, and as up-to-date otherwise" bash -c "
   [ \"\$(uvx --quiet yq -r '.jobs[\"branch-protection\"].name' '$BRANCH_PROTECTION')\" = \
     \"\\\${{ github.event_name == 'pull_request' && github.base_ref != 'develop' && 'branch-protection' || 'up-to-date' }}\" ]"
-# A stub gh answers through each call's own --jq: of the open PRs' heads a, b and d, the last two
-# lack two of develop's commits, and d has its failed status. Each status asked for is logged.
+# A stub gh: the open PRs' heads are a, b and d, b lacks two of develop's commits, d has its failed
+# status, statuses are logged.
 export UP_TO_DATE="$OUT/up-to-date"
 mkdir -p "$UP_TO_DATE/bin"
 for step in 1 2; do
@@ -91,13 +91,13 @@ for step in 1 2; do
 done
 cat >"$UP_TO_DATE/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-case "$1 $2" in
-  "pr list") jq -n '[{headRefOid: "a"}, {headRefOid: "b"}, {headRefOid: "d"}]' | jq -r "${@: -1}" ;;
-  "api repos/acme/app/compare/develop...a") echo 0 ;;
-  "api repos/acme/app/compare/develop..."*) echo 2 ;;
-  "api repos/acme/app/commits/d/status") jq -n '{statuses: [{context: "up-to-date"}]}' | jq "${@: -1}" ;;
+case "$*" in
+  "pr list --repo acme/app --base develop "*) printf 'a\nb\nd\n' ;;
+  "api repos/acme/app/compare/develop...a --jq .behind_by") echo 0 ;;
+  "api repos/acme/app/compare/develop...b --jq .behind_by") echo 2 ;;
+  "api repos/acme/app/commits/d/status --jq "*) jq -n '{statuses: [{context: "up-to-date"}]}' | jq "${@: -1}" ;;
   "api repos/acme/app/commits/"*) jq -n '{statuses: [{context: "gate"}]}' | jq "${@: -1}" ;;
-  "api repos/acme/app/statuses/"*) echo "$2 $5 $7" >>"$UP_TO_DATE/statuses" ;;
+  "api repos/acme/app/statuses/"*) echo "$*" >>"$UP_TO_DATE/statuses" ;;
   *) exit 64 ;;
 esac
 EOF
@@ -109,7 +109,8 @@ expect "a PR into develop whose head holds develop's commits passes up-to-date" 
 fails_a_stale_pr() { ! up_to_date 1 b && grep -q "^::error::This branch lacks develop's newest commits (2)" "$UP_TO_DATE/out"; }
 expect "a PR into develop whose head lacks develop's commits fails up-to-date, and is told to merge develop" fails_a_stale_pr
 marks_the_stale_prs() {
-  up_to_date 2 && [ "$(cat "$UP_TO_DATE/statuses")" = "repos/acme/app/statuses/b state=failure context=up-to-date" ]
+  up_to_date 2 && [ "$(wc -l <"$UP_TO_DATE/statuses")" -eq 1 ] &&
+    grep -q '^api repos/acme/app/statuses/b .*-f state=failure -f context=up-to-date ' "$UP_TO_DATE/statuses"
 }
 expect "a push to develop puts a failed up-to-date status on the head of each open PR that lacks its commits, once" marks_the_stale_prs
 expect "both preset files and every renovate.json are valid Renovate config" uvx --quiet check-jsonschema \
