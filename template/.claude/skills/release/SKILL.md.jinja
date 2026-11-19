@@ -42,9 +42,8 @@ promotion PR for a leg → adopt it rather than opening a second.
    `Release: <themes> to <dst>`, and a body a person can follow without the diffs open: first why
    these changes ship; then what each theme includes, in plain prose with its PR numbers. Leave out
    the checks and the merge method.
-3. Run `bash "${CLAUDE_SKILL_DIR}/scripts/await-checks.sh" <pr> <checks>` in the background, naming
-   the checks this leg's PR carries: `gate branch-flow` into `staging`, `branch-flow` into `main`.
-   Exit 3 (one of them never registered) is a red.
+3. Run `bash "${CLAUDE_SKILL_DIR}/scripts/await-checks.sh" <pr>` in the background. Exit 3
+   (`branch-flow` never registered) is a red.
 4. Merge. After the last leg, read the merge commit:
    `gh pr view <pr> --json mergeCommit --jq .mergeCommit.oid`.
 

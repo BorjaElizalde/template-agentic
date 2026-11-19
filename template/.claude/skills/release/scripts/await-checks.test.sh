@@ -59,40 +59,36 @@ answer() {  # answer <name>:<bucket>...: gh's JSON for those checks, each linkin
   jq -nc '[$ARGS.positional[] | split(":") | {name: .[0], bucket: .[1], link: "https://ci/\(.[0])"}]' --args "$@"
 }
 TAB=$'\t'
-GREEN="$(answer gate:pass docs:skipping)"
-PENDING="$(answer gate:pending docs:skipping)"
+GREEN="$(answer branch-flow:pass gate:skipping)"
+PENDING="$(answer branch-flow:pending gate:skipping)"
 
 echo "-- usage"
 exits 2 "no PR is refused"                         "$GREEN"
-check "with the usage line"                        grep -q '^Usage: .*await-checks\.sh <pr-number> \[<check>\.\.\.\]$' "$WORK/err"
+check "with the usage line"                        grep -q '^Usage: .*await-checks\.sh <pr-number>$' "$WORK/err"
 check "and asks gh nothing"                        test "$(count gh)" -eq 0
 
 echo "-- checks already done"
 exits 0 "passed or skipped exits 0"                "$GREEN" 7
-check "it prints each check: bucket, name, link"   printed "pass${TAB}gate${TAB}https://ci/gate" "skipping${TAB}docs${TAB}https://ci/docs"
+check "it prints each check: bucket, name, link"   printed "pass${TAB}branch-flow${TAB}https://ci/branch-flow" "skipping${TAB}gate${TAB}https://ci/gate"
 check "without a sleep"                            test "$(count sleep)" -eq 0
-exits 1 "a failed check exits 1"                   "$(answer gate:pass test:fail)" 7
-check "and still prints every check"               printed "pass${TAB}gate${TAB}https://ci/gate" "fail${TAB}test${TAB}https://ci/test"
-exits 1 "a cancelled check exits 1"                "$(answer gate:pass test:cancel)" 7
+exits 1 "a failed check exits 1"                   "$(answer branch-flow:pass test:fail)" 7
+check "and still prints every check"               printed "pass${TAB}branch-flow${TAB}https://ci/branch-flow" "fail${TAB}test${TAB}https://ci/test"
+exits 1 "a cancelled check exits 1"                "$(answer branch-flow:pass test:cancel)" 7
 
 echo "-- checks still running"
 exits 0 "it polls until none is pending"           "$(printf '%s\n' "$PENDING" "$PENDING" "$GREEN")" 7
 check "three polls"                                test "$(count gh)" -eq 3
 check "30 seconds apart"                           test "$(count 'sleep 30$')" -eq 2
-check "printing only the final checks"             printed "pass${TAB}gate${TAB}https://ci/gate" "skipping${TAB}docs${TAB}https://ci/docs"
+check "printing only the final checks"             printed "pass${TAB}branch-flow${TAB}https://ci/branch-flow" "skipping${TAB}gate${TAB}https://ci/gate"
 
 echo "-- checks not registered yet"
-exits 0 "within the grace window, no check and an error mean poll again" "$(printf '%s\n' '[]' error "$GREEN")" 7
-check "three polls"                                test "$(count gh)" -eq 3
-SECONDS=301 exits 3 "past it, no check ever registered exits 3" '[]' 7
-check "and says so"                                printed 'PR #7 has not registered its checks within 300s.'
-SECONDS=301 exits 0 "once a check was seen, an error past it never reads as no check" "$(printf '%s\n' "$PENDING" error "$GREEN")" 7
-
-echo "-- named checks"
 SKIPPED="$(answer gate:skipping)"
-exits 0 "it polls until each named check has registered and none is pending" "$(printf '%s\n' "$SKIPPED" "$(answer gate:skipping branch-flow:pending)" "$(answer gate:skipping branch-flow:pass)")" 7 gate branch-flow
-check "three polls"                                test "$(count gh)" -eq 3
-SECONDS=301 exits 3 "past the grace window, a named check that never registered exits 3" "$SKIPPED" 7 gate branch-flow
+exits 0 "within the grace window, no check, an error and a skipped gate alone mean poll again" "$(printf '%s\n' '[]' error "$SKIPPED" "$GREEN")" 7
+check "four polls"                                 test "$(count gh)" -eq 4
+SECONDS=301 exits 3 "past it, no check ever registered exits 3" '[]' 7
+check "and says so"                                printed 'No branch-flow check registered on PR #7 within 300s.'
+SECONDS=301 exits 3 "and so does a skipped gate with no branch-flow" "$SKIPPED" 7
+SECONDS=301 exits 0 "once branch-flow was seen, an error past it never reads as no check" "$(printf '%s\n' "$PENDING" error "$GREEN")" 7
 
 echo "-- the deadline"
 SECONDS=3601 exits 2 "checks still pending past it exit 2" "$PENDING" 7
