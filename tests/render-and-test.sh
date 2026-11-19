@@ -66,7 +66,8 @@ expect "settings.json allows gh issue create, list, view, comment and edit, and 
   == ["Bash(gh issue comment:*)", "Bash(gh issue create:*)", "Bash(gh issue edit:*)", "Bash(gh issue list:*)", "Bash(gh issue view:*)"]' \
   "$D/.claude/settings.json"
 GATE="$D/.github/workflows/gate.yaml"
-expect "the Gate workflow is a valid workflow" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows "$GATE"
+expect "the Gate and Branch flow workflows are valid workflows" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows \
+  "$GATE" "$D/.github/workflows/branch-flow.yaml"
 expect "the Gate workflow runs the stack's checks, never make" bash -c "
   grep -qx '      - uses: ./.github/actions/stack-gate' '$GATE' && ! grep -v '^[[:space:]]*#' '$GATE' | grep -qw make"
 expect "both preset files and every renovate.json are valid Renovate config" uvx --quiet check-jsonschema \
@@ -207,17 +208,19 @@ expect "bundle.sh refuses a stack template that has its own copy of a file it bu
   mkdir -p '$OUT/clash/template' && cp '$OUT/src/template/renovate.json' '$OUT/clash/template/' && ! bash '$OUT/src/bundle.sh' '$OUT/clash'"
 
 # This repository is a project of its own template: on a copy of the working tree, make render
-# (which the pre-commit hook runs on every commit that changes template/) must leave .claude/ as it is.
+# (which the pre-commit hook runs on every commit that changes template/) must leave .claude/ and
+# .github/ as they are.
 mkdir -p "$OUT/self"
 (cd "$ROOT" && tar --exclude .git -cf - .) | tar -xf - -C "$OUT/self"
 harness_in_step() {
   local drift
   make -s -C "$OUT/self" render >/dev/null || return 1
-  drift="$(diff -rq "$ROOT/.claude" "$OUT/self/.claude")" && return 0
+  drift="$(diff -rq "$ROOT/.claude" "$OUT/self/.claude"; diff -rq "$ROOT/.github" "$OUT/self/.github")"
+  [ -n "$drift" ] || return 0
   sed "s#$OUT/self#render#g; s#$ROOT#repository#g; s/^/FAIL /" <<<"$drift"
   return 1
 }
-expect "this repository's harness is in step with the template (make render changes nothing)" harness_in_step
+expect "this repository's harness and Branch flow workflow are in step with the template (make render changes nothing)" harness_in_step
 
 # The product names the template was extracted from; bracketed so this line never matches itself.
 expect "no product name in the template" bash -c "! grep -rIil -E 'fire[b]rain|monar[d]it|aer[i]s|truela[y]er' --exclude-dir=.git --exclude=.git '$ROOT'"

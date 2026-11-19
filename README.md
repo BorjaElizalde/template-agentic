@@ -2,9 +2,9 @@
 
 A [Copier](https://copier.readthedocs.io/) template for the language-neutral half of an agentic
 coding setup: the Claude Code hooks, rules, skills and agents, the issue → worktree → session
-task workflow, and the `Gate` workflow. A stack template, such as `template-python-service`,
-carries it inside each of its releases and fills its plug-in points for one stack, so a project
-applies the stack template only.
+task workflow, and the `Gate` and `Branch flow` workflows. A stack template, such as
+`template-python-service`, carries it inside each of its releases and fills its plug-in points for
+one stack, so a project applies the stack template only.
 
 ## Bundle into a stack template
 
@@ -20,10 +20,11 @@ does:
    ```
 
    The copy writes `.copier-answers.agentic.yaml`, which records the version to bundle and which
-   Renovate's Copier manager moves in an update PR. It also brings the `Gate` workflow, so put the
-   stack template's own CI checks in `.github/actions/stack-gate/action.yaml` at its root. Make its
-   `renovate.json` extend `renovate/base`, with only `.github/workflows/gate.yaml` in
-   `github-actions.ignorePaths`, so that Renovate updates that action's pins.
+   Renovate's Copier manager moves in an update PR. It also brings the `Branch flow` workflow and
+   the `Gate` workflow, so put the stack template's own CI checks in
+   `.github/actions/stack-gate/action.yaml` at its root. Make its `renovate.json` extend
+   `renovate/base`, with only `.github/workflows/gate.yaml` in `github-actions.ignorePaths`, so
+   that Renovate updates that action's pins.
 2. On each release, clone this repository at the recorded version, run `bash <clone>/bundle.sh .`
    on `main`'s tree, and tag the result as a commit that no branch holds. In
    `template-python-service`, the `Build` workflow does it after the gate, with the `release-tag`
@@ -45,7 +46,7 @@ A stack template supplies these files in its `template/`, so that each project g
 
 | File | Contract |
 |---|---|
-| `.github/actions/stack-gate/action.yaml` | The composite action that the `Gate` workflow runs on every PR into `develop`, `staging` or `main`, after the checkout. It calls the stack's tools directly, never `make gate`. |
+| `.github/actions/stack-gate/action.yaml` | The composite action that the `Gate` workflow runs after the checkout, on every PR into `develop` or `staging` but the promotion of `develop`. It calls the stack's tools directly, never `make gate`. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit, Write or MultiEdit, with the hook payload on stdin. |
 

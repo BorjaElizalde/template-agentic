@@ -64,7 +64,7 @@ PENDING="$(answer gate:pending docs:skipping)"
 
 echo "-- usage"
 exits 2 "no PR is refused"                         "$GREEN"
-check "with the usage line"                        grep -q '^Usage: .*await-checks\.sh <pr-number>$' "$WORK/err"
+check "with the usage line"                        grep -q '^Usage: .*await-checks\.sh <pr-number> \[<check>\.\.\.\]$' "$WORK/err"
 check "and asks gh nothing"                        test "$(count gh)" -eq 0
 
 echo "-- checks already done"
@@ -85,8 +85,15 @@ echo "-- checks not registered yet"
 exits 0 "within the grace window, no check and an error mean poll again" "$(printf '%s\n' '[]' error "$GREEN")" 7
 check "three polls"                                test "$(count gh)" -eq 3
 SECONDS=301 exits 3 "past it, no check ever registered exits 3" '[]' 7
-check "and says so"                                printed 'No check registered on PR #7 within 300s.'
+check "and says so"                                printed 'PR #7 has not registered a check within 300s.'
 SECONDS=301 exits 0 "once a check was seen, an error past it never reads as no check" "$(printf '%s\n' "$PENDING" error "$GREEN")" 7
+
+echo "-- a named check"
+SKIPPED="$(answer gate:skipping)"
+exits 0 "it polls until the named check has registered and passed" "$(printf '%s\n' "$SKIPPED" "$(answer gate:skipping branch-flow:pending)" "$(answer gate:skipping branch-flow:pass)")" 7 branch-flow
+check "three polls"                                test "$(count gh)" -eq 3
+SECONDS=301 exits 3 "past the grace window, a named check that never registered exits 3" "$SKIPPED" 7 branch-flow
+check "and names it"                               printed 'PR #7 has not registered branch-flow within 300s.'
 
 echo "-- the deadline"
 SECONDS=3601 exits 2 "checks still pending past it exit 2" "$PENDING" 7

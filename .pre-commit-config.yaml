@@ -1,5 +1,5 @@
-# A commit that changes template/ re-renders this repository's own harness; when that changes
-# .claude/, pre-commit stops the commit so the re-render is staged with it.
+# A commit that changes template/ re-renders this repository's own copy of it (make render); when
+# that changes a file, pre-commit stops the commit so the re-render is staged with it.
 repos:
   - repo: local
     hooks:
