@@ -74,6 +74,8 @@ check "without a sleep"                            test "$(count sleep)" -eq 0
 exits 1 "a failed check exits 1"                   "$(answer branch-protection:pass test:fail)" 7
 check "and still prints every check"               printed "pass${TAB}branch-protection${TAB}https://ci/branch-protection" "fail${TAB}test${TAB}https://ci/test"
 exits 1 "a cancelled check exits 1"                "$(answer branch-protection:pass test:cancel)" 7
+exits 0 "a failed up-to-date is no red"            "$(answer branch-protection:pass up-to-date:fail)" 7
+check "and is still printed"                       printed "pass${TAB}branch-protection${TAB}https://ci/branch-protection" "fail${TAB}up-to-date${TAB}https://ci/up-to-date"
 
 echo "-- checks still running"
 exits 0 "it polls until none is pending"           "$(printf '%s\n' "$PENDING" "$PENDING" "$GREEN")" 7
