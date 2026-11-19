@@ -2,7 +2,8 @@
 # From the agentic template: change the template, not this copy.
 # Poll one promotion PR's checks until branch-protection has registered and none are pending, then
 # print each as "<bucket>\t<name>\t<link>". A skipped gate is complete as it registers, so a poll
-# that falls before branch-protection registers sees none pending.
+# that falls before branch-protection registers sees none pending. A failed up-to-date is no red:
+# it is the verdict on a PR into develop that has the same head commit, never on the promotion.
 #   0  every check passed or was skipped
 #   1  a check failed or was cancelled
 #   2  usage, or checks still pending at the deadline
@@ -33,7 +34,7 @@ while :; do
     seen=1
     if ! jq -e 'any(.[]; .bucket == "pending")' <<<"$checks" >/dev/null; then
       jq -r '.[] | "\(.bucket)\t\(.name)\t\(.link)"' <<<"$checks"
-      jq -e 'any(.[]; .bucket == "fail" or .bucket == "cancel")' <<<"$checks" >/dev/null && exit 1
+      jq -e 'any(.[]; .name != "up-to-date" and (.bucket == "fail" or .bucket == "cancel"))' <<<"$checks" >/dev/null && exit 1
       exit 0
     fi
   fi

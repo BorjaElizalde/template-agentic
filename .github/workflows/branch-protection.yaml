@@ -45,12 +45,8 @@ jobs:
           esac
           [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ] ||
             { echo "::error::$BASE takes PRs from this repository's own branches, not from $HEAD_REPO."; exit 1; }
-      # Not this repository's staging or main: neither takes develop, and its tip heads a promotion.
       - name: Fail a PR into develop that lacks develop's newest commits
-        if: >-
-          ${{ github.base_ref == 'develop'
-          && !((github.head_ref == 'staging' || github.head_ref == 'main')
-          && github.event.pull_request.head.repo.full_name == github.repository) }}
+        if: github.base_ref == 'develop'
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -64,9 +60,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          heads="$(gh pr list --repo "$GITHUB_REPOSITORY" --base develop --limit 1000 \
-            --json headRefOid,headRefName,isCrossRepository --jq '.[]
-            | select(.isCrossRepository or (.headRefName | IN("staging", "main") | not)) | .headRefOid')"
+          heads="$(gh pr list --repo "$GITHUB_REPOSITORY" --base develop --limit 1000 --json headRefOid --jq '.[].headRefOid')"
           for head in $heads; do
             # GitHub takes 1000 statuses for a commit and context, so a head is marked once.
             marked="$(gh api "repos/$GITHUB_REPOSITORY/commits/$head/status" --jq 'any(.statuses[]; .context == "up-to-date")')"
