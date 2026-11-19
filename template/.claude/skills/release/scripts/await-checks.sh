@@ -2,8 +2,9 @@
 # From the agentic template: change the template, not this copy.
 # Poll one promotion PR's checks until branch-protection has registered and none are pending, then
 # print each as "<bucket>\t<name>\t<link>". A skipped gate is complete as it registers, so a poll
-# that falls before branch-protection registers sees none pending. A failed up-to-date is no red:
-# it is the verdict on a PR into develop that has the same head commit, never on the promotion.
+# that falls before branch-protection registers sees none pending. A failed up-to-date is no red,
+# since it says nothing about the promotion: on the PR into staging it is the failed run that marks
+# stale PRs, and on the PR into main the verdict on a PR into develop that has the same head commit.
 #   0  every check passed or was skipped
 #   1  a check failed or was cancelled
 #   2  usage, or checks still pending at the deadline
