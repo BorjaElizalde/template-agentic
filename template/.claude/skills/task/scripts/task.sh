@@ -62,16 +62,16 @@ park() {
 PLAN_HEADING='## Plan'
 PLAN_AUTHOR='_The design this task builds. Its session chose it and keeps it current here; it is not a decision of the owner._'
 
-# Makes file $2 the plan of issue $1: the comment that opens with PLAN_HEADING, posted on the first
-# run and given the file's text on each later one, so an issue holds one plan. Every run pins it:
-# GitHub keeps one pinned comment per issue, and a comment pinned twice stays as it is. A comment's
-# URL ends in the id the REST API knows it by.
+# plan <issue> <file>: an issue holds one plan, so a run that finds the comment under PLAN_HEADING
+# gives it the file's text and posts none. Every run pins it: GitHub keeps one pinned comment per
+# issue, and a pin on a pinned comment changes nothing. The file's path is the caller's, read from
+# the caller's folder, and a comment's URL ends in the id the REST API knows it by.
 plan() {
 	local text body comments url
-	text=$(cat "$2")
+	text=$(cd "$CALLER" && cat "$2")
 	body=$PLAN_HEADING$'\n\n'$PLAN_AUTHOR$'\n\n'$text
 	comments=$(gh issue view "$1" -R "$ISSUES_REPO" --json comments)
-	if url=$(jq -re --arg heading "$PLAN_HEADING" '[.comments[] | select(.body | startswith($heading)) | .url] | last // empty' <<<"$comments"); then
+	if url=$(jq -re --arg heading "$PLAN_HEADING" '[.comments[] | select(.body | startswith($heading + "\n")) | .url] | last // empty' <<<"$comments"); then
 		gh api -X PATCH "repos/$ISSUES_REPO/issues/comments/${url##*-}" -f body="$body" >/dev/null
 	else
 		url=$(gh issue comment "$1" -R "$ISSUES_REPO" --body "$body")
