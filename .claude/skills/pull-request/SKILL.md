@@ -3,7 +3,7 @@ name: pull-request
 description: Use when committed and validated feature-branch work is ready for a PR into `develop`.
 model: haiku
 effort: high
-allowed-tools: Bash(git branch:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git fetch origin develop:*), Bash(git diff:*), Bash(git log:*), Bash(git merge:*), Bash(git push:*), Bash(gh issue view:*), Bash(gh pr list:*), Bash(gh pr create:*), Bash(gh pr ready:*)
+allowed-tools: Bash(git branch:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git fetch origin develop:*), Bash(git diff:*), Bash(git log:*), Bash(git merge:*), Bash(git push:*), Bash(gh issue view:*), Bash(gh pr list:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr ready:*)
 ---
 
 ## Branch context
@@ -18,7 +18,7 @@ allowed-tools: Bash(git branch:*), Bash(git rev-parse:*), Bash(git status:*), Ba
 
 1. Stop on `develop`, `staging`, or `main`; a dirty tree; or an empty diff from `origin/develop`.
 2. Require a current-session green `/gate` result for the current tree fingerprint. Stop if absent.
-3. Create no duplicate: when an open PR has the same head and base, skip step 6.
+3. Look for an open PR with the same head and base: step 6 updates it and creates no duplicate.
 4. Bring the branch up to date with `git fetch origin develop`, then
    `git merge --no-edit origin/develop`: a PR whose branch lacks `develop`'s newest commits opens
    with a failed `up-to-date` check. When the merge changes the tree or stops on a conflict, stop
@@ -27,8 +27,8 @@ allowed-tools: Bash(git branch:*), Bash(git rev-parse:*), Bash(git status:*), Ba
    `origin/develop`, until then.
 6. Read `git diff origin/develop...HEAD` and, when the branch is named `<type>/<n>-<slug>`, its
    task issue: `gh issue view <n> -R BorjaElizalde/template-agentic --json title,body,comments`. Then run
-   `gh pr create --base develop --draft` with an imperative title (≤72 characters) and a body a
-   person can follow without the diff open:
+   `gh pr create --base develop --draft`, or `gh pr edit <n>` on the PR that step 3 found, with an
+   imperative title (≤72 characters) and a body a person can follow without the diff open:
    - Open with why the PR exists: the problem it solves, or the need behind it.
    - Then say what it changes, in plain prose.
    - Where the change departs from the task's plan, the issue's comment headed `Plan`, say where
@@ -36,6 +36,7 @@ allowed-tools: Bash(git branch:*), Bash(git rev-parse:*), Bash(git status:*), Ba
    - Leave out a test plan and the gate result.
    - On a `<type>/<n>-<slug>` branch, add `Closes BorjaElizalde/template-agentic#<n>`: task issues
      live in that repo.
-7. Mark the PR ready with `gh pr ready <n>`. Until then it is a draft, which nobody can merge
-   and the gate skips: the gate runs on the head the PR has when it is marked ready.
+7. Mark the PR ready with `gh pr ready <n>`, unless the caller said to stop before this step: a
+   task's session does, until its review steps end. Until then the PR is a draft, which nobody
+   can merge and the gate skips: the gate runs on the head the PR has when it is marked ready.
 8. Return the PR URL.

@@ -21,8 +21,7 @@ Post it with `bash .claude/skills/task/scripts/task.sh plan <n> <file>`, which m
 issue's one pinned comment, headed `Plan`. Then build: nobody answers a plan. A plan the issue
 already has is the task's own, from an earlier session or from its session in another repository:
 go on from it. When the design changes, post the plan again with the same command: the design as
-it stands and, under `Changes`, every change since the first plan, each with its reason. Once the
-PR is open, say the change in its body too.
+it stands and, under `Changes`, every change since the first plan, each with its reason.
 
 Open that PR with `/pull-request` once the work is done, and stop before the step that marks it
 ready: it stays a draft, which nobody can merge, until the steps below end. Then run them, and
@@ -40,5 +39,6 @@ rename is large but low risk.
    reason stands against it. Rebuild to the design you take, post the plan again with that
    change, and push. When the rebuild adds code, run steps 1 and 2 again on the result; a line it
    only shortens or rewraps adds none.
-4. Run `/pull-request` again, to its end: it brings the branch up to date and marks the PR ready
+4. Pass `/gate`, then run `/pull-request` again, to its end: it brings the branch up to date,
+   writes the PR's body again and marks the PR ready
    {%- if agent_merges %}, then merges it{% endif %}.

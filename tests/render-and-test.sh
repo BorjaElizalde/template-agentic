@@ -164,13 +164,14 @@ expect "an execution session spawns code-reviewer, code-trimmer, then the simpli
   grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/session/execution.md'"
 expect "an execution session leaves its PR a draft until its review steps end, then runs the pull-request skill to its end" bash -c "
   grep -q 'stop before the step that marks it$' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^4. Run ./pull-request. again, to its end: .* marks the PR ready\.$' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^4. Run ./pull-request. again, to its end: .* marks the PR ready, then merges it\.$' '$AM/.claude/skills/task/session/execution.md'"
-expect "the pull-request skill opens a draft, and marks it ready once nothing else is left but the merge" bash -c "
-  grep -q '^allowed-tools:.*Bash(gh pr ready:\*)' '$D/.claude/skills/pull-request/SKILL.md' &&
-  grep -q '^3. Create no duplicate: when an open PR has the same head and base, skip step 6' '$D/.claude/skills/pull-request/SKILL.md' &&
-  grep -qF 'gh pr create --base develop --draft' '$D/.claude/skills/pull-request/SKILL.md' &&
-  grep -q '^7. Mark the PR ready with .gh pr ready <n>.' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -q '^4. Pass ./gate., then run ./pull-request. again, to its end' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q 'marks the PR ready\.$' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q 'marks the PR ready, then merges it\.$' '$AM/.claude/skills/task/session/execution.md'"
+expect "the pull-request skill opens a draft or updates the open PR, and marks it ready once nothing else is left but the merge" bash -c "
+  grep -q '^allowed-tools:.*Bash(gh pr edit:\*), Bash(gh pr ready:\*)' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -q '^3. Look for an open PR with the same head and base: step 6 updates it' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -qF '\`gh pr create --base develop --draft\`, or \`gh pr edit <n>\` on the PR that step 3 found' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -q '^7. Mark the PR ready with .gh pr ready <n>., unless the caller said to stop before this step' '$D/.claude/skills/pull-request/SKILL.md' &&
   grep -q '^8. Return the PR URL' '$D/.claude/skills/pull-request/SKILL.md' &&
   grep -q '^8. This project lets the agent merge' '$AM/.claude/skills/pull-request/SKILL.md'"
 expect "an execution session posts its plan with task.sh plan before it builds" bash -c "
