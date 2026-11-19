@@ -1,0 +1,68 @@
+# Probe for issue 149: the Update PRs job's script on a real runner, with probe/149-base in place of
+# develop and the workflow's own token in place of the secret. Deleted with its branch.
+name: Probe 149
+
+on:
+  push:
+    branches: [probe/149-base, probe/149-a]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-prs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh --version
+          # No fallback to GITHUB_TOKEN: a merge it makes leaves the PR's gate run waiting for approval.
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::No UPDATE_PRS_TOKEN secret, so no PR into develop was brought up to date. Save a fine-grained personal access token with read and write access to this repository's Contents, Pull requests and Workflows as that Actions secret."
+            exit 0
+          fi
+          # Renovate rebases its own PRs (rebaseWhen in its preset), and stops updating a branch that
+          # holds another author's commit. A PR from staging or main would have develop merged into
+          # that branch, past its promotion PR.
+          prs="$(gh pr list --base probe/149-base --limit 1000 --json number,isDraft,headRefName --jq '
+            .[] | select(.isDraft | not)
+            | select(.headRefName | test("^(renovate/|(develop|staging|main)$)") | not) | .number')"
+          for pr in $prs; do
+            if result="$(gh pr update-branch "$pr" 2>&1)"; then
+              echo "PR #$pr: $result"
+            else
+              echo "::warning::PR #$pr is left as it is: $result"
+            fi
+          done
+          
+  no-secret:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.UPDATE_PRS_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # No fallback to GITHUB_TOKEN: a merge it makes leaves the PR's gate run waiting for approval.
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::No UPDATE_PRS_TOKEN secret, so no PR into develop was brought up to date. Save a fine-grained personal access token with read and write access to this repository's Contents, Pull requests and Workflows as that Actions secret."
+            exit 0
+          fi
+          # Renovate rebases its own PRs (rebaseWhen in its preset), and stops updating a branch that
+          # holds another author's commit. A PR from staging or main would have develop merged into
+          # that branch, past its promotion PR.
+          prs="$(gh pr list --base probe/149-base --limit 1000 --json number,isDraft,headRefName --jq '
+            .[] | select(.isDraft | not)
+            | select(.headRefName | test("^(renovate/|(develop|staging|main)$)") | not) | .number')"
+          for pr in $prs; do
+            if result="$(gh pr update-branch "$pr" 2>&1)"; then
+              echo "PR #$pr: $result"
+            else
+              echo "::warning::PR #$pr is left as it is: $result"
+            fi
+          done
+          
