@@ -34,6 +34,10 @@ expect "no .yml file in the template or the project" bash -c "[ -z \"\$(find '$R
 expect "no Jinja left in rendered files" bash -c "! grep -rIl -E '(^|[^\$])\\{\\{|\\{%' --exclude-dir=.git '$D'"
 expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf' && grep -qx 'DEPLOY_WORKFLOW=' '$D/.claude/agentic.conf' && grep -qx 'AGENT_MERGES=false' '$D/.claude/agentic.conf'"
 expect "by default the pull-request skill leaves the merge to the owner" bash -c "! grep -q 'gh pr merge' '$D/.claude/skills/pull-request/SKILL.md'"
+expect "the pull-request skill merges origin/develop into the branch before it pushes, and is allowed to" bash -c "
+  grep -q '^allowed-tools:.*Bash(git merge:\*)' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -q '^4. Bring the branch up to date with .git merge --no-edit origin/develop.' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -q '^5. Push with' '$D/.claude/skills/pull-request/SKILL.md'"
 AM="$OUT/agent-merges"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data agent_merges=true "$OUT/src" "$AM"
 expect "agent_merges reaches agentic.conf" grep -qx 'AGENT_MERGES=true' "$AM/.claude/agentic.conf"
@@ -66,10 +70,45 @@ expect "settings.json allows gh issue create, list, view, comment and edit, and 
   == ["Bash(gh issue comment:*)", "Bash(gh issue create:*)", "Bash(gh issue edit:*)", "Bash(gh issue list:*)", "Bash(gh issue view:*)"]' \
   "$D/.claude/settings.json"
 GATE="$D/.github/workflows/gate.yaml"
+BRANCH_PROTECTION="$D/.github/workflows/branch-protection.yaml"
 expect "the Gate and Branch protection workflows are valid workflows" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows \
-  "$GATE" "$D/.github/workflows/branch-protection.yaml"
+  "$GATE" "$BRANCH_PROTECTION"
 expect "the Gate workflow runs the stack's checks, never make" bash -c "
   grep -qx '      - uses: ./.github/actions/stack-gate' '$GATE' && ! grep -v '^[[:space:]]*#' '$GATE' | grep -qw make"
+expect "the Gate workflow skips a draft, and runs when one is marked ready" bash -c "
+  grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' '$GATE' &&
+  grep -qF '\${{ !github.event.pull_request.draft' '$GATE'"
+expect "the Branch protection job reports as branch-protection on a PR into staging or main, and as up-to-date otherwise" bash -c "
+  [ \"\$(uvx --quiet yq -r '.jobs[\"branch-protection\"].name' '$BRANCH_PROTECTION')\" = \
+    \"\\\${{ github.event_name == 'pull_request' && github.base_ref != 'develop' && 'branch-protection' || 'up-to-date' }}\" ]"
+# A stub gh: the open PRs' heads are a and b, b lacks two of develop's commits, statuses are logged.
+export UP_TO_DATE="$OUT/up-to-date"
+mkdir -p "$UP_TO_DATE/bin"
+for step in 1 2; do
+  { echo '#!/usr/bin/env bash'; uvx --quiet yq -r ".jobs[\"branch-protection\"].steps[$step].run" "$BRANCH_PROTECTION"; } >"$UP_TO_DATE/step$step.sh"
+done
+cat >"$UP_TO_DATE/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  "pr list --repo acme/app --base develop "*) printf 'a\nb\n' ;;
+  "api repos/acme/app/compare/develop...a --jq .behind_by") echo 0 ;;
+  "api repos/acme/app/compare/develop...b --jq .behind_by") echo 2 ;;
+  "api repos/acme/app/statuses/"*) echo "$*" >>"$UP_TO_DATE/statuses" ;;
+  *) exit 64 ;;
+esac
+EOF
+chmod +x "$UP_TO_DATE/bin/gh"
+up_to_date() {  # up_to_date <step> [<head>]: that step's script; what it prints lands in $UP_TO_DATE/out
+  GITHUB_REPOSITORY=acme/app HEAD_SHA="${2:-}" PATH="$UP_TO_DATE/bin:$PATH" bash -e "$UP_TO_DATE/step$1.sh" >"$UP_TO_DATE/out" 2>&1
+}
+expect "a PR into develop whose head holds develop's commits passes up-to-date" up_to_date 1 a
+fails_a_stale_pr() { ! up_to_date 1 b && grep -q "^::error::This branch lacks develop's newest commits (2)" "$UP_TO_DATE/out"; }
+expect "a PR into develop whose head lacks develop's commits fails up-to-date, and is told to merge develop" fails_a_stale_pr
+marks_the_stale_prs() {
+  up_to_date 2 && [ "$(wc -l <"$UP_TO_DATE/statuses")" -eq 1 ] &&
+    grep -q '^api repos/acme/app/statuses/b .*-f state=failure -f context=up-to-date ' "$UP_TO_DATE/statuses"
+}
+expect "a push to develop puts a failed up-to-date status on the head of each open PR that lacks its commits, and on no other" marks_the_stale_prs
 expect "both preset files and every renovate.json are valid Renovate config" uvx --quiet check-jsonschema \
   --schemafile https://docs.renovatebot.com/renovate-schema.json \
   "$ROOT/renovate/base.json" "$ROOT/renovate/default.json" "$ROOT/renovate.json" "$D/renovate.json"
@@ -98,7 +137,7 @@ expect "a first copy keeps the project's renovate.json" bash -c "[ \"\$(cat '$X/
 expect "the task plugin's manifest names it task" bash -c "[ \"\$(jq -r .name '$D/.claude/skills/task/.claude-plugin/plugin.json')\" = task ]"
 expect "no .claude/scripts folder is rendered" test ! -e "$D/.claude/scripts"
 expect "every script parses" bash -c "for f in \$(find '$D' -name '*.sh'); do bash -n \"\$f\" || exit 1; done"
-expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$ROOT/tests' '$ROOT/bundle.sh' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
+expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$UP_TO_DATE' '$ROOT/tests' '$ROOT/bundle.sh' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
 expect "bash-guard suite" bash "$D/.claude/hooks/bash-guard.test.sh"
 expect "worktree-guard suite" bash "$D/.claude/hooks/worktree-guard.test.sh"
 expect "practices protocol suite" bash "$D/.claude/hooks/practices/guard.test.sh"
