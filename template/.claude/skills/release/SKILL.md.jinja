@@ -16,7 +16,8 @@ allowed-tools: Bash(bash:*), Bash(git fetch:*), Bash(git log:*), Bash(git diff:*
 Every promotion PR carries the `branch-protection` check: it passes only a PR from the branch below
 its base (`develop` into `staging`, `staging` into `main`). The project's checks don't run on a
 promotion, whose code passed them before it reached its source branch: `gate` shows as skipped on
-the PR into `staging`, and no `gate` runs on the PR into `main`.
+the PR into `staging`, and no `gate` runs on the PR into `main`. The PR into `staging` also shows
+`up-to-date`, the run that the last push to `develop` started to mark the PRs it left behind.
 
 Run every leg unattended for as long as everything is green: never pause to confirm a green step.
 **Stop at the first red** — a failed or cancelled check, a merge that will not apply, a failed
