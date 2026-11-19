@@ -1,6 +1,6 @@
 # From the agentic template: change the template, not this copy.
 # Rulesets can't limit a PR's source or size, so the staging and main rulesets require this check.
-name: Branch flow
+name: Branch protection
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
     types: [opened, synchronize, reopened, edited]
 
 jobs:
-  branch-flow:
+  branch-protection:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

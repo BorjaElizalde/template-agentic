@@ -2,7 +2,7 @@
 
 A [Copier](https://copier.readthedocs.io/) template for the language-neutral half of an agentic
 coding setup: the Claude Code hooks, rules, skills and agents, the issue → worktree → session
-task workflow, and the `Gate` and `Branch flow` workflows. A stack template, such as
+task workflow, and the `Gate` and `Branch protection` workflows. A stack template, such as
 `template-python-service`, carries it inside each of its releases and fills its plug-in points for
 one stack, so a project applies the stack template only.
 
@@ -20,8 +20,8 @@ does:
    ```
 
    The copy writes `.copier-answers.agentic.yaml`, which records the version to bundle and which
-   Renovate's Copier manager moves in an update PR. It also brings the `Branch flow` workflow and
-   the `Gate` workflow, so put the stack template's own CI checks in
+   Renovate's Copier manager moves in an update PR. It also brings the `Branch protection` workflow
+   and the `Gate` workflow, so put the stack template's own CI checks in
    `.github/actions/stack-gate/action.yaml` at its root. Make its `renovate.json` extend
    `renovate/base`, with only `.github/workflows/gate.yaml` in `github-actions.ignorePaths`, so
    that Renovate updates that action's pins.

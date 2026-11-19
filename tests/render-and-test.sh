@@ -66,8 +66,8 @@ expect "settings.json allows gh issue create, list, view, comment and edit, and 
   == ["Bash(gh issue comment:*)", "Bash(gh issue create:*)", "Bash(gh issue edit:*)", "Bash(gh issue list:*)", "Bash(gh issue view:*)"]' \
   "$D/.claude/settings.json"
 GATE="$D/.github/workflows/gate.yaml"
-expect "the Gate and Branch flow workflows are valid workflows" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows \
-  "$GATE" "$D/.github/workflows/branch-flow.yaml"
+expect "the Gate and Branch protection workflows are valid workflows" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows \
+  "$GATE" "$D/.github/workflows/branch-protection.yaml"
 expect "the Gate workflow runs the stack's checks, never make" bash -c "
   grep -qx '      - uses: ./.github/actions/stack-gate' '$GATE' && ! grep -v '^[[:space:]]*#' '$GATE' | grep -qw make"
 expect "both preset files and every renovate.json are valid Renovate config" uvx --quiet check-jsonschema \

@@ -4,8 +4,8 @@ name: Gate
 
 on:
   pull_request:
-    # No main: it takes staging alone (Branch flow), whose code passed this check on its way in.
-    # Tried main with its job skipped, but nothing requires gate to report there.
+    # No main: it takes staging alone (Branch protection), whose code passed this check on its way
+    # in. Tried main with its job skipped, but nothing requires gate to report there.
     branches: [develop, staging]
 
 concurrency:
