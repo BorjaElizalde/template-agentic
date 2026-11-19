@@ -57,15 +57,15 @@ park() {
 	echo "✓ issue $1 parked: $2"
 }
 
-# The two lines that open an issue's plan comment. plan finds the comment by the first. The second
-# says whose words they are: the session posts under the owner's account.
+# The two lines that open an issue's plan comment. The second says whose words they are: the
+# session posts under the owner's account.
 PLAN_HEADING='## Plan'
 PLAN_AUTHOR='_The design this task builds. Its session chose it and keeps it current here; it is not a decision of the owner._'
 
 # plan <issue> <file>: an issue holds one plan, so a run that finds the comment under PLAN_HEADING
 # gives it the file's text and posts none. Every run pins it: GitHub keeps one pinned comment per
-# issue, and a pin on a pinned comment changes nothing. The file's path is the caller's, read from
-# the caller's folder, and a comment's URL ends in the id the REST API knows it by.
+# issue, and a pin on a pinned comment changes nothing. A comment's URL ends in the id the REST API
+# knows it by.
 plan() {
 	local text body comments url
 	text=$(cd "$CALLER" && cat "$2")

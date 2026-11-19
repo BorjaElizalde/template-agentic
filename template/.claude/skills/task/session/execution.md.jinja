@@ -36,9 +36,6 @@ rename is large but low risk.
 2. Spawn the `code-trimmer` agent. Audit its report and its commit, and take back each cut that
    removed what the issue needs.
 3. Spawn one `simplicity-reviewer`, and decide on its designs: take one it shows simpler unless a
-   reason stands against it. Rebuild to the design you take, post the plan again with that
-   change, and push. When the rebuild adds code, run steps 1 and 2 again on the result; a line it
-   only shortens or rewraps adds none.
-4. Pass `/gate`, then run `/pull-request` again, to its end: it brings the branch up to date,
-   writes the PR's body again and marks the PR ready
-   {%- if agent_merges %}, then merges it{% endif %}.
+   reason stands against it. Rebuild to the design you take and push it. When the rebuild adds
+   code, run steps 1 and 2 again on the result; a line it only shortens or rewraps adds none.
+4. Pass `/gate`, then run `/pull-request` again, to its end.

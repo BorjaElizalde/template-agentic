@@ -37,21 +37,21 @@ title() {
 }
 state() { cat "issue-$1" 2>/dev/null || echo OPEN; }
 # Issue $1 as JSON: its number and title, its labels, one per line of labels-<n>, its comments,
-# one per line of comments-<n> and then the posted ones, each with its URL, and the issues it is
-# blocked by, one number per line of blocked-by-<n>, each in the state its issue-<n> file gives.
+# each with its URL, and the issues it is blocked by, one number per line of blocked-by-<n>, each
+# in the state its issue-<n> file gives.
 issue() {
-  local blockers posted
+  local blockers comments
   blockers=$(for m in $(cat "blocked-by-$1" 2>/dev/null); do echo "$m $(state "$m")"; done)
-  posted=$(for f in "comment-$1"???; do [ ! -f "$f" ] || jq -Rs --arg url "$(comment_url "${f#comment-}")" '{url: $url, body: .}' "$f"; done | jq -s .)
+  comments=$(for f in "comment-$1"???; do [ ! -f "$f" ] || jq -Rs --arg url "$(comment_url "${f#comment-}")" '{url: $url, body: .}' "$f"; done | jq -s .)
   jq -n --argjson number "$1" --arg title "$(title "$1")" --arg labels "$(cat "labels-$1" 2>/dev/null)" \
-    --arg comments "$(cat "comments-$1" 2>/dev/null)" --argjson posted "$posted" --arg blockers "$blockers" '
+    --argjson comments "$comments" --arg blockers "$blockers" '
     def lines: split("\n") | map(select(. != ""));
     {number: $number, title: $title, labels: ($labels | lines | map({name: .})),
       blockedBy: {nodes: ($blockers | lines | map(split(" ") | {number: (.[0] | tonumber), state: .[1]}))},
-      comments: (($comments | lines | map({body: .})) + $posted)}'
+      comments: $comments}'
 }
-# A posted comment is the file comment-<id>, which holds its text. Its id is its issue's number,
-# then three digits that count the issue's posted comments from 000.
+# A comment is the file comment-<id>, which holds its text. Its id is its issue's number, then
+# three digits that count the issue's comments from 000.
 comment_url() { echo "https://github.com/acme/tasks/issues/${1%???}#issuecomment-$1"; }
 case "$1 $2" in
   "issue view")
@@ -80,12 +80,12 @@ case "$1 $2" in
     # --force updates a label that exists, so the repository lists it once.
     grep -qxF "$3" "$TASK_TEST_STATE/repo-labels" 2>/dev/null || echo "$3" >>"$TASK_TEST_STATE/repo-labels" ;;
   "api -X")
-    # PATCH gives a posted comment the text of -f body=<text>, and PUT of its /pin makes it its
-    # issue's one pinned comment, which pinned-<n> names. Neither knows a comment never posted.
+    # PATCH gives a comment the text of -f body=<text>, and PUT of its /pin makes it its issue's
+    # one pinned comment, which pinned-<n> names.
     id=${4#repos/acme/tasks/issues/comments/}
     case "$3 $id" in
-      "PATCH "*) [ -f "comment-$id" ] && printf '%s' "${6#body=}" >"comment-$id" ;;
-      "PUT "*/pin) id=${id%/pin}; [ -f "comment-$id" ] && echo "$id" >"pinned-${id%???}" ;;
+      "PATCH "*) printf '%s' "${6#body=}" >"comment-$id" ;;
+      "PUT "*/pin) id=${id%/pin}; echo "$id" >"pinned-${id%???}" ;;
       *) exit 1 ;;
     esac ;;
   "pr list")
@@ -520,7 +520,7 @@ check "labels the issue"                       grep -qx backlog "$TASK_TEST_STAT
 check "and gives the reason in a comment"      test "$(cat "$TASK_TEST_STATE/comment-18000")" = 'Parked: planned in #19'
 refuses "a start refuses a parked issue, naming the reason" '^issue 18 is parked: planned in #19$' "$BACKEND" start 18
 check "and creates nothing"                    test ! -e "$WORK/repos/worktrees/18-task-18"
-echo "A comment of the owner's" >>"$TASK_TEST_STATE/comments-18"
+printf '%s' "A comment of the owner's" >"$TASK_TEST_STATE/comment-18001"
 check "a park where the label is"              task "$BACKEND" park 18 "waits for the review"
 refuses "the reason named is the last one given" '^issue 18 is parked: waits for the review$' "$BACKEND" start 18
 printf '18\n5\n' >"$TASK_TEST_STATE/blocked-by-19"
@@ -538,9 +538,9 @@ echo "-- status: every open issue, under the first heading that fits"
 # By now 11, 13, 15 and 19 have a task worktree in backend, and every other issue up to 19 is closed.
 echo backlog >"$TASK_TEST_STATE/labels-11"
 echo backlog >"$TASK_TEST_STATE/labels-20"
-echo 'Parked: planned in #19' >"$TASK_TEST_STATE/comments-20"
+printf '%s' 'Parked: planned in #19' >"$TASK_TEST_STATE/comment-20000"
 echo backlog >"$TASK_TEST_STATE/labels-21"
-echo 'Parked: waits for the review' >"$TASK_TEST_STATE/comments-21"
+printf '%s' 'Parked: waits for the review' >"$TASK_TEST_STATE/comment-21000"
 echo 22 >"$TASK_TEST_STATE/blocked-by-21"
 printf '20\n5\n' >"$TASK_TEST_STATE/blocked-by-22"
 check "a look runs"                            run_in "$BACKEND" status
@@ -566,12 +566,11 @@ check "prints the task lines, and no heading or backlog line" \
   test "$(sed '$d' "$WORK/out" | cut -d ' ' -f 1 | sort | tr '\n' ' ')" = '#11 #13 #15 #19 '
 
 echo "-- plan: a task's design, the one pinned comment of its issue"
-# The owner's comment was posted, so it has a URL, and its heading only starts like a plan's.
+# The heading of the owner's comment only starts like a plan's.
 OWNERS="$(printf '## Planning, in the words of the owner\n\nA note.')"
 printf '%s' "$OWNERS" >"$TASK_TEST_STATE/comment-24000"
-printf 'Build one thing.\n' >"$WORK/repos/plan.md"
-check "a session posts its plan, from a path relative to its folder" bash -c "cd '$WORK/repos' && bash '$BACKEND/.claude/skills/task/scripts/task.sh' plan 24 plan.md"
-mv "$WORK/repos/plan.md" "$WORK/plan.md"
+printf 'Build one thing.\n' >"$ISSUE11/backend/plan.md"
+check "a session posts its plan, from a path relative to its folder" run_in "$ISSUE11/backend" plan 24 plan.md
 check "as a comment headed Plan, which says whose words it holds, then the file's text" test "$(cat "$TASK_TEST_STATE/comment-24001")" = \
   "$(printf '%s\n\n%s\n\n%s' '## Plan' '_The design this task builds. Its session chose it and keeps it current here; it is not a decision of the owner._' 'Build one thing.')"
 check "the issue's pinned comment"             test "$(cat "$TASK_TEST_STATE/pinned-24")" = 24001
