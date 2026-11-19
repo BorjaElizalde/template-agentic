@@ -7,6 +7,8 @@ on:
     # No main: it takes staging alone (Branch protection), whose code passed this check on its way
     # in. Tried main with its job skipped, but nothing requires gate to report there.
     branches: [develop, staging]
+    # ready_for_review gates a draft once it is marked ready; the default types leave it out.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: gate-${{ github.head_ref || github.ref }}
@@ -14,13 +16,15 @@ concurrency:
 
 jobs:
   gate:
-    # Skipped on the promotion of develop, whose code passed this check on its way in, so a second
-    # run only costs minutes. Tried the head's name alone, but a fork's develop would skip too, and
-    # so would a branch Develop into develop, since == ignores case. Tried a trigger filter in place
-    # of the if, but it can't read a PR's head, and a required check that never reports blocks the
-    # merge, where a skipped job passes.
+    # Skipped on a draft, which can't merge and is gated when it is marked ready, and on the
+    # promotion of develop, whose code passed this check on its way in, so a second run only costs
+    # minutes. Tried the head's name alone, but a fork's develop would skip too, and so would a
+    # branch Develop into develop, since == ignores case. Tried a trigger filter in place of the if,
+    # but it can't read a PR's head or its draft state, and a required check that never reports
+    # blocks the merge, where a skipped job passes.
     if: >-
-      ${{ !(github.base_ref == 'staging' && github.head_ref == 'develop'
+      ${{ !github.event.pull_request.draft
+      && !(github.base_ref == 'staging' && github.head_ref == 'develop'
       && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
