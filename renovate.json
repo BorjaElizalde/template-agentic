@@ -1,5 +1,5 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "This repository's CI files are its own, so it takes the shared rules without the list of the templates' CI files.",
+  "description": "Renovate updates the template's CI files here, and this repository's copies of them in the same PR, so it takes the shared rules without the list of the templates' CI files.",
   "extends": ["github>BorjaElizalde/template-agentic//renovate/base"]
 }
