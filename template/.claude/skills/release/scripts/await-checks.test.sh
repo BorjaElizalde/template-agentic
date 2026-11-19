@@ -88,12 +88,12 @@ SECONDS=301 exits 3 "past it, no check ever registered exits 3" '[]' 7
 check "and says so"                                printed 'PR #7 has not registered a check within 300s.'
 SECONDS=301 exits 0 "once a check was seen, an error past it never reads as no check" "$(printf '%s\n' "$PENDING" error "$GREEN")" 7
 
-echo "-- a named check"
+echo "-- named checks"
 SKIPPED="$(answer gate:skipping)"
-exits 0 "it polls until the named check has registered and passed" "$(printf '%s\n' "$SKIPPED" "$(answer gate:skipping branch-flow:pending)" "$(answer gate:skipping branch-flow:pass)")" 7 branch-flow
+exits 0 "it polls until each named check has registered and none is pending" "$(printf '%s\n' "$SKIPPED" "$(answer gate:skipping branch-flow:pending)" "$(answer gate:skipping branch-flow:pass)")" 7 gate branch-flow
 check "three polls"                                test "$(count gh)" -eq 3
-SECONDS=301 exits 3 "past the grace window, a named check that never registered exits 3" "$SKIPPED" 7 branch-flow
-check "and names it"                               printed 'PR #7 has not registered branch-flow within 300s.'
+SECONDS=301 exits 3 "past the grace window, a named check that never registered exits 3" "$SKIPPED" 7 gate branch-flow
+check "and says which were named"                  printed 'PR #7 has not registered all of gate branch-flow within 300s.'
 
 echo "-- the deadline"
 SECONDS=3601 exits 2 "checks still pending past it exit 2" "$PENDING" 7

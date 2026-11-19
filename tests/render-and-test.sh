@@ -220,7 +220,7 @@ harness_in_step() {
   sed "s#$OUT/self#render#g; s#$ROOT#repository#g; s/^/FAIL /" <<<"$drift"
   return 1
 }
-expect "this repository's harness and Branch flow workflow are in step with the template (make render changes nothing)" harness_in_step
+expect "this repository's harness and workflows are in step with the template (make render changes nothing)" harness_in_step
 
 # The product names the template was extracted from; bracketed so this line never matches itself.
 expect "no product name in the template" bash -c "! grep -rIil -E 'fire[b]rain|monar[d]it|aer[i]s|truela[y]er' --exclude-dir=.git --exclude=.git '$ROOT'"

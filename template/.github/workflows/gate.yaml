@@ -14,11 +14,14 @@ concurrency:
 
 jobs:
   gate:
-    # A promotion's code passed this check on its way into develop, so a second run only costs
-    # minutes. Tried the head's name alone, but a fork's develop would skip too. Tried a trigger
-    # filter in place of the if, but it can't read a PR's head, and a required check that never
-    # reports blocks the merge, where a skipped job passes.
-    if: ${{ !(github.head_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) }}
+    # Skipped on the promotion of develop, whose code passed this check on its way in, so a second
+    # run only costs minutes. Tried the head's name alone, but a fork's develop would skip too, and
+    # so would a branch Develop into develop, since == ignores case. Tried a trigger filter in place
+    # of the if, but it can't read a PR's head, and a required check that never reports blocks the
+    # merge, where a skipped job passes.
+    if: >-
+      ${{ !(github.base_ref == 'staging' && github.head_ref == 'develop'
+      && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

@@ -17,7 +17,6 @@ Every promotion PR carries the `branch-flow` check: it passes only a PR from the
 base (`develop` into `staging`, `staging` into `main`). The project's checks don't run on a
 promotion, whose code passed them before it reached its source branch: `gate` shows as skipped on
 the PR into `staging`, and no `gate` runs on the PR into `main`.
-The rulesets require `branch-flow`, so a promotion PR without it is a red.
 
 Run every leg unattended for as long as everything is green: never pause to confirm a green step.
 **Stop at the first red** — a failed or cancelled check, a merge that will not apply, a failed
@@ -43,8 +42,9 @@ promotion PR for a leg → adopt it rather than opening a second.
    `Release: <themes> to <dst>`, and a body a person can follow without the diffs open: first why
    these changes ship; then what each theme includes, in plain prose with its PR numbers. Leave out
    the checks and the merge method.
-3. Run `bash "${CLAUDE_SKILL_DIR}/scripts/await-checks.sh" <pr> branch-flow` in the background.
-   Exit 3 (`branch-flow` never registered) is a red.
+3. Run `bash "${CLAUDE_SKILL_DIR}/scripts/await-checks.sh" <pr> <checks>` in the background, naming
+   the checks this leg's PR carries: `gate branch-flow` into `staging`, `branch-flow` into `main`.
+   Exit 3 (one of them never registered) is a red.
 4. Merge. After the last leg, read the merge commit:
    `gh pr view <pr> --json mergeCommit --jq .mergeCommit.oid`.
 

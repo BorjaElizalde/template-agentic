@@ -28,7 +28,7 @@ while :; do
     # only until the first sighting.
     if (( seen == 0 && SECONDS > grace )); then
       named="${*:2}"
-      printf 'PR #%s has not registered %s within %ss.\n' "$pr" "${named:-a check}" "$grace"
+      printf 'PR #%s has not registered %s within %ss.\n' "$pr" "${named:+all of }${named:-a check}" "$grace"
       exit 3
     fi
   else
