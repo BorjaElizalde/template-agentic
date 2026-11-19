@@ -10,7 +10,7 @@ you may not stop to wait for an answer. Stop only when the task is done, or when
 For a task that ends in a PR, open the PR with `/pull-request` once the work is done. Then
 run the steps below, and give each agent the command that reads the task's issue,
 `gh issue view <n> -R BorjaElizalde/template-agentic --json title,body,comments`.
-Skip steps 1 and 2 when the change is small, a bug fix or a small extension. Judge that by what
+Skip step 2 when the change is small, a bug fix or a small extension. Judge that by what
 the change does, not by its line count: a mirrored copy doubles the count, and a wide mechanical
 rename is large but low risk.
 

@@ -11,7 +11,7 @@ For a task that ends in a PR, open the PR with `/pull-request` once the work is 
 and stop before its merge step{% endif %}. Then
 run the steps below, and give each agent the command that reads the task's issue,
 `gh issue view <n> -R {{ issues_repo }} --json title,body,comments`.
-Skip steps 1 and 2 when the change is small, a bug fix or a small extension. Judge that by what
+Skip step 2 when the change is small, a bug fix or a small extension. Judge that by what
 the change does, not by its line count: a mirrored copy doubles the count, and a wide mechanical
 rename is large but low risk.
 
