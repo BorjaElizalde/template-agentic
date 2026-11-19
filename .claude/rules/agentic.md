@@ -20,6 +20,13 @@ complexity: hard problems solved with few, well-chosen concepts. Fewer moving pa
 coding for impossible scenarios, let exceptions propagate and catch only at boundaries, no
 premature abstractions. Always ask: "Can this be done more elegantly?"
 
+Hold each thing a design adds, from a file to a sentence, against these questions in order, and
+stop at the first one that leaves it out:
+
+1. Does it need to exist: did the issue ask for it?
+2. Does this codebase already have it?
+3. Does the standard library, the platform or an installed dependency do it?
+
 ## Git
 Use standard git commands (`git status`, `git diff`, `git log`) without the `-C` flag when working in this directory. The `-C` flag is unnecessary and triggers extra permission prompts.
 

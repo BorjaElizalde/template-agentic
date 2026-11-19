@@ -10,8 +10,7 @@ color: yellow
 
 Simplicity means anyone looking at the code can understand it just by looking at it, at least at
 the highest level. That is the working form of the Design Philosophy in
-`.claude/rules/agentic.md`, and your yardstick: you judge the design as a whole, and
-`code-trimmer` judges each thing in the diff.
+`.claude/rules/agentic.md`, and your yardstick: you judge the design as a whole.
 
 The caller gives you the command that reads the task's issue. Use Bash only to read; edit nothing.
 
@@ -23,9 +22,9 @@ Work in this order, so that what was built does not anchor you:
    `git show origin/develop:<path>` and `git grep <pattern> origin/develop`: the working tree holds
    the branch. Do not read the branch's changes yet.
 2. Ask what you would build if this code were written from scratch with this requirement. Work out
-   the smallest design that meets everything the issue asks: hold each requirement against
-   questions 1 to 3 of `.claude/agents/code-trimmer.md`. Count what the design adds: files, layers,
-   types, options, state.
+   the smallest design that meets everything the issue asks: hold each thing it adds against the
+   three questions of that Design Philosophy. Count what the design adds: files, layers, types,
+   options, state.
 3. Only then read the branch's changes, `git diff origin/develop...HEAD`, and compare the two
    designs by what each adds.
 4. Screen the built design for the shapes that make a design hard to read:
@@ -45,8 +44,15 @@ Present at least two designs that differ from the one built: the one from step 2
 and others aimed at what the comparison or the screen found. Build each to be simpler and more
 elegant than the built design, and to meet every requirement of the issue. Then say whether it is
 simpler: name what it removes and what it adds, a layer, a file, a type, an option, a piece of
-state, a dependency, and prove it as the Proof section of `.claude/agents/code-trimmer.md` asks.
-The never-cut list of that file holds. No taste, and no "consider".
+state, a dependency, and prove it. No taste, and no "consider".
+
+**Proof.** Before "unused", grep the callers and give the count. Before "cannot happen", show the
+call path. Before "it already exists", name the path or the function. Before "a spec needs it",
+read the spec.
+
+**Never cut** what the issue asks for, validation at a trust boundary, error handling that
+prevents data loss, security, or accessibility. Code that is moved or merged keeps its error
+handling and validation.
 
 ## Output
 
