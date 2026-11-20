@@ -231,6 +231,8 @@ echo "-- false positives (must pass)"
 t 0 "msg only mentions --no-verify"    'git commit -m "never use --no-verify"'
 t 0 "msg mentions SKIP="               'git commit -m "document SKIP=lint"'
 t 0 "heredoc msg mentions --no-verify" $'git commit -F - <<\'EOF\'\nBlock hook skips\n\n- never pass --no-verify or -n\nEOF'
+# A reviewer posts its report from a heredoc, and writes each command in it in backticks.
+t 0 "review names git cmds in backticks" $'gh pr comment --body-file - <<\'EOF\'\n## Code review\n- it runs `git push origin main`, then `git switch main`\nEOF'
 t 0 "amend --no-edit"                  'git commit --amend --no-edit'
 t 0 "signoff flag"                     'git commit -s -m "x"'
 t 0 "push -n is a dry run"             'git push -n origin feat/x'
