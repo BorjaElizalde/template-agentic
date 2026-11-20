@@ -17,8 +17,15 @@ mkdir -p "$OUT/src"
 expect() {  # expect <desc> <command...>; a failure prints the command's own lines that report it
   local out
   if out="$("${@:2}" 2>&1)"; then echo "PASS $1"
-  else echo "FAIL $1"; grep -E 'FAIL|rror' <<<"$out" | head -20 | sed 's/^/    /'; fail=1; fi
+  else echo "FAIL $1"; awk '/FAIL|rror/ && n++ < 20 { print "    " $0 }' <<<"$out"; fail=1; fi
 }
+# A new bash, with this file's options: below expect's if, bash ignores set -e, in subshells too.
+goes_on_after_a_silent_failure() {
+  [ "$(bash -euo pipefail -c "$(declare -f expect); fail=0; expect silent false; expect next true; echo fail=\$fail")" = \
+    "$(printf '%s\n' 'FAIL silent' 'PASS next' 'fail=1')" ]
+}
+expect "a failed check whose output has no FAIL or error line is reported, and the checks after it still run" \
+  goes_on_after_a_silent_failure
 
 D="$OUT/project"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks "$OUT/src" "$D"
