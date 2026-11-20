@@ -46,7 +46,7 @@ A stack template supplies these files in its `template/`, so that each project g
 
 | File | Contract |
 |---|---|
-| `.github/actions/stack-gate/action.yaml` | The composite action that the `Gate` workflow runs after the checkout, on every PR into `develop` or `staging` but the promotion of `develop`. It calls the stack's tools directly, never `make gate`. |
+| `.github/actions/stack-gate/action.yaml` | The composite action that the `Gate` workflow runs after the checkout, on every PR into `develop` or `staging` but a draft and the promotion of `develop`. It calls the stack's tools directly, never `make gate`. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit, Write or MultiEdit, with the hook payload on stdin. |
 

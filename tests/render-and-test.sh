@@ -36,7 +36,8 @@ expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '
 expect "by default the pull-request skill leaves the merge to the owner" bash -c "! grep -q 'gh pr merge' '$D/.claude/skills/pull-request/SKILL.md'"
 expect "the pull-request skill merges origin/develop into the branch before it pushes, and is allowed to" bash -c "
   grep -q '^allowed-tools:.*Bash(git merge:\*)' '$D/.claude/skills/pull-request/SKILL.md' &&
-  grep -q '^4. Bring the branch up to date with .git merge --no-edit origin/develop.' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -A1 '^4. Bring the branch up to date with .git fetch origin develop., then' '$D/.claude/skills/pull-request/SKILL.md' |
+    grep -q '^   .git merge --no-edit origin/develop.' &&
   grep -q '^5. Push with' '$D/.claude/skills/pull-request/SKILL.md'"
 AM="$OUT/agent-merges"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data agent_merges=true "$OUT/src" "$AM"
@@ -81,7 +82,8 @@ expect "the Gate workflow skips a draft, and runs when one is marked ready" bash
 expect "the Branch protection job reports as branch-protection on a PR into staging or main, and as up-to-date otherwise" bash -c "
   [ \"\$(uvx --quiet yq -r '.jobs[\"branch-protection\"].name' '$BRANCH_PROTECTION')\" = \
     \"\\\${{ github.event_name == 'pull_request' && github.base_ref != 'develop' && 'branch-protection' || 'up-to-date' }}\" ]"
-# A stub gh: the open PRs' heads are a and b, b lacks two of develop's commits, statuses are logged.
+# A stub gh: the open PRs' heads are a, b and d, b lacks two of develop's commits, d has its failed
+# status, statuses are logged.
 export UP_TO_DATE="$OUT/up-to-date"
 mkdir -p "$UP_TO_DATE/bin"
 for step in 1 2; do
@@ -90,9 +92,11 @@ done
 cat >"$UP_TO_DATE/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
-  "pr list --repo acme/app --base develop "*) printf 'a\nb\n' ;;
+  "pr list --repo acme/app --base develop "*) printf 'a\nb\nd\n' ;;
   "api repos/acme/app/compare/develop...a --jq .behind_by") echo 0 ;;
   "api repos/acme/app/compare/develop...b --jq .behind_by") echo 2 ;;
+  "api repos/acme/app/commits/d/status --jq "*) jq -n '{statuses: [{context: "up-to-date"}]}' | jq "${@: -1}" ;;
+  "api repos/acme/app/commits/"*) jq -n '{statuses: [{context: "gate"}]}' | jq "${@: -1}" ;;
   "api repos/acme/app/statuses/"*) echo "$*" >>"$UP_TO_DATE/statuses" ;;
   *) exit 64 ;;
 esac
@@ -108,7 +112,7 @@ marks_the_stale_prs() {
   up_to_date 2 && [ "$(wc -l <"$UP_TO_DATE/statuses")" -eq 1 ] &&
     grep -q '^api repos/acme/app/statuses/b .*-f state=failure -f context=up-to-date ' "$UP_TO_DATE/statuses"
 }
-expect "a push to develop puts a failed up-to-date status on the head of each open PR that lacks its commits, and on no other" marks_the_stale_prs
+expect "a push to develop puts a failed up-to-date status on the head of each open PR that lacks its commits, once" marks_the_stale_prs
 expect "both preset files and every renovate.json are valid Renovate config" uvx --quiet check-jsonschema \
   --schemafile https://docs.renovatebot.com/renovate-schema.json \
   "$ROOT/renovate/base.json" "$ROOT/renovate/default.json" "$ROOT/renovate.json" "$D/renovate.json"
@@ -152,24 +156,49 @@ expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/tas
 expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
 expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md' && grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/skills/status/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
-expect "an execution session spawns code-reviewer, code-trimmer, then the simplicity reviewer, with the task's issue, and only code-trimmer on a small change" bash -c "
-  grep -q '^Skip steps 1 and 3 when the change is small' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^1. Spawn the .code-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^2. Spawn the .code-trimmer. agent' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^3. Spawn one .simplicity-reviewer.' '$D/.claude/skills/task/session/execution.md' &&
+expect "an execution session spawns plan-reviewer before it builds, then readability-reviewer and code-reviewer on its PR, with the task's issue, and none on a small change" bash -c "
+  grep -q '^A small change, a bug fix or a small extension, gets none of them' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^Before you build, spawn the .plan-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^1. Spawn the .readability-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^2. Spawn the .code-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
   grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/session/execution.md'"
-expect "with agent_merges an execution session merges its PR as its last step" bash -c "
-  grep -q 'stop before its merge step' '$AM/.claude/skills/task/session/execution.md' &&
-  grep -q '^4. Merge the PR' '$AM/.claude/skills/task/session/execution.md' &&
-  ! grep -qi 'merge' '$D/.claude/skills/task/session/execution.md'"
-for reviewer in code-reviewer simplicity-reviewer; do
-  REVIEWER="$D/.claude/agents/$reviewer.md"
-  expect "$reviewer has no tool that edits, nor memory, which adds Write and Edit" bash -c "
-    grep -q '^tools: Read' '$REVIEWER' && ! grep -qE '^(tools:.*(Edit|Write|Agent)|memory:)' '$REVIEWER'"
+expect "plan-reviewer only reports, and the execution session decides on its designs and posts the plan it changed before it builds" bash -c "
+  grep -q '^and post nothing on the issue. The plan is the session.s: you report to it, and it decides' '$D/.claude/agents/plan-reviewer.md' &&
+  grep -q 'It only reports: you decide$' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^against it, and post the plan again before you build any code' '$D/.claude/skills/task/session/execution.md'"
+expect "an execution session settles a readability finding in the code" \
+  grep -q 'Settle each finding with a change to the code, unless a$' "$D/.claude/skills/task/session/execution.md"
+expect "an execution session leaves its PR a draft until its review steps end, then runs the pull-request skill to its end" bash -c "
+  grep -q 'stop before the step that marks it$' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^3. Pass ./gate., then run ./pull-request. again, to its end' '$D/.claude/skills/task/session/execution.md'"
+expect "the pull-request skill opens a draft or updates the open PR, and marks it ready once nothing else is left but the merge" bash -c "
+  grep -q '^allowed-tools:.*Bash(gh pr edit:\*), Bash(gh pr ready:\*)' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -q '^3. Look for an open PR with the same head and base: step 6 updates it' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -qF '\`gh pr create --base develop --draft\`, or \`gh pr edit <n>\` on the PR that step 3 found' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -q '^7. Mark the PR ready with .gh pr ready <n>., unless the caller said to stop before this step' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -q '^8. Return the PR URL' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -q '^8. This project lets the agent merge' '$AM/.claude/skills/pull-request/SKILL.md'"
+expect "an execution session posts its plan with task.sh plan before it builds" bash -c "
+  grep -q '^For a task that ends in a PR, plan before you build' '$D/.claude/skills/task/session/execution.md' &&
+  grep -qF 'bash .claude/skills/task/scripts/task.sh plan <n> <file>' '$D/.claude/skills/task/session/execution.md' &&
+  grep -qF '| plan <issue> <file> |' '$D/.claude/skills/task/scripts/task.sh'"
+expect "the pull-request skill reads the task's plan, and the PR says where it departs from it" bash -c "
+  grep -qF 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/pull-request/SKILL.md' &&
+  grep -q 'Where the change departs from the task.s plan' '$D/.claude/skills/pull-request/SKILL.md'"
+for reviewer in plan-reviewer readability-reviewer; do
+  expect "$reviewer first reads the issue without the comment under the heading task.sh gives a plan" bash -c "
+    grep -qx \"PLAN_HEADING='## Plan'\" '$D/.claude/skills/task/scripts/task.sh' &&
+    grep -qF 'startswith(\"## Plan\\n\")' '$D/.claude/agents/$reviewer.md'"
 done
-TRIMMER="$D/.claude/agents/code-trimmer.md"
-expect "code-trimmer edits and commits, and spawns no agent" bash -c "
-  grep -qE '^tools:.*Bash.*Edit' '$TRIMMER' && ! grep -qE '^tools:.*Agent' '$TRIMMER'"
+expect "the rules hold the Readable code section that readability-reviewer names" bash -c "
+  grep -qx '## Readable code' '$D/.claude/rules/conventions.md' &&
+  grep -qF '\"Readable code\" in \`.claude/rules/conventions.md\`' '$D/.claude/agents/readability-reviewer.md'"
+for agent in "$D"/.claude/agents/*.md; do
+  name="$(basename "$agent" .md)"
+  expect "the execution session spawns $name, which has no tool that edits, nor memory, which adds Write and Edit" bash -c "
+    grep -qi 'spawn the .$name. agent' '$D/.claude/skills/task/session/execution.md' &&
+    grep -q '^tools: Read' '$agent' && ! grep -qE '^(tools:.*(Edit|Write|Agent)|memory:)' '$agent'"
+done
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
