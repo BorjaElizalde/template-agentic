@@ -17,14 +17,21 @@ mkdir -p "$OUT/src"
 expect() {  # expect <desc> <command...>; a failure prints the command's own lines that report it
   local out
   if out="$("${@:2}" 2>&1)"; then echo "PASS $1"
-  else echo "FAIL $1"; grep -E 'FAIL|rror' <<<"$out" | head -20 | sed 's/^/    /'; fail=1; fi
+  else echo "FAIL $1"; awk '/FAIL|rror/ && n++ < 20 { print "    " $0 }' <<<"$out"; fail=1; fi
 }
+commit() { git -C "$1" add -A && git -C "$1" -c user.name=t -c user.email=t@t commit -qm "$2"; }
+# A new bash, with this file's options: below expect's if, bash ignores set -e, in subshells too.
+goes_on_after_a_silent_failure() {
+  [ "$(bash -euo pipefail -c "$(declare -f expect); fail=0; expect silent false; expect next true; echo fail=\$fail")" = \
+    "$(printf '%s\n' 'FAIL silent' 'PASS next' 'fail=1')" ]
+}
+expect "a failed check whose output has no FAIL or error line is reported, and the checks after it still run" \
+  goes_on_after_a_silent_failure
 
 D="$OUT/project"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks "$OUT/src" "$D"
 git -C "$D" init -q
-git -C "$D" add -A
-git -C "$D" -c user.name=t -c user.email=t@t commit -qm render
+commit "$D" render
 
 expect "the make fragment is .claude/agentic.mk, and no Makefile or CLAUDE.md is written" bash -c "[ -f '$D/.claude/agentic.mk' ] && [ ! -e '$D/Makefile' ] && [ ! -e '$D/CLAUDE.md' ]"
 expect "the shared rules load without an import" bash -c "[ -f '$D/.claude/rules/agentic.md' ] && [ -f '$D/.claude/rules/conventions.md' ]"
@@ -141,7 +148,7 @@ expect "a first copy keeps the project's renovate.json" bash -c "[ \"\$(cat '$X/
 expect "the task plugin's manifest names it task" bash -c "[ \"\$(jq -r .name '$D/.claude/skills/task/.claude-plugin/plugin.json')\" = task ]"
 expect "no .claude/scripts folder is rendered" test ! -e "$D/.claude/scripts"
 expect "every script parses" bash -c "for f in \$(find '$D' -name '*.sh'); do bash -n \"\$f\" || exit 1; done"
-expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$UP_TO_DATE' '$ROOT/tests' '$ROOT/bundle.sh' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
+expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$UP_TO_DATE' '$ROOT/tests' '$ROOT/bundle.sh' '$ROOT/release.sh' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
 expect "bash-guard suite" bash "$D/.claude/hooks/bash-guard.test.sh"
 expect "worktree-guard suite" bash "$D/.claude/hooks/worktree-guard.test.sh"
 expect "practices protocol suite" bash "$D/.claude/hooks/practices/guard.test.sh"
@@ -156,14 +163,32 @@ expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/tas
 expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
 expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md' && grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/skills/status/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
-expect "an execution session spawns plan-reviewer before it builds, then readability-reviewer and code-reviewer on its PR, with the task's issue, and none on a small change" bash -c "
+expect "an execution session spawns plan-reviewer before it builds, then code-reviewer and readability-reviewer on its PR, with the task's issue, and none on a small change" bash -c "
   grep -q '^A small change, a bug fix or a small extension, gets none of them' '$D/.claude/skills/task/session/execution.md' &&
   grep -q '^Before you build, spawn the .plan-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^1. Spawn the .readability-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^2. Spawn the .code-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^1. Spawn the .code-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^2. Spawn the .readability-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
   grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/session/execution.md'"
+posts_its_report() {  # posts_its_report <agent> <gh call> <heading>
+  local definition="$D/.claude/agents/$1.md"
+  grep -qF "\`$2\`" "$definition" && grep -qF "\`$3\`" "$definition" &&
+    grep -qF "\`_Findings of the $1 agent._\`" "$definition" &&
+    grep -qF 'in backticks: the Bash guard reads the heredoc as part of' "$definition" &&
+    grep -qF 'If it still blocks the post, write' "$definition"
+}
+expect "plan-reviewer posts its report on the issue, under its heading and its name, with every shell command in backticks or, where the guard still blocks it, in other words" \
+  posts_its_report plan-reviewer 'gh issue comment <n> -R <repository> --body-file -' '## Plan review'
+expect "code-reviewer posts its report on the PR, under its heading and its name, with every shell command in backticks or, where the guard still blocks it, in other words" \
+  posts_its_report code-reviewer 'gh pr comment --body-file -' '## Code review'
+expect "readability-reviewer posts its report on the PR, under its heading and its name, with every shell command in backticks or, where the guard still blocks it, in other words" \
+  posts_its_report readability-reviewer 'gh pr comment --body-file -' '## Readability review'
+expect "an execution session replies from a file beside a review that found something, headed with the review's heading followed by reply, before it acts on a finding" bash -c "
+  grep -q '^Each reviewer posts its report as a comment, then returns it to you' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q 'Before you act on any finding of a review, post your reply beside it' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q 'headed with the review.s heading followed by .reply.' '$D/.claude/skills/task/session/execution.md' &&
+  grep -qF '\`--body-file <file>\`' '$D/.claude/skills/task/session/execution.md'"
 expect "plan-reviewer only reports, and the execution session decides on its designs and posts the plan it changed before it builds" bash -c "
-  grep -q '^and post nothing on the issue. The plan is the session.s: you report to it, and it decides' '$D/.claude/agents/plan-reviewer.md' &&
+  grep -q 'The plan is the session.s: you report to it, and it decides what the$' '$D/.claude/agents/plan-reviewer.md' &&
   grep -q 'It only reports: you decide$' '$D/.claude/skills/task/session/execution.md' &&
   grep -q '^against it, and post the plan again before you build any code' '$D/.claude/skills/task/session/execution.md'"
 expect "an execution session settles a readability finding in the code" \
@@ -186,9 +211,11 @@ expect "the pull-request skill reads the task's plan, and the PR says where it d
   grep -qF 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/pull-request/SKILL.md' &&
   grep -q 'Where the change departs from the task.s plan' '$D/.claude/skills/pull-request/SKILL.md'"
 for reviewer in plan-reviewer readability-reviewer; do
-  expect "$reviewer first reads the issue without the comment under the heading task.sh gives a plan" bash -c "
+  expect "$reviewer first reads the issue without the plan, the plan review and its reply, by their exact headings" bash -c "
     grep -qx \"PLAN_HEADING='## Plan'\" '$D/.claude/skills/task/scripts/task.sh' &&
-    grep -qF 'startswith(\"## Plan\\n\")' '$D/.claude/agents/$reviewer.md'"
+    grep -qF '\`## Plan review\`' '$D/.claude/agents/plan-reviewer.md' &&
+    grep -qF '\`## Plan review reply\`' '$D/.claude/skills/task/session/execution.md' &&
+    grep -qF 'test(\"^## Plan( review( reply)?)?\\n\")' '$D/.claude/agents/$reviewer.md'"
 done
 expect "the rules hold the Readable code section that readability-reviewer names" bash -c "
   grep -qx '## Readable code' '$D/.claude/rules/conventions.md' &&
@@ -202,22 +229,31 @@ done
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
-release() {
-  git -C "$1" add -A && git -C "$1" -c user.name=t -c user.email=t@t commit -qm "$2" && git -C "$1" tag "$2"
-}
+# S is the stack template's repository, whose main holds no bundle.
 S="$OUT/stack"
 cp -R "$OUT/src/tests/stack" "$S"
-git -C "$S" init -q
-bash "$OUT/src/bundle.sh" "$S"
-release "$S" v1
+git -C "$S" init -q -b main
+commit "$S" 'Add the stack template'
+build() {  # build <tag> <copy of this template>: what the stack template's Build does on a merge to main
+  rm -rf "$OUT/build"
+  git clone --quiet --depth 1 --branch main "file://$S" "$OUT/build"
+  (cd "$OUT/build" && git config user.name t && git config user.email t@t && bash "$2/release.sh" "$1")
+}
+build v1 "$OUT/src"
 NEXT="$OUT/next"
 cp -R "$OUT/src" "$NEXT"
 printf 'probe\n' >"$NEXT/template/update-probe.txt"
 rm "$NEXT/template/.claude/skills/commit/SKILL.md"
 printf '{}\n' >"$NEXT/template/renovate.json"
-bash "$NEXT/bundle.sh" "$S"
 printf 'gate:\n\t@echo v2\n' >"$S/template/Makefile"
-release "$S" v2
+commit "$S" 'Change the seeded Makefile'
+build v2 "$NEXT"
+parents_are() {  # parents_are <release> <commit...>: the release's parents are those commits, in order
+  [ "$(git -C "$S" rev-parse "$1^@")" = "$(git -C "$S" rev-parse "${@:2}")" ]
+}
+expect "the first release's only parent is main as it was built on" parents_are v1 main^
+expect "a later release's parents are main and the release before it" parents_are v2 main v1
+expect "no branch holds a release" bash -c "[ -z \"\$(git -C '$S' branch --contains v1; git -C '$S' branch --contains v2)\" ]"
 
 TWO="$OUT/two-layers"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks "$OUT/src" "$TWO"
@@ -263,15 +299,12 @@ expect "make claude keeps the machine awake and gives claude its flag, args and 
 expect "with no caffeinate and no prompt, make claude starts claude alone, with no empty argument" make_claude \
   "$SI/claude" --remote-control
 git -C "$B" init -q
-git -C "$B" add -A
-git -C "$B" -c user.name=t -c user.email=t@t commit -qm copy
+commit "$B" copy
 (cd "$B" && uvx --quiet copier update --quiet --defaults -a .copier-answers.stack.yaml --vcs-ref v2)
 expect "copier update across a bundled release delivers this template's change, without --trust" bash -c "
   [ -f '$B/update-probe.txt' ] && [ ! -e '$B/.claude/skills/commit/SKILL.md' ] && grep -qx '_commit: v2' '$B/.copier-answers.stack.yaml'"
 expect "the update keeps the files both layers seed once" bash -c "
   cmp -s '$OUT/src/template/renovate.json' '$B/renovate.json' && cmp -s '$OUT/src/tests/stack/template/Makefile' '$B/Makefile'"
-expect "bundle.sh --check passes the stack template's bundle of its own version" bash "$NEXT/bundle.sh" --check "$S"
-expect "bundle.sh --check fails the stack template's bundle of another version" bash -c "! bash '$OUT/src/bundle.sh' --check '$S'"
 expect "bundle.sh refuses a stack template that has its own copy of a file it bundles" bash -c "
   mkdir -p '$OUT/clash/template' && cp '$OUT/src/template/renovate.json' '$OUT/clash/template/' && ! bash '$OUT/src/bundle.sh' '$OUT/clash'"
 
