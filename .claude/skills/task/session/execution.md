@@ -8,9 +8,8 @@ you may not stop to wait for an answer. Stop only when the task is done, or when
 `Owner steps`.
 
 For a task that ends in a PR, plan before you build. Work out the smallest design that meets
-everything the issue asks: hold each thing it adds against the Design Philosophy and questions 1
-to 3 of `.claude/agents/code-trimmer.md`. Write the plan to a file, for a reader who has the issue
-and not the code:
+everything the issue asks: hold each thing it adds against the Design Philosophy. Write the plan
+to a file, for a reader who has the issue and not the code:
 
 - what you will build, and where;
 - each thing it adds, such as a file, a command, a setting or a name, with the reason the issue
@@ -27,15 +26,13 @@ Open that PR with `/pull-request` once the work is done, and stop before the ste
 ready: it stays a draft, which nobody can merge, until the steps below end. Then run them, and
 give each agent the command that reads the task's issue,
 `gh issue view <n> -R BorjaElizalde/template-agentic --json title,body,comments`.
-Skip steps 1 and 3 when the change is small, a bug fix or a small extension. Judge that by what
+Skip steps 1 and 2 when the change is small, a bug fix or a small extension. Judge that by what
 the change does, not by its line count: a mirrored copy doubles the count, and a wide mechanical
 rename is large but low risk.
 
 1. Spawn the `code-reviewer` agent. Fix each **Must change** finding, and each **Optional** one
    unless a reason stands against it, then push.
-2. Spawn the `code-trimmer` agent. Audit its report and its commit, and take back each cut that
-   removed what the issue needs.
-3. Spawn one `simplicity-reviewer`, and decide on its designs: take one it shows simpler unless a
+2. Spawn one `simplicity-reviewer`, and decide on its designs: take one it shows simpler unless a
    reason stands against it. Rebuild to the design you take and push it. When the rebuild adds
-   code, run steps 1 and 2 again on the result; a line it only shortens or rewraps adds none.
-4. Pass `/gate`, then run `/pull-request` again, to its end.
+   code, run step 1 again on the result; a line it only shortens or rewraps adds none.
+3. Pass `/gate`, then run `/pull-request` again, to its end.

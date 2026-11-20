@@ -156,15 +156,15 @@ expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/tas
 expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
 expect "task skills name the issues repo" bash -c "grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' && grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md' && grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/skills/status/SKILL.md'"
 expect "session prompt names the issues repo" grep -q 'the acme/tasks issue' "$D/.claude/skills/task/session/prompt.md"
-expect "an execution session spawns code-reviewer, code-trimmer, then the simplicity reviewer, with the task's issue, and only code-trimmer on a small change" bash -c "
-  grep -q '^Skip steps 1 and 3 when the change is small' '$D/.claude/skills/task/session/execution.md' &&
+expect "an execution session spawns code-reviewer, then the simplicity reviewer, with the task's issue, and neither on a small change" bash -c "
+  grep -q '^Skip steps 1 and 2 when the change is small' '$D/.claude/skills/task/session/execution.md' &&
   grep -q '^1. Spawn the .code-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^2. Spawn the .code-trimmer. agent' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^3. Spawn one .simplicity-reviewer.' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^2. Spawn one .simplicity-reviewer.' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q 'run step 1 again on the result' '$D/.claude/skills/task/session/execution.md' &&
   grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/session/execution.md'"
 expect "an execution session leaves its PR a draft until its review steps end, then runs the pull-request skill to its end" bash -c "
   grep -q 'stop before the step that marks it$' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^4. Pass ./gate., then run ./pull-request. again, to its end' '$D/.claude/skills/task/session/execution.md'"
+  grep -q '^3. Pass ./gate., then run ./pull-request. again, to its end' '$D/.claude/skills/task/session/execution.md'"
 expect "the pull-request skill opens a draft or updates the open PR, and marks it ready once nothing else is left but the merge" bash -c "
   grep -q '^allowed-tools:.*Bash(gh pr edit:\*), Bash(gh pr ready:\*)' '$D/.claude/skills/pull-request/SKILL.md' &&
   grep -q '^3. Look for an open PR with the same head and base: step 6 updates it' '$D/.claude/skills/pull-request/SKILL.md' &&
@@ -187,9 +187,6 @@ for reviewer in code-reviewer simplicity-reviewer; do
   expect "$reviewer has no tool that edits, nor memory, which adds Write and Edit" bash -c "
     grep -q '^tools: Read' '$REVIEWER' && ! grep -qE '^(tools:.*(Edit|Write|Agent)|memory:)' '$REVIEWER'"
 done
-TRIMMER="$D/.claude/agents/code-trimmer.md"
-expect "code-trimmer edits and commits, and spawns no agent" bash -c "
-  grep -qE '^tools:.*Bash.*Edit' '$TRIMMER' && ! grep -qE '^tools:.*Agent' '$TRIMMER'"
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 

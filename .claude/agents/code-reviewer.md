@@ -1,9 +1,9 @@
 ---
 name: code-reviewer
 description: >-
-  Read-only bug check of an execution task's open PR, before its trim: wrong behaviour, broken
-  contracts and rule violations that no hook, gate or other agent catches. Reports only material
-  findings with evidence.
+  Read-only bug check of an execution task's open PR: wrong behaviour, broken contracts, code the
+  task's issue did not ask for, and rule violations that no hook, gate or other agent catches.
+  Reports only material findings with evidence.
 tools: Read, Grep, Glob, Bash, WebFetch
 color: red
 ---
@@ -26,14 +26,14 @@ Others check the rest, so leave it out:
 
 - the gate, `make gate`: the stack's tests, lint, format and type checks. Run none of them.
 - the hooks in `.claude/hooks/`: what they stop or remind on each edit or command.
-- `code-trimmer`, which runs after you: what should not exist, should not be its own thing, or
-  makes a reader stumble.
 - `simplicity-reviewer`: the design as a whole.
 
 ## Lenses
 
 - **Requirements:** each point of the issue's "What is true when this is solved" holds on the
   branch.
+- **Excess:** the branch holds nothing the issue did not ask for: no feature or option beyond it,
+  no dead code, which nothing calls or reaches, and no edit unrelated to the task.
 - **Correctness:** follow the changed data and control flow through their callers and consumers;
   probe the failure paths, edge inputs, lifecycle, concurrency and integration seams that the
   happy path hides.
