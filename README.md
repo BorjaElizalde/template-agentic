@@ -8,10 +8,12 @@ one stack, so a project applies the stack template only.
 
 ## Bundle into a stack template
 
-`bundle.sh` copies this template's `template/` into the stack template's `template/`, and its
-`copier.yaml` to `agentic/copier.yaml`. It refuses a stack template that has its own copy of a
-file it bundles. A stack template takes this template in four steps, as `template-python-service`
-does:
+A stack template releases with `release.sh`, which bundles this template into its `main` and tags
+the result as a commit that no branch holds. `bundle.sh` does the bundle: it copies this template's
+`template/` into the stack template's `template/`, and its `copier.yaml` to `agentic/copier.yaml`,
+and refuses a stack template that has its own copy of a file it bundles. The release commit's
+second parent is the release before it, so the compare in a project's update PR shows only what
+changed. A stack template takes this template in four steps, as `template-python-service` does:
 
 1. Apply this template to the stack template's own repository:
 
@@ -25,10 +27,10 @@ does:
    `.github/actions/stack-gate/action.yaml` at its root. Make its `renovate.json` extend
    `renovate/base`, with only `.github/workflows/gate.yaml` in `github-actions.ignorePaths`, so
    that Renovate updates that action's pins.
-2. On each release, clone this repository at the recorded version, run `bash <clone>/bundle.sh .`
-   on `main`'s tree, and tag the result as a commit that no branch holds. In
-   `template-python-service`, the `Build` workflow does it after the gate, with the `release-tag`
-   target of its `Makefile`.
+2. Release from the `Build` workflow, after the gate, on each merge to `main`: in the checkout of
+   `main`, with a git identity and `contents: write`, clone this repository at the recorded
+   version and run `bash <clone>/release.sh <tag>`, which pushes the tag. `GITHUB_TOKEN` may push
+   it: GitHub refuses a workflow file at the root `.github/workflows/` only.
 3. Open the stack template's `copier.yaml` with `!include agentic/copier.yaml` and `---`, then
    give its own settings and questions. Copier joins the two documents' `_skip_if_exists` lists,
    and where both name `_answers_file` or a question, the stack template's wins. So list only its

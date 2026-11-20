@@ -19,12 +19,12 @@ expect() {  # expect <desc> <command...>; a failure prints the command's own lin
   if out="$("${@:2}" 2>&1)"; then echo "PASS $1"
   else echo "FAIL $1"; grep -E 'FAIL|rror' <<<"$out" | head -20 | sed 's/^/    /'; fail=1; fi
 }
+commit() { git -C "$1" add -A && git -C "$1" -c user.name=t -c user.email=t@t commit -qm "$2"; }
 
 D="$OUT/project"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks "$OUT/src" "$D"
 git -C "$D" init -q
-git -C "$D" add -A
-git -C "$D" -c user.name=t -c user.email=t@t commit -qm render
+commit "$D" render
 
 expect "the make fragment is .claude/agentic.mk, and no Makefile or CLAUDE.md is written" bash -c "[ -f '$D/.claude/agentic.mk' ] && [ ! -e '$D/Makefile' ] && [ ! -e '$D/CLAUDE.md' ]"
 expect "the shared rules load without an import" bash -c "[ -f '$D/.claude/rules/agentic.md' ] && [ -f '$D/.claude/rules/conventions.md' ]"
@@ -141,7 +141,7 @@ expect "a first copy keeps the project's renovate.json" bash -c "[ \"\$(cat '$X/
 expect "the task plugin's manifest names it task" bash -c "[ \"\$(jq -r .name '$D/.claude/skills/task/.claude-plugin/plugin.json')\" = task ]"
 expect "no .claude/scripts folder is rendered" test ! -e "$D/.claude/scripts"
 expect "every script parses" bash -c "for f in \$(find '$D' -name '*.sh'); do bash -n \"\$f\" || exit 1; done"
-expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$UP_TO_DATE' '$ROOT/tests' '$ROOT/bundle.sh' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
+expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$UP_TO_DATE' '$ROOT/tests' '$ROOT/bundle.sh' '$ROOT/release.sh' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
 expect "bash-guard suite" bash "$D/.claude/hooks/bash-guard.test.sh"
 expect "worktree-guard suite" bash "$D/.claude/hooks/worktree-guard.test.sh"
 expect "practices protocol suite" bash "$D/.claude/hooks/practices/guard.test.sh"
@@ -202,22 +202,30 @@ done
 expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && grep -q 'has no deploy' '$D/.claude/skills/release/SKILL.md' && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
-release() {
-  git -C "$1" add -A && git -C "$1" -c user.name=t -c user.email=t@t commit -qm "$2" && git -C "$1" tag "$2"
-}
+# S is the stack template's repository, whose main holds no bundle.
 S="$OUT/stack"
 cp -R "$OUT/src/tests/stack" "$S"
-git -C "$S" init -q
-bash "$OUT/src/bundle.sh" "$S"
-release "$S" v1
+git -C "$S" init -q -b main
+commit "$S" main
+build() {  # build <tag> <copy of this template>: what the stack template's Build does on a merge to main
+  rm -rf "$OUT/build"
+  git clone --quiet --depth 1 --branch main "file://$S" "$OUT/build"
+  (cd "$OUT/build" && git config user.name t && git config user.email t@t && bash "$2/release.sh" "$1")
+}
+build v1 "$OUT/src"
 NEXT="$OUT/next"
 cp -R "$OUT/src" "$NEXT"
 printf 'probe\n' >"$NEXT/template/update-probe.txt"
 rm "$NEXT/template/.claude/skills/commit/SKILL.md"
 printf '{}\n' >"$NEXT/template/renovate.json"
-bash "$NEXT/bundle.sh" "$S"
 printf 'gate:\n\t@echo v2\n' >"$S/template/Makefile"
-release "$S" v2
+commit "$S" main
+build v2 "$NEXT"
+releases_off_main() {
+  [ "$(git -C "$S" rev-parse 'v1^@' 'v2^@')" = "$(git -C "$S" rev-parse main~1 main v1)" ] &&
+    [ -z "$(git -C "$S" branch --contains v1)" ]
+}
+expect "a release is a commit no branch holds, whose parents are main and the release before it, if any" releases_off_main
 
 TWO="$OUT/two-layers"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks "$OUT/src" "$TWO"
@@ -263,15 +271,12 @@ expect "make claude keeps the machine awake and gives claude its flag, args and 
 expect "with no caffeinate and no prompt, make claude starts claude alone, with no empty argument" make_claude \
   "$SI/claude" --remote-control
 git -C "$B" init -q
-git -C "$B" add -A
-git -C "$B" -c user.name=t -c user.email=t@t commit -qm copy
+commit "$B" copy
 (cd "$B" && uvx --quiet copier update --quiet --defaults -a .copier-answers.stack.yaml --vcs-ref v2)
 expect "copier update across a bundled release delivers this template's change, without --trust" bash -c "
   [ -f '$B/update-probe.txt' ] && [ ! -e '$B/.claude/skills/commit/SKILL.md' ] && grep -qx '_commit: v2' '$B/.copier-answers.stack.yaml'"
 expect "the update keeps the files both layers seed once" bash -c "
   cmp -s '$OUT/src/template/renovate.json' '$B/renovate.json' && cmp -s '$OUT/src/tests/stack/template/Makefile' '$B/Makefile'"
-expect "bundle.sh --check passes the stack template's bundle of its own version" bash "$NEXT/bundle.sh" --check "$S"
-expect "bundle.sh --check fails the stack template's bundle of another version" bash -c "! bash '$OUT/src/bundle.sh' --check '$S'"
 expect "bundle.sh refuses a stack template that has its own copy of a file it bundles" bash -c "
   mkdir -p '$OUT/clash/template' && cp '$OUT/src/template/renovate.json' '$OUT/clash/template/' && ! bash '$OUT/src/bundle.sh' '$OUT/clash'"
 
