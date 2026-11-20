@@ -8,7 +8,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 listing() { (cd "$1" && find . -type f | sed 's#^\./##' | LC_ALL=C sort); }
 
-clash="$(LC_ALL=C comm -12 <(listing "$1/template") <(listing "$ROOT/template"))"
+clash="$(listing "$1/template" | LC_ALL=C comm -12 - <(listing "$ROOT/template"))"
 [ -z "$clash" ] || { printf 'The stack template has its own copy of files this template bundles:\n%s\n' "$clash" >&2; exit 1; }
 cp -R "$ROOT/template/." "$1/template/"
 mkdir -p "$1/agentic"

@@ -13,7 +13,7 @@ the result as a commit that no branch holds. `bundle.sh` does the bundle: it cop
 `template/` into the stack template's `template/`, and its `copier.yaml` to `agentic/copier.yaml`,
 and refuses a stack template that has its own copy of a file it bundles. The release commit's
 second parent is the release before it, so the compare in a project's update PR shows only what
-changed. A stack template takes this template in four steps, as `template-python-service` does:
+changed. A stack template takes this template in four steps:
 
 1. Apply this template to the stack template's own repository:
 
