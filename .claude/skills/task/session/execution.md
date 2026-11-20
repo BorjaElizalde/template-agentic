@@ -26,6 +26,13 @@ A small change, a bug fix or a small extension, gets none of them. Judge that by
 does, not by its line count: a mirrored copy doubles the count, and a wide mechanical rename is
 large but low risk.
 
+Each reviewer posts its report as a comment, then returns it to you: `plan-reviewer` on the issue,
+the other two on the PR. Before you act on any finding of a review, post your reply beside it: a
+comment headed with the review's heading followed by `reply`, as in `## Plan review reply`, then
+one line per finding, what you do about it or why you do nothing. Post it from a file with
+`--body-file <file>`: the Bash guard reads a heredoc as part of the command, and blocks a git
+command it finds there. A review that found nothing gets no reply.
+
 Before you build, spawn the `plan-reviewer` agent on the issue's plan. It only reports: you decide
 on its designs, and you alone change the plan. Take a design it presents unless a reason stands
 against it, and post the plan again before you build any code. Then build: no person answers a
@@ -36,8 +43,8 @@ each with its reason.
 Open that PR with `/pull-request` once the work is done, and stop before the step that marks it
 ready: it stays a draft, which nobody can merge, until the steps below end. Then run them:
 
-1. Spawn the `readability-reviewer` agent. Settle each finding with a change to the code, unless a
-   reason stands against the finding, then push.
-2. Spawn the `code-reviewer` agent. Fix each **Must change** finding, and each **Optional** one
+1. Spawn the `code-reviewer` agent. Fix each **Must change** finding, and each **Optional** one
    unless a reason stands against it, then push.
+2. Spawn the `readability-reviewer` agent. Settle each finding with a change to the code, unless a
+   reason stands against the finding, then push.
 3. Pass `/gate`, then run `/pull-request` again, to its end.
