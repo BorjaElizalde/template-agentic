@@ -3,8 +3,8 @@
 Code is readable when a person who knows the problem can follow it from the code alone, and finds
 there what their intuition expects. A person who reads code that plans a schedule with an optimizer
 looks for five steps: define the decision variables, build the objective, build the constraints,
-solve, and turn the solution into a schedule. One function names those steps in that order, each
-step is a function of its own, and no block mixes them.
+solve, and turn the solution into a schedule. Readable code for that problem has one function that
+names those steps in that order and a function for each step, and no block that mixes them.
 
 1. The code is what the reader expects to see.
 2. Each function does one task, at one level.

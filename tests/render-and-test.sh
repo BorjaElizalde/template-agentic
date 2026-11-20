@@ -162,9 +162,12 @@ expect "an execution session spawns plan-reviewer before it builds, then readabi
   grep -q '^1. Spawn the .readability-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
   grep -q '^2. Spawn the .code-reviewer. agent' '$D/.claude/skills/task/session/execution.md' &&
   grep -q 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/task/session/execution.md'"
-expect "an execution session takes a smaller design from the plan review into the posted plan, and settles a readability finding in the code" bash -c "
-  grep -q '^smaller unless a reason stands against it, and post the plan again before you build any code' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q 'reason stands against the finding: a comment, a docstring or a document settles none' '$D/.claude/skills/task/session/execution.md'"
+expect "plan-reviewer only reports, and the execution session decides on its designs and posts the plan it changed before it builds" bash -c "
+  grep -q '^and post nothing on the issue. The plan is the session.s: you report to it, and it decides' '$D/.claude/agents/plan-reviewer.md' &&
+  grep -q 'It only reports: you decide$' '$D/.claude/skills/task/session/execution.md' &&
+  grep -q '^stands against it, and post the plan again before you build any code' '$D/.claude/skills/task/session/execution.md'"
+expect "an execution session settles a readability finding in the code" \
+  grep -q 'Settle each finding with a change to the code, unless a$' "$D/.claude/skills/task/session/execution.md"
 expect "an execution session leaves its PR a draft until its review steps end, then runs the pull-request skill to its end" bash -c "
   grep -q 'stop before the step that marks it$' '$D/.claude/skills/task/session/execution.md' &&
   grep -q '^3. Pass ./gate., then run ./pull-request. again, to its end' '$D/.claude/skills/task/session/execution.md'"

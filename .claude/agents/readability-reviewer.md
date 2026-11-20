@@ -41,8 +41,7 @@ Report each place the task wrote or reshaped that does not meet a property. A fi
   tell from a name what the thing is, follow the path to a result, or tell what a line is for.
 
 Where you can name nothing a reader can't do, there is no finding: no taste, and no "consider".
-Propose no rewrite and no other design. Never ask for a comment, a docstring or a document: only a
-change to the code settles a finding.
+Propose no rewrite and no other design.
 
 ## Output
 

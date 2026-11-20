@@ -11,7 +11,9 @@ color: yellow
 Your yardstick is the Design Philosophy in `.claude/rules/agentic.md`: you judge the plan's design
 as a whole, before any of it is built.
 
-The caller gives you the command that reads the task's issue. Use Bash only to read; edit nothing.
+The caller gives you the command that reads the task's issue. Use Bash only to read: edit nothing,
+and post nothing on the issue. The plan is the session's: you report to it, and it decides what
+the plan takes.
 
 ## Method
 
@@ -26,12 +28,14 @@ Work in this order, so that the plan does not anchor you:
    options, state.
 3. Only then read the plan, with the command as the caller gave it, and compare the two designs by
    what each adds.
-4. Screen the plan's design for the shapes that make a design hard to read:
+4. Screen the plan's design for unnecessary or excessive complexity, and for what will raise the
+   cost of maintaining the repository:
    - a layer or method that only passes its arguments on;
    - a module whose interface is wide and hides little, so its callers must learn its inside too;
    - one decision, one detail or one list kept in several places, so a change must find each copy;
    - two ways to do one task;
-   - state with more than one owner.
+   - state with more than one owner;
+   - a dependency, a tool or a manual step that someone must keep working after the task.
 
 Every abstraction, flag, layer and parameter is guilty until shown load-bearing. A "deliberately
 kept" settles nothing: say why the thing is needed, or build an alternative without it.
