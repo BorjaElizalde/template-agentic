@@ -300,17 +300,20 @@ make_claude() {  # make_claude <TMUX> <PATH> <expected output> <make arguments..
   out="$(cd "$APP" && TMUX="$1" PATH="$2" "$MAKE_BIN" -s claude "${@:4}")" && [ "$out" = "$3" ] ||
     { printf 'FAIL make claude ran:\n%s\n' "$out"; return 1; }
 }
-INSIDE_TMUX=/tmp/tmux-1000/default,1,0
-expect "inside tmux, make claude keeps the machine awake and gives claude its flag, args and the prompt as one argument" make_claude \
-  "$INSIDE_TMUX" "$SI/caffeinate:$SI/claude:$PATH" \
+IN_ITS_TMUX=/tmp/tmux-1000/my.app,1,0  # TMUX in a window of the project's own tmux server
+expect "inside its own tmux, make claude keeps the machine awake and gives claude its flag, args and the prompt as one argument" make_claude \
+  "$IN_ITS_TMUX" "$SI/caffeinate:$SI/claude:$PATH" \
   "$(printf '%s\n' 'caffeinate -is' --remote-control --continue -- '/loop check the board; then stop')" \
   args=--continue 'prompt=/loop check the board; then stop'
 expect "with no caffeinate and no prompt, make claude starts claude alone, with no empty argument" make_claude \
-  "$INSIDE_TMUX" "$SI/claude" --remote-control
+  "$IN_ITS_TMUX" "$SI/claude" --remote-control
+STARTS_ITS_TMUX="$(printf '%s\n' tmux -L my.app source-file .claude/tmux.conf ';' new-session -A -s my_app -n main \
+  caffeinate -is claude --remote-control --continue -- '/loop check the board; then stop')"
 expect "outside tmux, make claude starts the repository's tmux, named after its folder, with tmux.conf, and claude kept awake in its main window, or attaches to it" \
-  make_claude '' "$SI/tmux:$SI/caffeinate:$SI/claude:$PATH" \
-  "$(printf '%s\n' tmux -L my.app source-file .claude/tmux.conf ';' new-session -A -s my_app -n main \
-    caffeinate -is claude --remote-control --continue -- '/loop check the board; then stop')" \
+  make_claude '' "$SI/tmux:$SI/caffeinate:$SI/claude:$PATH" "$STARTS_ITS_TMUX" \
+  args=--continue 'prompt=/loop check the board; then stop'
+expect "inside another tmux, make claude starts the repository's tmux all the same" \
+  make_claude /tmp/tmux-1000/default,1,0 "$SI/tmux:$SI/caffeinate:$SI/claude:$PATH" "$STARTS_ITS_TMUX" \
   args=--continue 'prompt=/loop check the board; then stop'
 loads_tmux_conf() {  # the project's tmux.conf, loaded twice into a tmux server of its own
   local socket="$OUT/tmux" ok=0
