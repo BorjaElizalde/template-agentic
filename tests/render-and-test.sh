@@ -213,7 +213,7 @@ expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.
 S="$OUT/stack"
 cp -R "$OUT/src/tests/stack" "$S"
 git -C "$S" init -q -b main
-commit "$S" main
+commit "$S" 'Add the stack template'
 build() {  # build <tag> <copy of this template>: what the stack template's Build does on a merge to main
   rm -rf "$OUT/build"
   git clone --quiet --depth 1 --branch main "file://$S" "$OUT/build"
@@ -226,13 +226,14 @@ printf 'probe\n' >"$NEXT/template/update-probe.txt"
 rm "$NEXT/template/.claude/skills/commit/SKILL.md"
 printf '{}\n' >"$NEXT/template/renovate.json"
 printf 'gate:\n\t@echo v2\n' >"$S/template/Makefile"
-commit "$S" main
+commit "$S" 'Change the seeded Makefile'
 build v2 "$NEXT"
-releases_off_main() {
-  [ "$(git -C "$S" rev-parse 'v1^@' 'v2^@')" = "$(git -C "$S" rev-parse main~1 main v1)" ] &&
-    [ -z "$(git -C "$S" branch --contains v1)" ]
+parents_are() {  # parents_are <release> <commit...>: the release's parents are those commits, in order
+  [ "$(git -C "$S" rev-parse "$1^@")" = "$(git -C "$S" rev-parse "${@:2}")" ]
 }
-expect "a release is a commit no branch holds, whose parents are main and the release before it, if any" releases_off_main
+expect "the first release's only parent is main as it was built on" parents_are v1 main^
+expect "a later release's parents are main and the release before it" parents_are v2 main v1
+expect "no branch holds a release" bash -c "[ -z \"\$(git -C '$S' branch --contains v1; git -C '$S' branch --contains v2)\" ]"
 
 TWO="$OUT/two-layers"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks "$OUT/src" "$TWO"

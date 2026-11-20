@@ -9,14 +9,20 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 tag="$1"
 
+newest_release() { git ls-remote --tags --refs --sort=-v:refname origin | sed -n '1s#.*refs/tags/##p'; }
+
 parents=(-p HEAD)
-previous="$(git ls-remote --tags --refs --sort=-v:refname origin | sed -n '1s#.*refs/tags/##p')"
+previous="$(newest_release)"
 if [ -n "$previous" ]; then
   git fetch --quiet --depth 1 origin tag "$previous"
   parents+=(-p "$previous")
 fi
+
 bash "$ROOT/bundle.sh" .
 # Forced: a release holds every bundled file, also one that the stack template's .gitignore matches.
 git add --force -- agentic template
-git tag "$tag" "$(git commit-tree "$(git write-tree)" "${parents[@]}" -m "Release $tag")"
+main_with_bundle="$(git write-tree)"
+release="$(git commit-tree "$main_with_bundle" "${parents[@]}" -m "Release $tag")"
+
+git tag "$tag" "$release"
 git push --quiet origin "$tag"
