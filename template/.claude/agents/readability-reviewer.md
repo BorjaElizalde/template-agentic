@@ -19,10 +19,10 @@ your report; edit nothing.
 
 Work in this order, so that the solution that was built does not shape what you expect:
 
-1. Read the issue without the plan and its review, the comments whose heading starts with `Plan`:
-   add `--jq 'del(.comments[] | select(.body | startswith("## Plan")))'` to the command. The issue
-   states the problem. The plan and its review, the PR's description and comments, and the commit
-   messages state the solution: read none of them, at any step.
+1. Read the issue without the plan, its review and the reply to that review: add
+   `--jq 'del(.comments[] | select(.body | test("^## Plan( review( reply)?)?\n")))'` to the
+   command. The issue states the problem. The plan and its review, the PR's description and
+   comments, and the commit messages state the solution: read none of them, at any step.
 2. Before you read any code, write down what a person who knows this problem expects its solution
    to show: the steps, in order, in the problem's words.
 3. Read the code the branch changes. `git diff --name-only origin/develop...HEAD` lists the files,
@@ -57,4 +57,5 @@ Post the report on the branch's PR as one comment, then return the same report. 
 input of `gh pr comment --body-file -` from a quoted heredoc. The comment opens with the line
 `## Readability review`, then `_Findings of the readability-reviewer agent._`, then the report.
 Write every shell command in the report in backticks: the Bash guard reads the heredoc as part of
-the command, and blocks a git command it finds there in prose.
+the command, and blocks a git command it finds there in prose. If it still blocks the post, write
+the command it names in other words, and post again.

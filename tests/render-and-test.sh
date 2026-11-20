@@ -173,18 +173,20 @@ posts_its_report() {  # posts_its_report <agent> <gh call> <heading>
   local definition="$D/.claude/agents/$1.md"
   grep -qF "\`$2\`" "$definition" && grep -qF "\`$3\`" "$definition" &&
     grep -qF "\`_Findings of the $1 agent._\`" "$definition" &&
-    grep -qF 'in backticks: the Bash guard reads the heredoc as part of' "$definition"
+    grep -qF 'in backticks: the Bash guard reads the heredoc as part of' "$definition" &&
+    grep -qF 'If it still blocks the post, write' "$definition"
 }
-expect "plan-reviewer posts its report on the issue, under its heading and its name, with every shell command in backticks" \
+expect "plan-reviewer posts its report on the issue, under its heading and its name, with every shell command in backticks or, where the guard still blocks it, in other words" \
   posts_its_report plan-reviewer 'gh issue comment <n> -R <repository> --body-file -' '## Plan review'
-expect "code-reviewer posts its report on the PR, under its heading and its name, with every shell command in backticks" \
+expect "code-reviewer posts its report on the PR, under its heading and its name, with every shell command in backticks or, where the guard still blocks it, in other words" \
   posts_its_report code-reviewer 'gh pr comment --body-file -' '## Code review'
-expect "readability-reviewer posts its report on the PR, under its heading and its name, with every shell command in backticks" \
+expect "readability-reviewer posts its report on the PR, under its heading and its name, with every shell command in backticks or, where the guard still blocks it, in other words" \
   posts_its_report readability-reviewer 'gh pr comment --body-file -' '## Readability review'
-expect "an execution session replies beside a review that found something, under its heading and reply, before it acts on a finding" bash -c "
+expect "an execution session replies from a file beside a review that found something, under its heading and reply, before it acts on a finding" bash -c "
   grep -q '^Each reviewer posts its report as a comment, then returns it to you' '$D/.claude/skills/task/session/execution.md' &&
   grep -q 'Before you act on any finding of a review, post your reply beside it' '$D/.claude/skills/task/session/execution.md' &&
-  grep -qF '\`## Plan review reply\`' '$D/.claude/skills/task/session/execution.md'"
+  grep -qF '\`## Plan review reply\`' '$D/.claude/skills/task/session/execution.md' &&
+  grep -qF '\`--body-file <file>\`' '$D/.claude/skills/task/session/execution.md'"
 expect "plan-reviewer only reports, and the execution session decides on its designs and posts the plan it changed before it builds" bash -c "
   grep -q 'The plan is the session.s: you report to it, and it decides what the$' '$D/.claude/agents/plan-reviewer.md' &&
   grep -q 'It only reports: you decide$' '$D/.claude/skills/task/session/execution.md' &&
@@ -209,9 +211,9 @@ expect "the pull-request skill reads the task's plan, and the PR says where it d
   grep -qF 'gh issue view <n> -R acme/tasks --json title,body,comments' '$D/.claude/skills/pull-request/SKILL.md' &&
   grep -q 'Where the change departs from the task.s plan' '$D/.claude/skills/pull-request/SKILL.md'"
 for reviewer in plan-reviewer readability-reviewer; do
-  expect "$reviewer first reads the issue without the plan, the plan review and its reply: the comments whose heading starts with the one task.sh gives a plan" bash -c "
+  expect "$reviewer first reads the issue without the plan, the plan review and its reply, by their exact headings" bash -c "
     grep -qx \"PLAN_HEADING='## Plan'\" '$D/.claude/skills/task/scripts/task.sh' &&
-    grep -qF 'startswith(\"## Plan\")' '$D/.claude/agents/$reviewer.md'"
+    grep -qF 'test(\"^## Plan( review( reply)?)?\\n\")' '$D/.claude/agents/$reviewer.md'"
 done
 expect "the rules hold the Readable code section that readability-reviewer names" bash -c "
   grep -qx '## Readable code' '$D/.claude/rules/conventions.md' &&

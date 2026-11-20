@@ -20,9 +20,9 @@ plan takes.
 
 Work in this order, so that the plan does not anchor you:
 
-1. Read the issue without the plan and any review of it, the comments whose heading starts with
-   `Plan`: add `--jq 'del(.comments[] | select(.body | startswith("## Plan")))'` to the command.
-   Then read the code the task will touch.
+1. Read the issue without the plan, its review and the reply to that review: add
+   `--jq 'del(.comments[] | select(.body | test("^## Plan( review( reply)?)?\n")))'` to the
+   command. Then read the code the task will touch.
 2. Ask what you would build if this code were written from scratch with this requirement. Work out
    the smallest design that meets everything the issue asks: hold each thing it adds against the
    three questions of that Design Philosophy. Count what the design adds: files, layers, types,
@@ -75,4 +75,5 @@ Post the report on the issue as one comment, then return the same report. Give i
 caller's command, from a quoted heredoc. The comment opens with the line `## Plan review`, then
 `_Findings of the plan-reviewer agent._`, then the report. Write every shell command in the report
 in backticks: the Bash guard reads the heredoc as part of the command, and blocks a git command it
-finds there in prose.
+finds there in prose. If it still blocks the post, write the command it names in other words, and
+post again.

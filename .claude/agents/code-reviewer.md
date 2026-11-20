@@ -69,4 +69,5 @@ Post the report on the branch's PR as one comment, then return the same report. 
 input of `gh pr comment --body-file -` from a quoted heredoc. The comment opens with the line
 `## Code review`, then `_Findings of the code-reviewer agent._`, then the report. Write every
 shell command in the report in backticks: the Bash guard reads the heredoc as part of the command,
-and blocks a git command it finds there in prose.
+and blocks a git command it finds there in prose. If it still blocks the post, write the command
+it names in other words, and post again.

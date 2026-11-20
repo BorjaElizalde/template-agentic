@@ -29,8 +29,9 @@ large but low risk.
 Each reviewer posts its report as a comment, then returns it to you: `plan-reviewer` on the issue,
 the other two on the PR. Before you act on any finding of a review, post your reply beside it: a
 comment headed with the review's heading followed by `reply`, as in `## Plan review reply`, then
-one line per finding, what you do about it or why you do nothing. A review that found nothing
-gets no reply.
+one line per finding, what you do about it or why you do nothing. Post it from a file with
+`--body-file <file>`: the Bash guard reads a heredoc as part of the command, and blocks a git
+command it finds there. A review that found nothing gets no reply.
 
 Before you build, spawn the `plan-reviewer` agent on the issue's plan. It only reports: you decide
 on its designs, and you alone change the plan. Take a design it presents unless a reason stands
