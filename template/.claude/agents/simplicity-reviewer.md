@@ -18,15 +18,17 @@ The caller gives you the command that reads the task's issue. Use Bash only to r
 
 Work in this order, so that what was built does not anchor you:
 
-1. Read the issue. Then read the code the task touches as it is on the base, with
-   `git show origin/develop:<path>` and `git grep <pattern> origin/develop`: the working tree holds
-   the branch. Do not read the branch's changes yet.
+1. Read the issue without its comment headed `Plan`, the design that was built: add
+   `--jq 'del(.comments[] | select(.body | startswith("## Plan\n")))'` to the command. Then read the
+   code the task touches as it is on the base, with `git show origin/develop:<path>` and
+   `git grep <pattern> origin/develop`: the working tree holds the branch. Do not read the branch's
+   changes yet.
 2. Ask what you would build if this code were written from scratch with this requirement. Work out
    the smallest design that meets everything the issue asks: hold each thing it adds against the
    three questions of that Design Philosophy. Count what the design adds: files, layers, types,
    options, state.
-3. Only then read the branch's changes, `git diff origin/develop...HEAD`, and compare the two
-   designs by what each adds.
+3. Only then read the plan, with the command as the caller gave it, and the branch's changes,
+   `git diff origin/develop...HEAD`, and compare the two designs by what each adds.
 4. Screen the built design for the shapes that make a design hard to read:
    - a layer or method that only passes its arguments on;
    - a module whose interface is wide and hides little, so its callers must learn its inside too;
