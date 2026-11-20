@@ -7,11 +7,18 @@
 # Claude Code keeps a Mac awake only while a session is busy, and never against system sleep.
 KEEP_AWAKE ?= $(if $(shell command -v caffeinate 2>/dev/null),caffeinate -is)
 CLAUDE_FLAGS ?= --remote-control
+# The socket of this repository's own tmux server, which task.sh opens the task windows in.
+TMUX_SOCKET := $(notdir $(CURDIR))
+# tmux reads a dot in a session name as a target's separator, and -A looks the name up as a target.
+TMUX_SESSION := $(subst .,_,$(TMUX_SOCKET))
 
 .PHONY: help claude
 help: ## List every target, under the file that defines it.
 	@awk -F ':.*## ' '/^[a-zA-Z0-9_-]+:.*## / { if (FILENAME != f) { f = FILENAME; printf "\n%s\n", f } printf "  %-14s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
+# Outside tmux, the server starts from this shell, so claude in its first window has this shell's
+# environment; a closed terminal window only detaches tmux, so it stops neither claude nor the
+# keep-awake that wraps it. tmux refuses to nest, so inside tmux claude runs in place.
 # The shell reads prompt, which make exports; -- stops a flag like --remote-control [name] taking it.
-claude: ## Start Claude here and keep the machine awake until it exits: args="--continue" prompt="/loop ..."
-	@$(KEEP_AWAKE) claude $(CLAUDE_FLAGS) $(args) $${prompt:+-- "$$prompt"}
+claude: ## Start Claude in this repository's tmux, or attach to it, kept awake until Claude exits; inside tmux, start it in place: args="--continue" prompt="/loop ..."
+	@$(if $(TMUX),,tmux -L '$(TMUX_SOCKET)' source-file .claude/tmux.conf \; new-session -A -s '$(TMUX_SESSION)' -n main) $(KEEP_AWAKE) claude $(CLAUDE_FLAGS) $(args) $${prompt:+-- "$$prompt"}

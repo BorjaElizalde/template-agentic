@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Renders the template and runs the rendered harness's own tests, the way a project gets it.
-# Needs uv, git and jq.
+# Needs uv, git, jq and tmux.
 # Every function here runs: expect calls each check by the name it is given. Tried one directive on
 # each such function, but the cause is expect, which every check in this file goes through.
 # shellcheck disable=SC2329
@@ -275,7 +275,7 @@ help_lists_each_layer() {  # each target of make help, after the file it is list
 }
 expect "in the copy, bare make lists the targets of its Makefile, the stack fragment and this template's, each under its file" help_lists_each_layer
 SI="$OUT/stand-ins"
-mkdir -p "$SI/claude" "$SI/caffeinate"
+mkdir -p "$SI/claude" "$SI/caffeinate" "$SI/tmux"
 cat >"$SI/claude/claude" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$@"
@@ -286,18 +286,42 @@ echo "caffeinate $1"
 shift
 exec "$@"
 EOF
-chmod +x "$SI/claude/claude" "$SI/caffeinate/caffeinate"
+cat >"$SI/tmux/tmux" <<'EOF'
+#!/bin/sh
+echo tmux
+printf '%s\n' "$@"
+EOF
+chmod +x "$SI/claude/claude" "$SI/caffeinate/caffeinate" "$SI/tmux/tmux"
 MAKE_BIN="$(command -v make)"
-make_claude() {  # make_claude <PATH> <expected output> <make arguments...>; the stand-ins print what ran
+APP="$OUT/my.app"  # a copy of the project in a folder with a dot in its name
+cp -R "$B" "$APP"
+make_claude() {  # make_claude <TMUX> <PATH> <expected output> <make arguments...>; the stand-ins print what ran
   local out
-  out="$(cd "$B" && PATH="$1" "$MAKE_BIN" -s claude "${@:3}")" && [ "$out" = "$2" ] ||
+  out="$(cd "$APP" && TMUX="$1" PATH="$2" "$MAKE_BIN" -s claude "${@:4}")" && [ "$out" = "$3" ] ||
     { printf 'FAIL make claude ran:\n%s\n' "$out"; return 1; }
 }
-expect "make claude keeps the machine awake and gives claude its flag, args and the prompt as one argument" make_claude \
-  "$SI/caffeinate:$SI/claude:$PATH" "$(printf '%s\n' 'caffeinate -is' --remote-control --continue -- '/loop check the board; then stop')" \
+INSIDE_TMUX=/tmp/tmux-1000/default,1,0
+expect "inside tmux, make claude keeps the machine awake and gives claude its flag, args and the prompt as one argument" make_claude \
+  "$INSIDE_TMUX" "$SI/caffeinate:$SI/claude:$PATH" \
+  "$(printf '%s\n' 'caffeinate -is' --remote-control --continue -- '/loop check the board; then stop')" \
   args=--continue 'prompt=/loop check the board; then stop'
 expect "with no caffeinate and no prompt, make claude starts claude alone, with no empty argument" make_claude \
-  "$SI/claude" --remote-control
+  "$INSIDE_TMUX" "$SI/claude" --remote-control
+expect "outside tmux, make claude starts the repository's tmux, named after its folder, with tmux.conf, and claude kept awake in its main window, or attaches to it" \
+  make_claude '' "$SI/tmux:$SI/caffeinate:$SI/claude:$PATH" \
+  "$(printf '%s\n' tmux -L my.app source-file .claude/tmux.conf ';' new-session -A -s my_app -n main \
+    caffeinate -is claude --remote-control --continue -- '/loop check the board; then stop')" \
+  args=--continue 'prompt=/loop check the board; then stop'
+loads_tmux_conf() {  # the project's tmux.conf, loaded twice into a tmux server of its own
+  local socket="$OUT/tmux" ok=0
+  tmux -S "$socket" -f /dev/null new-session -d \; source-file "$D/.claude/tmux.conf" \; source-file "$D/.claude/tmux.conf" &&
+    [ "$(tmux -S "$socket" show -sv extended-keys)" = on ] &&
+    [ "$(tmux -S "$socket" show -sv terminal-features | grep -cxF 'xterm*:extkeys')" -eq 1 ] &&
+    [ "$(tmux -S "$socket" show -sv escape-time)" -eq 10 ] || ok=1
+  tmux -S "$socket" kill-server
+  return "$ok"
+}
+expect "tmux.conf turns extended keys on, for xterm terminals once however often it loads, and passes Esc on at once" loads_tmux_conf
 git -C "$B" init -q
 commit "$B" copy
 (cd "$B" && uvx --quiet copier update --quiet --defaults -a .copier-answers.stack.yaml --vcs-ref v2)
