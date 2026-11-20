@@ -165,7 +165,7 @@ expect "an execution session spawns plan-reviewer before it builds, then readabi
 expect "plan-reviewer only reports, and the execution session decides on its designs and posts the plan it changed before it builds" bash -c "
   grep -q '^and post nothing on the issue. The plan is the session.s: you report to it, and it decides' '$D/.claude/agents/plan-reviewer.md' &&
   grep -q 'It only reports: you decide$' '$D/.claude/skills/task/session/execution.md' &&
-  grep -q '^stands against it, and post the plan again before you build any code' '$D/.claude/skills/task/session/execution.md'"
+  grep -q '^against it, and post the plan again before you build any code' '$D/.claude/skills/task/session/execution.md'"
 expect "an execution session settles a readability finding in the code" \
   grep -q 'Settle each finding with a change to the code, unless a$' "$D/.claude/skills/task/session/execution.md"
 expect "an execution session leaves its PR a draft until its review steps end, then runs the pull-request skill to its end" bash -c "

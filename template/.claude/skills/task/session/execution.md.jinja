@@ -27,11 +27,11 @@ does, not by its line count: a mirrored copy doubles the count, and a wide mecha
 large but low risk.
 
 Before you build, spawn the `plan-reviewer` agent on the issue's plan. It only reports: you decide
-on its designs, and you alone change the plan. Take a design it shows smaller unless a reason
-stands against it, and post the plan again before you build any code. Then build: no person
-answers a plan. Each time the design changes, by that review or during the build, post the plan
-with the same command: the design as it stands and, under `Changes`, every change since the first
-plan, each with its reason.
+on its designs, and you alone change the plan. Take a design it presents unless a reason stands
+against it, and post the plan again before you build any code. Then build: no person answers a
+plan. Each time the design changes, by that review or during the build, post the plan with the
+same command: the design as it stands and, under `Changes`, every change since the first plan,
+each with its reason.
 
 Open that PR with `/pull-request` once the work is done, and stop before the step that marks it
 ready: it stays a draft, which nobody can merge, until the steps below end. Then run them:

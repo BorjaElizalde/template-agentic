@@ -45,8 +45,9 @@ Propose no rewrite and no other design.
 
 ## Output
 
-One line per finding:
+Open with the steps from step 2, as you wrote them before you read the code. Then one line per
+finding:
 
 - `path/file:NN` — <the property> — <what a reader can't do there>
 
-With no finding, say so plainly. Do not praise or summarize the change.
+With no finding, say so plainly. Add nothing else: no count, no summary and no praise.
