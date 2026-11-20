@@ -17,22 +17,27 @@ to a file, for a reader who has the issue and not the code:
 - each choice between designs: the one you took, and why.
 
 Post it with `bash .claude/skills/task/scripts/task.sh plan <n> <file>`, which makes it the
-issue's one pinned comment, headed `Plan`. Then build: nobody answers a plan. A plan the issue
-already has is the task's own, from an earlier session or from its session in another repository:
-go on from it. When the design changes, post the plan again with the same command: the design as
-it stands and, under `Changes`, every change since the first plan, each with its reason.
+issue's one pinned comment, headed `Plan`. A plan the issue already has is the task's own, from an
+earlier session or from its session in another repository: go on from it.
+
+Three agents review the task, and each gets the command that reads its issue,
+`gh issue view <n> -R BorjaElizalde/template-agentic --json title,body,comments`.
+A small change, a bug fix or a small extension, gets none of them. Judge that by what the change
+does, not by its line count: a mirrored copy doubles the count, and a wide mechanical rename is
+large but low risk.
+
+Before you build, spawn the `plan-reviewer` agent on the issue's plan. It only reports: you decide
+on its designs, and you alone change the plan. Take a design it presents unless a reason stands
+against it, and post the plan again before you build any code. Then build: no person answers a
+plan. Each time the design changes, by that review or during the build, post the plan with the
+same command: the design as it stands and, under `Changes`, every change since the first plan,
+each with its reason.
 
 Open that PR with `/pull-request` once the work is done, and stop before the step that marks it
-ready: it stays a draft, which nobody can merge, until the steps below end. Then run them, and
-give each agent the command that reads the task's issue,
-`gh issue view <n> -R BorjaElizalde/template-agentic --json title,body,comments`.
-Skip steps 1 and 2 when the change is small, a bug fix or a small extension. Judge that by what
-the change does, not by its line count: a mirrored copy doubles the count, and a wide mechanical
-rename is large but low risk.
+ready: it stays a draft, which nobody can merge, until the steps below end. Then run them:
 
-1. Spawn the `code-reviewer` agent. Fix each **Must change** finding, and each **Optional** one
+1. Spawn the `readability-reviewer` agent. Settle each finding with a change to the code, unless a
+   reason stands against the finding, then push.
+2. Spawn the `code-reviewer` agent. Fix each **Must change** finding, and each **Optional** one
    unless a reason stands against it, then push.
-2. Spawn one `simplicity-reviewer`, and decide on its designs: take one it shows simpler unless a
-   reason stands against it. Rebuild to the design you take and push it. When the rebuild adds
-   code, run step 1 again on the result; a line it only shortens or rewraps adds none.
 3. Pass `/gate`, then run `/pull-request` again, to its end.
