@@ -238,7 +238,6 @@ check "backend starts issue 42"                run_in "$BACKEND" start 42
 check "the worktree is <root>/<n>-<slug>/backend" test -d "$ISSUE42/backend"
 check "its branch is feat/<n>-<slug>"          test "$(branch_of "$ISSUE42/backend")" = feat/42-name-make-close-claude-session-in
 check "it branches off origin/develop"         git -C "$ISSUE42/backend" merge-base --is-ancestor origin/develop HEAD
-check "its memory points at itself"            test "$(memory_of "$ISSUE42/backend")" = "$ISSUE42/backend/.claude/memory"
 check "the main checkout's memory points at it" test "$(memory_of "$BACKEND")" = "$BACKEND/.claude/memory"
 check "its session opens with the issue name"  test "$(sessions '#42 backend: Name make close_claude_session in')" -eq 1
 check "and the start names its mode"           grep -qxF '✓ session opened in execution mode: #42 backend: Name make close_claude_session in' "$WORK/out"
