@@ -1,8 +1,6 @@
 ---
 name: release
 description: Use when `develop` is ready to ship to `main` — promotes it to `staging`, then to `main`, waiting on checks and merging each PR.
-model: haiku
-effort: xhigh
 allowed-tools: Bash(bash:*), Bash(gh pr merge:*)
 ---
 

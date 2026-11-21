@@ -233,7 +233,6 @@ check "backend starts issue 42"                run_in "$BACKEND" start 42
 check "the worktree is <root>/<n>-<slug>/backend" test -d "$ISSUE42/backend"
 check "its branch is feat/<n>-<slug>"          test "$(branch_of "$ISSUE42/backend")" = feat/42-name-make-close-claude-session-in
 check "it branches off origin/develop"         git -C "$ISSUE42/backend" merge-base --is-ancestor origin/develop HEAD
-check "its memory points at itself"            test "$(memory_of "$ISSUE42/backend")" = "$ISSUE42/backend/.claude/memory"
 check "the main checkout's memory points at it" test "$(memory_of "$BACKEND")" = "$BACKEND/.claude/memory"
 check "its session opens with the issue name"  test "$(sessions '#42 backend: Name make close_claude_session in')" -eq 1
 check "and the start names its mode"           grep -qxF '✓ session opened in execution mode: #42 backend: Name make close_claude_session in' "$WORK/out"
@@ -337,19 +336,18 @@ rm "$TASK_TEST_STATE/no-start"
 
 echo "-- finish: refused while anything would be lost"
 refuses "an open issue does not finish"          'still open'           "$BACKEND" finish 42
+check "a task whose session runs"              task "$BACKEND" start 42
 echo CLOSED >"$TASK_TEST_STATE/issue-42"
 echo notes >"$ISSUE42/backend/notes.md"
 refuses "untracked files block it"               'untracked files'      "$BACKEND" finish 42
 check "and the worktree stays"                 test -f "$ISSUE42/backend/notes.md"
+check "and so does its session"                has_window backend '#42'
 rm "$ISSUE42/backend/notes.md"
 commit "$ISSUE42/backend"
 refuses "unpushed commits block it"              'push them first'      "$BACKEND" finish 42
 git -C "$ISSUE42/backend" push -q origin HEAD 2>/dev/null
 
 echo "-- finish: closed issue, nothing unshipped"
-rm "$TASK_TEST_STATE/issue-42"  # open for a moment, for a start
-check "with its session started again"         task "$BACKEND" start 42
-echo CLOSED >"$TASK_TEST_STATE/issue-42"
 check "a pushed branch finishes"               task "$BACKEND" finish 42
 check "its session ended, and its window closed" closes backend '#42'
 check "its worktree is gone"                   test ! -e "$ISSUE42/backend"

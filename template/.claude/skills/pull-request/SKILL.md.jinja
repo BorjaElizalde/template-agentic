@@ -1,8 +1,6 @@
 ---
 name: pull-request
 description: Use when committed and validated feature-branch work is ready for a PR into `develop`.
-model: haiku
-effort: high
 ---
 
 ## Branch context
