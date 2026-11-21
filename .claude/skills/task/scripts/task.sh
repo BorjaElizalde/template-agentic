@@ -142,26 +142,23 @@ launch_command() {
 	# A session opened without a first prompt waits at an empty input, so this one sends it to its
 	# issue. One prompt serves a new session and a resumed one.
 	local first="Work on issue #$2 in $ISSUES_REPO. Read its title, body and comments: gh issue view $2 -R $ISSUES_REPO --json title,body,comments. Carry it out until it is done as the issue says; if this session already worked on it, go on from where it stopped."
-	local files=$MAIN/.claude/skills/task/session settings tools=" --disallowed-tools AskUserQuestion" command orchestrator
+	local files=$MAIN/.claude/skills/task/session settings command orchestrator
 	# CLAUDE_PID is the pid of the Claude Code session that runs this start: several sessions can share a folder.
 	if orchestrator=$(jq -re --argjson pid "${CLAUDE_PID:-0}" 'first(.[] | select(.pid == $pid) | .name)' <<<"$SESSIONS"); then
 		first+=" Your orchestrator, the session that started this task, is \`$orchestrator\`."
 	fi
 	settings=$files/settings.json
-	# Every session has its permission prompts denied. An execution session never waits for a
-	# person: it has no question tool, and its Stop hook sends it back to work when it ends its turn
-	# on a question. A design session asks the owner, so it keeps the tool and drops the hook:
-	# claude --settings takes one file or JSON string, so it gets the settings less the hook as JSON.
-	if [ "$3" = design ]; then
-		settings=$(jq -c 'del(.hooks.Stop)' "$settings")
-		tools=
-	fi
+	# Every session has its permission prompts denied, and AskUserQuestion goes through one, so no
+	# session gets the tool. An execution session's Stop hook sends it back to work when it ends its
+	# turn on a question. A design session asks the owner, so it drops the hook: claude --settings
+	# takes one file or JSON string, so it gets the settings less the hook as JSON.
+	if [ "$3" = design ]; then settings=$(jq -c 'del(.hooks.Stop)' "$settings"); fi
 	# claude takes one appended system prompt, so the command joins the words both modes share and
 	# the mode's own. The first prompt comes after -n: --disallowed-tools takes every value up to the
 	# next option.
 	command="exec claude ${4:+$4 }--settings $(printf %q "$settings")"
 	command+=" --append-system-prompt \"\$(cat $(printf %q "$files/prompt.md") $(printf %q "$files/$3.md"))\""
-	command+="$tools -n $(printf %q "$1") $(printf %q "$first")"
+	command+=" --disallowed-tools AskUserQuestion -n $(printf %q "$1") $(printf %q "$first")"
 	printf '%s\n' "$command"
 }
 

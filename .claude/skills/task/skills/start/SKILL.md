@@ -5,8 +5,7 @@ allowed-tools: Bash(bash:*)
 ---
 
 Every subagent session belongs to one issue in BorjaElizalde/template-agentic and works in its own worktree,
-research tasks included: the worktree is the agent's workspace for notes, test runs and drafts.
-The same steps start a new task and pick up an existing one.
+research tasks included. The same steps start a new task and pick up an existing one.
 
 1. Find the issue. Given a number, use it. Otherwise search the open issues with
    `gh issue list -R BorjaElizalde/template-agentic --state open --search "<keywords>"` and reuse one that
