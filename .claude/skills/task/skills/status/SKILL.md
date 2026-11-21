@@ -1,7 +1,7 @@
 ---
 name: status
 description: Use when the owner asks for the status of the tasks, in words or with /task:status, and in the first reply after a session start in the main checkout. Runs the cleanup and the status, acts on each task that needs it, and answers with one card per task, then the backlog's ready, blocked and parked issues.
-allowed-tools: Bash(bash:*), Bash(gh issue view:*)
+allowed-tools: Bash(bash:*)
 ---
 
 1. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" cleanup`, then
