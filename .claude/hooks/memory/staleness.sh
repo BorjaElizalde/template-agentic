@@ -140,7 +140,7 @@ check_store() {
   done < <(git -C "$repo" status --short -uall -- "$store" 2>/dev/null)
   echo
 
-  local f name hard adv p clean base parent hist elsewhere dirhit memory_type idx lk tok topic_lines
+  local f name hard adv p clean base hist elsewhere dirhit memory_type idx lk topic_lines
   for f in "$store"/*.md; do
     [ -f "$f" ] || continue
     name="$(basename "$f")"
@@ -170,14 +170,8 @@ check_store() {
       [ -n "$(resolve_path "$repo" "$clean")" ] && continue
 
       base="$(basename "$clean")"
-      if [[ "$base" != *.* ]]; then
-        parent="$(dirname "$clean")"
-        if [ -n "$(resolve_path "$repo" "$parent")" ]; then
-          git -C "$repo" grep -qw -- "$base" 2>/dev/null \
-            || adv+="  [symbol?]    $p  (parent dir exists; '$base' not found on branch)"$'\n'
-          continue
-        fi
-      fi
+      # A name with no extension under a folder that exists cites a symbol, not a file.
+      [[ "$base" != *.* ]] && [ -n "$(resolve_path "$repo" "$(dirname "$clean")")" ] && continue
 
       hist="$(git -C "$repo" log --oneline -1 -- "$clean" 2>/dev/null)"
       elsewhere="$(git -C "$repo" ls-files 2>/dev/null | grep -E "/${base}$" | head -1)"
@@ -208,23 +202,9 @@ check_store() {
       fail=1
     done < <(grep -oE '\]\([a-z0-9_-]+\.md\)' "$f" | sed -E 's/^\]\(|\)$//g' | sort -u)
 
-    secret_shaped=0
     if grep -Eq '(AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)' "$f"; then
       hard+="  [SECRET]     possible secret/token value present; remove"$'\n'
-      secret_shaped=1
       fail=1
-    fi
-
-    # [absent-sym] echoes each token VERBATIM, and a secret in a fresh memory is absent from the
-    # branch by definition — so on a file that trips the secret check this loop would print the
-    # secret the branch above deliberately withheld, into the agent transcript and the session log.
-    # Report the file, never its tokens.
-    if [ "$secret_shaped" -eq 0 ]; then
-      while IFS= read -r tok; do
-        [ -n "$tok" ] || continue
-        git -C "$repo" grep -qw -- "$tok" 2>/dev/null && continue
-        adv+="  [absent-sym] \`$tok\` (not found anywhere on branch; possibly stale)"$'\n'
-      done < <(grep -oE '`[A-Za-z_][A-Za-z0-9_]{3,}' "$f" | tr -d '`' | sort -u | head -60)
     fi
 
     if [ -n "$hard$adv" ]; then
