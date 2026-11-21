@@ -1,7 +1,6 @@
 ---
 name: commit
 description: Use when a completed task in a feature worktree is ready to commit.
-allowed-tools: Read, Bash(git branch:*), Bash(git status:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*)
 ---
 
 ## Working-tree context
