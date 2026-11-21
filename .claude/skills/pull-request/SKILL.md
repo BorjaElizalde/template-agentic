@@ -1,8 +1,6 @@
 ---
 name: pull-request
 description: Use when committed and validated feature-branch work is ready for a PR into `develop`.
-model: haiku
-effort: high
 allowed-tools: Bash(git branch:*), Bash(git rev-parse:*), Bash(git status:*), Bash(git fetch origin develop:*), Bash(git diff:*), Bash(git log:*), Bash(git merge:*), Bash(git push:*), Bash(gh issue view:*), Bash(gh pr list:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr ready:*)
 ---
 
