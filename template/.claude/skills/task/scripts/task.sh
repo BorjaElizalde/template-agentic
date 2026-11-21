@@ -290,13 +290,13 @@ finish_task() {
 			die "branch $branch has commits on no remote branch and in no merged PR: push them first"
 		fi
 	done
+	git worktree remove "$worktree" ||
+		die "$worktree has uncommitted or untracked files: commit them, or move what matters to the PR or the issue"
 	SESSIONS=$(claude agents --json)
 	# The session is its window's only process, so its window closes with it.
 	if pid=$(running_session "$worktree" | jq .pid); then
 		kill "$pid"
 	fi
-	git worktree remove "$worktree" ||
-		die "$worktree has uncommitted or untracked files: commit them, or move what matters to the PR or the issue"
 	# The list splits unquoted, as its comment says. Tried an array, but bash 3.2, the macOS bash
 	# that runs this, has no mapfile to fill one, and read -a needs IFS and -d set for a list.
 	# shellcheck disable=SC2086
