@@ -37,17 +37,20 @@ if [ -f "$HERE/../agentic.conf" ]; then
 fi
 
 RE_PUSH='(^|[[:space:]&;|])git[[:space:]]+([^&|;]*[[:space:]])?push([[:space:]]|$)'
-RE_SWITCH='(^|[[:space:]&;|])git[[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+[[:space:]]+)*(switch|checkout)([[:space:]]|$)'
+# git's -c <key=value> and -C <dir> before a subcommand. Push reads any words there, a shape that
+# for switch, reset or commit would also match `git help checkout`.
+RE_GIT_OPTS='(-[Cc][[:space:]]+[^[:space:]]+[[:space:]]+)*'
+RE_SWITCH="(^|[[:space:]&;|])git[[:space:]]+$RE_GIT_OPTS(switch|checkout)([[:space:]]|$)"
 RE_NEWBRANCH='(switch|checkout)[[:space:]]+(-[a-zA-Z]*[[:space:]]+)*(-c|-b|-C|-B)([[:space:]]|$)'
 RE_FILEISH='checkout[[:space:]]+(--([[:space:]]|$)|\.([[:space:]]|$)|--[[:space:]])'
 RE_PROT_TOKEN='(^|[[:space:]:=])(develop|staging|main)([[:space:]:]|$)'
 RE_PROT_BRANCH='^(develop|staging|main)$'
 RE_RMRF='(^|[[:space:]&;|])rm[[:space:]]+(-[a-zA-Z]*[rR][a-zA-Z]*[fF]|-[a-zA-Z]*[fF][a-zA-Z]*[rR])([[:space:]]+--)?[[:space:]]+"?(/|~|[$]HOME|[$][{]HOME[}])"?/?[*]?"?([[:space:]]|$)'
-RE_RESET='git[[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+[[:space:]]+)*reset[[:space:]]+--hard[[:space:]]+(origin|upstream)/(main|staging|develop)'
+RE_RESET="git[[:space:]]+${RE_GIT_OPTS}reset[[:space:]]+--hard[[:space:]]+(origin|upstream)/(main|staging|develop)"
 RE_DIR_C='git[[:space:]]+-C[[:space:]]+([^[:space:]]+)'
 RE_DIR_CD='(^|[;&|])[[:space:]]*cd[[:space:]]+([^[:space:];&|]+)'
 RE_TWOTOKENS='[[:space:]]+[^[:space:]-][^[:space:]]*[[:space:]]+[^[:space:]-][^[:space:]]*'
-RE_COMMIT='(^|[[:space:]&;|])git[[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+[[:space:]]+)*commit([[:space:]]|$)'
+RE_COMMIT="(^|[[:space:]&;|])git[[:space:]]+${RE_GIT_OPTS}commit([[:space:]]|$)"
 RE_NO_VERIFY='(^|[[:space:]])--no-verify([[:space:]=]|$)'
 RE_SHORT_N='(^|[[:space:]])-[a-zA-Z]*n[a-zA-Z]*([[:space:]]|$)'
 RE_HOOK_ENV='(^|[[:space:]])(SKIP|HUSKY)=[^[:space:]]'
