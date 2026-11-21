@@ -32,7 +32,7 @@ Use standard git commands (`git status`, `git diff`, `git log`) without the `-C`
 
 **Tasks:** every task, and every subagent session, is an issue in BorjaElizalde/template-agentic, with its own worktree and session: start it with `/task:start`. Write each issue, and each comment that briefs a task, as "Write an issue" in `.claude/skills/task/skills/start/SKILL.md` says. Only the owner's word parks or releases an issue.
 
-**Following tasks:** report the status of the tasks through `/task:status` in your first reply after a session starts or resumes in the main checkout, and each time the owner asks. A main session that runs a `/loop` runs `bash .claude/skills/task/scripts/task.sh status` on each round, and `/task:status` when a line ends in `needs attention`. A task session sends each loose end outside its task to the session that started it, or leaves it in its last message: resolve each one yourself, or bring it to the owner.
+**Following tasks:** report the status of the tasks through `/task:status` in your first reply after a session starts or resumes in the main checkout, and each time the owner asks. A main session that runs a `/loop` runs `bash .claude/skills/task/scripts/task.sh status` on each round, and `/task:status` when a line ends in `needs attention`. When a task session sends you a loose end outside its task, or leaves one in its last message, resolve it yourself or bring it to the owner.
 
 **Worktrees:** all feature work happens in the task's worktree, never in the main checkout. Never call EnterWorktree.
 
