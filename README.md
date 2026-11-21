@@ -50,7 +50,7 @@ A stack template supplies these files in its `template/`, so that each project g
 |---|---|
 | `.github/actions/stack-gate/action.yaml` | The composite action that the `Gate` workflow runs after the checkout, on every PR into `develop` or `staging` but a draft and the promotion of `develop`. It calls the stack's tools directly, never `make gate`. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
-| `.claude/hooks/stack/format.sh` | Runs after every Edit, Write or MultiEdit, with the hook payload on stdin. |
+| `.claude/hooks/stack/format.sh` | Runs after every Edit or Write, with the hook payload on stdin. |
 
 The stack template seeds the project's `Makefile`, which includes only the stack's make fragment.
 That fragment defines `gate`, the project's full local validation, which `/gate` runs, and must
@@ -65,9 +65,9 @@ target on its rule line, as `gate: ## <description>`, for `make help` to list it
 target of `agentic.mk` only with a prerequisite or a variable set after the include, never with a
 second recipe.
 
-The stack's rules go in its `template/.claude/rules/`, beside the bundled `agentic.md` and
-`conventions.md`. One of them lists the stack's skipped-check directives and the tools whose docs
-to read, which `conventions.md` leaves to the stack.
+The stack's rules go in its `template/.claude/rules/`, beside the bundled `agentic.md`,
+`conventions.md` and `writing.md`. One of them lists the stack's skipped-check directives and
+the tools whose docs to read, which `conventions.md` leaves to the stack.
 
 Claude Code reads one shared project settings file, `.claude/settings.json`, and this template
 renders it for every stack. A new stack adds its permissions and environment to
