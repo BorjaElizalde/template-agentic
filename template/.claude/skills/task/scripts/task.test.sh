@@ -341,19 +341,18 @@ rm "$TASK_TEST_STATE/no-start"
 
 echo "-- finish: refused while anything would be lost"
 refuses "an open issue does not finish"          'still open'           "$BACKEND" finish 42
+check "a task whose session runs"              task "$BACKEND" start 42
 echo CLOSED >"$TASK_TEST_STATE/issue-42"
 echo notes >"$ISSUE42/backend/notes.md"
 refuses "untracked files block it"               'untracked files'      "$BACKEND" finish 42
 check "and the worktree stays"                 test -f "$ISSUE42/backend/notes.md"
+check "and so does its session"                has_window backend '#42'
 rm "$ISSUE42/backend/notes.md"
 commit "$ISSUE42/backend"
 refuses "unpushed commits block it"              'push them first'      "$BACKEND" finish 42
 git -C "$ISSUE42/backend" push -q origin HEAD 2>/dev/null
 
 echo "-- finish: closed issue, nothing unshipped"
-rm "$TASK_TEST_STATE/issue-42"  # open for a moment, for a start
-check "with its session started again"         task "$BACKEND" start 42
-echo CLOSED >"$TASK_TEST_STATE/issue-42"
 check "a pushed branch finishes"               task "$BACKEND" finish 42
 check "its session ended, and its window closed" closes backend '#42'
 check "its worktree is gone"                   test ! -e "$ISSUE42/backend"
