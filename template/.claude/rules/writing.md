@@ -16,8 +16,8 @@ what it holds; these rules say how to write it.
 - Keep every fact, reason and doubt the text would hold without these rules. Less is more: cut
   words, never content.
 - Go from the general to the detail: open with the main point, then order the rest by importance
-  and impact. Where the step sets the order of the text, as an issue's sections do, keep that
-  order, and use this order inside each part.
+  and impact. Put the items of a list in that order too, the most important first. Where a step
+  sets the order, as an issue's sections do, keep it, and use this order inside each part.
 - No mannered prose: say what you mean, with no metaphor or flourish in place of a direct
   statement. Write "a parameter worth varying", not "a dial worth turning"; "this point still
   matters", not "this point earns its keep". When a literal phrase exists, use it.
