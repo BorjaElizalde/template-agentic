@@ -128,8 +128,8 @@ session_line() {
 	running_session "$1" | jq -r '"session " + .status' || echo "no session"
 }
 
-# autoMemoryDirectory takes only an absolute or ~/ path, so each checkout's gitignored local
-# settings point Claude at that checkout's own committed store.
+# autoMemoryDirectory takes only an absolute or ~/ path, so the main checkout's gitignored local
+# settings point Claude at its committed store: a worktree's session reads those, not its own.
 point_memory() {
 	local checkout=$1 settings=$1/.claude/settings.local.json
 	[ -f "$settings" ] || printf '{}\n' >"$settings"
@@ -253,11 +253,9 @@ start_task() {
 		worktree=$(cd "$worktree" && pwd -P)
 		# Seed the gitignored files git worktree add can't carry, never overwriting one.
 		cp -n .env* "$worktree"/ 2>/dev/null || true
-		cp -n .claude/settings.local.json "$worktree/.claude/settings.local.json" 2>/dev/null || true
 		echo "✓ worktree created: $worktree (branch $branch)"
 	fi
 	point_memory "$MAIN"
-	point_memory "$worktree"
 	mode=$(task_mode "$branch")
 	name="#$issue $REPO_NAME: $short"
 	if running_session "$worktree" >/dev/null; then
