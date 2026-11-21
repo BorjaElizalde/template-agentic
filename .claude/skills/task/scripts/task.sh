@@ -230,9 +230,9 @@ start_task() {
 	holds=$(issue_holds "$issue")
 	[ -z "$holds" ] || die "$holds"
 	short=$(short_title "$title")
-	cleanup
+	# A worktree whose folder was deleted by hand still holds its branch until git forgets it.
+	git worktree prune
 	SESSIONS=$(claude agents --json)
-	task_lines "$issue"
 	if worktree=$(issue_worktree "$issue"); then
 		branch=$(git -C "$worktree" branch --show-current)
 		echo "✓ worktree exists: $worktree"
@@ -414,13 +414,11 @@ needs_attention() {
 	esac
 }
 
-# task_lines [<issue>]: one line per task worktree of this checkout, with "design mode" for a design
-# task, its session, its PR and when its session last wrote, ending in "needs attention" when it
-# does; the issue given is left out.
+# One line per task worktree of this checkout, with "design mode" for a design task, its session,
+# its PR and when its session last wrote, ending in "needs attention" when it does.
 task_lines() {
 	local issue worktree session age view branch pr mode mark
 	for issue in $(task_issues); do
-		[ "$issue" != "${1:-}" ] || continue
 		worktree=$(issue_worktree "$issue")
 		session=$(session_line "$worktree")
 		age=$(transcript_age "$worktree")
@@ -435,21 +433,14 @@ task_lines() {
 	done
 }
 
-# The SessionStart hook: a cleanup, then the task lines, in the context of a session that starts or
-# resumes in the main checkout, ending with the line that sends it to /task:status for the reply.
+# The SessionStart hook: in the context of a session that starts or resumes in the main checkout,
+# the line that sends it to /task:status for its first reply, which runs the cleanup and the status.
 # A hook can't call a skill, only add to the context. It says nothing in a task worktree, so task
-# sessions start untouched, nor where there is no task, and it never fails a session start.
-# Claude Code passes on 10,000 characters of a hook's output, and only a preview of the first 2,000
-# when there are more. A line is at most about 250, so 40 tasks fit; the backlog has no such bound,
-# so it is left to /task:status.
+# sessions start untouched, nor where there is no task.
 on_session_start() {
 	[ "$(git -C "$CHECKOUT" rev-parse --absolute-git-dir)" = \
 		"$(git -C "$CHECKOUT" rev-parse --path-format=absolute --git-common-dir)" ] || return 0
 	[ -n "$(task_issues)" ] || return 0
-	trap '[ $? -eq 0 ] || { echo "The tasks are unknown: gh or claude agents did not answer. Report the status through /task:status once they do."; exit 0; }' EXIT
-	cleanup
-	SESSIONS=$(claude agents --json)
-	task_lines
 	echo "In your first reply, report the status to the owner through /task:status."
 }
 

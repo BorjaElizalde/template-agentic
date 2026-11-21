@@ -27,9 +27,7 @@ The same steps start a new task and pick up an existing one.
 3. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" start <n> <type>`. Before anything else, it
    refuses a type it does not know, and an issue that must wait (see below), naming its open
    blocker or the reason it is parked: tell the owner, and start nothing in its place. Otherwise
-   it first runs `task.sh cleanup`, which finishes every task whose issue is closed, as a bare
-   `/task:finish` does, then prints the status line of every other task, with no backlog. Then it
-   picks up what the issue already has:
+   it picks up what the issue already has:
    - its worktree, else its branch (left without a worktree, or pushed from another clone), else
      a new branch from `origin/develop`;
    - its running session, never opened twice, else its last session, resumed, else a new one, in

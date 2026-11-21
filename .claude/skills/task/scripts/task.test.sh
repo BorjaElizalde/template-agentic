@@ -217,7 +217,6 @@ pr_from() {  # pr_from <branch> <state> <isDraft> <statusCheckRollup>: the newes
 }
 status_line() { grep "^#$1 " "$WORK/out"; }  # the line the last run_in ... status printed for issue $1
 under() { awk -v heading="$1:" '!/^#/ { on = $0 == heading; next } on' "$WORK/out"; }  # its lines under heading $1
-unknown_last() { tail -n 1 "$WORK/out" | grep -q '^The tasks are unknown: .*/task:status'; }  # the last run_in ended so
 refuses() {  # refuses <desc> <reason pattern> <checkout> <task.sh args...>: fails, and says why
   local out
   if out="$(bash "$3/.claude/skills/task/scripts/task.sh" "${@:4}" 2>&1)"; then fail=$((fail+1)); echo "FAIL $1 (it ran)"
@@ -388,17 +387,17 @@ check "once shipped, it finishes with the worktree" task "$BACKEND" finish 12
 check "both branches of the issue are gone"    test -z "$(git -C "$BACKEND" for-each-ref 'refs/heads/*/12-*')"
 check "another issue's branch stays"           git -C "$BACKEND" rev-parse -q --verify feat/112-other
 
-echo "-- cleanup: a start first finishes every task whose issue is closed"
+echo "-- cleanup: finishes every task whose issue is closed"
 ISSUE8="$WORK/repos/worktrees/8-task-8"
 ISSUE9="$WORK/repos/worktrees/9-task-9"
 ISSUE10="$WORK/repos/worktrees/10-task-10"
 check "backend starts issue 8"                 task "$BACKEND" start 8
 check "and issue 9"                            task "$BACKEND" start 9
+check "and issue 10"                           task "$BACKEND" start 10
 echo CLOSED >"$TASK_TEST_STATE/issue-8"
 echo CLOSED >"$TASK_TEST_STATE/issue-9"
 echo notes >"$ISSUE8/backend/notes.md"
-check "a start goes on past a refused finish"  run_in "$BACKEND" start 10
-check "and opens its own session"              test "$(sessions '#10 backend:')" -eq 1
+check "a cleanup goes on past a refused finish" run_in "$BACKEND" cleanup
 check "it finished the closed task"            test ! -e "$ISSUE9"
 check "and removed its branch"                 bash -c "! git -C '$BACKEND' rev-parse -q --verify feat/9-task-9"
 check "it reported the finish in one line"     grep -qxF '✓ issue 9 finished: session closed, worktree removed, branches removed: feat/9-task-9' "$WORK/out"
@@ -415,17 +414,19 @@ check "and printed one line, for the finish"   test "$(cat "$WORK/out")" = '✓ 
 
 echo "-- cleanup: from inside a task worktree"
 echo CLOSED >"$TASK_TEST_STATE/issue-10"
-check "a start from the task's own session"    run_in "$ISSUE10/backend" start 11
-check "starts its issue"                       test -d "$WORK/repos/worktrees/11-task-11/backend"
-check "past the finish of its own worktree"    grep -qx '✗ issue 10 not finished: finish issue 10 from outside its worktree: .*' "$WORK/out"
+check "a cleanup from the task's own session"  run_in "$ISSUE10/backend" cleanup
+check "refuses the finish of its own worktree" grep -qx '✗ issue 10 not finished: finish issue 10 from outside its worktree: .*' "$WORK/out"
 check "which stays"                            test -d "$ISSUE10/backend"
+run_in "$BACKEND" cleanup
+check "until a cleanup from the main checkout" test ! -e "$ISSUE10"
 
 echo "-- status: every task in one view, and it only reads"
 ISSUE11="$WORK/repos/worktrees/11-task-11"
 ISSUE13="$WORK/repos/worktrees/13-task-13"
 ISSUE14="$WORK/repos/worktrees/14-task-14"
 ISSUE17="$WORK/repos/worktrees/17-task-17"
-check "backend starts issue 13"                task "$BACKEND" start 13
+check "backend starts issue 11"                task "$BACKEND" start 11
+check "and issue 13"                           task "$BACKEND" start 13
 check "and issue 14"                           task "$BACKEND" start 14
 check "and issue 17"                           task "$BACKEND" start 17
 echo CLOSED >"$TASK_TEST_STATE/issue-14"
@@ -481,44 +482,26 @@ transcript "$ISSUE11/backend" old 200001010000
 run_in "$BACKEND" status
 check "never a busy one, however long ago it wrote" bash -c "grep -qE '^#11 Task 11: session busy, .*, active [0-9]+ d ago$' '$WORK/out'"
 
-echo "-- on-session-start: a cleanup, then the status"
+echo "-- on-session-start: sends the session to /task:status, which runs the cleanup and the status"
 echo CLOSED >"$TASK_TEST_STATE/issue-17"
-echo notes >"$ISSUE17/backend/notes.md"
-check "a session start in the main checkout"   run_in "$BACKEND" on-session-start
-check "finishes the closed task"               test ! -e "$ISSUE14"
-check "and reports it"                         grep -qF '✓ issue 14 finished:' "$WORK/out"
-check "reports a refusal and starts anyway"    grep -qF '✗ issue 17 not finished:' "$WORK/out"
-check "then prints the status of what is left" bash -c "grep -q '^#17 ' '$WORK/out' && grep -q '^#11 ' '$WORK/out' && grep -q '^#13 ' '$WORK/out' && ! grep -q '^#14 ' '$WORK/out'"
-check "after the cleanup's lines"              awk '/^#/ { status = 1 } status && /^(✓|✗)/ { exit 1 }' "$WORK/out"
-check "and ends with the line that names /task:status" test "$(tail -n 1 "$WORK/out")" = 'In your first reply, report the status to the owner through /task:status.'
-rm "$ISSUE17/backend/notes.md"
-task "$BACKEND" finish 17 >/dev/null
-echo CLOSED >"$TASK_TEST_STATE/issue-13"
+touch "$TASK_TEST_STATE/gh-down" "$TASK_TEST_STATE/claude-down"
+check "a session start in the main checkout, with gh and claude down" run_in "$BACKEND" on-session-start
+check "prints only the line that names /task:status" test "$(cat "$WORK/out")" = 'In your first reply, report the status to the owner through /task:status.'
+check "and finishes nothing"                   bash -c "test -d '$ISSUE14/backend' && test -d '$ISSUE17/backend'"
 check "a session start in a task worktree"     run_in "$ISSUE11/backend" on-session-start
 check "says nothing"                           test ! -s "$WORK/out"
-check "and finishes nothing"                   test -d "$ISSUE13/backend"
-rm "$TASK_TEST_STATE/issue-13"
-touch "$TASK_TEST_STATE/gh-down" "$TASK_TEST_STATE/claude-down"
-check "a session start where no task is, with gh and claude down" run_in "$FRONTEND" on-session-start
-check "says nothing: it calls neither"         test ! -s "$WORK/out"
-rm "$TASK_TEST_STATE/gh-down"
-check "claude agents can't answer: it still exits 0" run_in "$BACKEND" on-session-start
-check "and ends saying the tasks are unknown, naming /task:status" unknown_last
-rm "$TASK_TEST_STATE/claude-down"
-touch "$TASK_TEST_STATE/gh-down"
-check "gh can't answer: it still exits 0"      run_in "$BACKEND" on-session-start
-check "and ends saying the tasks are unknown, naming /task:status" unknown_last
-rm "$TASK_TEST_STATE/gh-down"
+check "a session start where no task is"       run_in "$FRONTEND" on-session-start
+check "says nothing either"                    test ! -s "$WORK/out"
+rm "$TASK_TEST_STATE/gh-down" "$TASK_TEST_STATE/claude-down"
+run_in "$BACKEND" cleanup
 
-echo "-- start: a cleanup, then every other task"
+echo "-- start: leaves the cleanup and the status to /task:status"
 ISSUE16="$WORK/repos/worktrees/16-task-16"
 check "backend starts issue 16"                task "$BACKEND" start 16
 echo CLOSED >"$TASK_TEST_STATE/issue-16"
 check "a start"                                run_in "$BACKEND" start 15
-check "finishes the closed task"               bash -c "test ! -e '$ISSUE16' && grep -qF '✓ issue 16 finished:' '$WORK/out'"
-check "lists every other task, and leaves out its own" bash -c "
-  grep -q '^#11 ' '$WORK/out' && grep -q '^#13 ' '$WORK/out' && ! grep -q '^#15 ' '$WORK/out'"
-check "and no heading or backlog line"         bash -c "! grep -qE '^(In progress|Ready|Blocked|Parked):|^#2[0-4] ' '$WORK/out'"
+check "finishes no task, and prints no task line" bash -c "test -d '$ISSUE16/backend' && ! grep -q '^#' '$WORK/out'"
+run_in "$BACKEND" cleanup
 
 echo "-- park and block: a start refuses an issue that must wait, and says why"
 check "an issue parks where the label never was" task "$BACKEND" park 18 "planned in #19"
@@ -568,9 +551,6 @@ check "a look where there is no task worktree, with claude down" run_in "$FRONTE
 check "lists the backlog, with no In progress heading" bash -c "
   ! grep -q '^In progress:' '$WORK/out' && grep -qx '#24 Task 24' '$WORK/out'"
 rm "$TASK_TEST_STATE/claude-down"
-check "a session start in the main checkout"   run_in "$BACKEND" on-session-start
-check "prints the task lines, and no heading or backlog line" \
-  test "$(sed '$d' "$WORK/out" | cut -d ' ' -f 1 | sort | tr '\n' ' ')" = '#11 #13 #15 #19 '
 
 echo "-- plan: a task's design, the one pinned comment of its issue"
 # The heading of the owner's comment only starts like a plan's.
