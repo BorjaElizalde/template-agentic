@@ -294,11 +294,12 @@ cmd_case 2 "a wholly-untracked NEW store still blocks the commit" "git commit -m
   "[BLOCKING] untracked memory file"
 rm -rf "$FIX/.claude/agent-memory/brandnew"; commit
 
-echo "-- commit matcher precision (shape shared with bash-guard.sh)"
+echo "-- commit matcher precision"
 topic some-agent probe '---' 'name: probe' 'metadata:' '  type: project' '---' 'Gone `app/gone.py`.'
 cmd_case 2 "git -C <dir> commit is matched"        "git -C . commit -m x"
 cmd_case 2 "git -c k=v commit is matched"          "git -c user.name=z commit -m x"
 cmd_case 2 "extra whitespace is matched"           "git   commit -m x"
+cmd_case 2 "a commit bash -c runs is matched"      "bash -c 'git commit -m x'"
 cmd_case 0 "git log --grep=git commit is not"      "git log --grep=git commit --oneline"
 rm -f "$(store some-agent)/probe.md"; commit
 

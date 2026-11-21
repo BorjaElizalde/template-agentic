@@ -60,10 +60,10 @@ report() { # report <label> <findings>
 
 # ---- PreToolUse: git commit -------------------------------------------------------------------
 if [ -n "$COMMAND" ]; then
-  # Same shape bash-guard.sh uses for the same concept, deliberately: a substring test both misses
-  # (`git  commit`, `git -c user.name=z commit`) and over-fires (`git log --grep="git commit"`,
-  # which would run the whole scan).
-  RE_COMMIT='(^|[[:space:]&;|])git[[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+[[:space:]]+)*commit([[:space:]]|$)'
+  # A substring test both misses (`git  commit`, `git -c user.name=z commit`, `bash -c "git commit"`)
+  # and over-fires (`git log --grep="git commit"`, which would run the whole scan), so a quote
+  # before `git` counts only after `bash -c`, `sh -c` or `eval`.
+  RE_COMMIT='(^|[[:space:]&;|]|((ba)?sh[[:space:]]+-c|eval)[[:space:]]+["'"'"'])git[[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+[[:space:]]+)*commit([[:space:]]|$)'
   [[ "$COMMAND" =~ $RE_COMMIT ]] || exit 0
   [ -x "$CHECKER" ] || [ -f "$CHECKER" ] || exit 0
 
