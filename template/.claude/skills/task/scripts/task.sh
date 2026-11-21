@@ -137,12 +137,6 @@ point_memory() {
 	mv "$settings.tmp" "$settings"
 }
 
-# A word quoted for a shell.
-quoted() {
-	local quote="'" escaped="'\\''"
-	printf "'%s'" "${1//$quote/$escaped}"
-}
-
 # launch_command <name> <issue> <mode> [--continue]: the command that runs a task's session.
 launch_command() {
 	# A session opened without a first prompt waits at an empty input, so this one sends it to its
@@ -165,9 +159,9 @@ launch_command() {
 	# claude takes one appended system prompt, so the command joins the words both modes share and
 	# the mode's own. The first prompt comes after -n: --disallowed-tools takes every value up to the
 	# next option.
-	command="exec claude ${4:+$4 }--settings $(quoted "$settings")"
-	command+=" --append-system-prompt \"\$(cat $(quoted "$files/prompt.md") $(quoted "$files/$3.md"))\""
-	command+="$tools -n $(quoted "$1") $(quoted "$first")"
+	command="exec claude ${4:+$4 }--settings $(printf %q "$settings")"
+	command+=" --append-system-prompt \"\$(cat $(printf %q "$files/prompt.md") $(printf %q "$files/$3.md"))\""
+	command+="$tools -n $(printf %q "$1") $(printf %q "$first")"
 	printf '%s\n' "$command"
 }
 
@@ -182,7 +176,7 @@ open_window() {
 	# opens in, and -d leaves the main session's window in view.
 	pane=$(tmux -L "$REPO_NAME" new-window -d -P -F '#{pane_id}' -n "#$2") ||
 		die "no tmux runs for $REPO_NAME: start the main session with make claude, then start the task again"
-	tmux -L "$REPO_NAME" send-keys -t "$pane" "cd $(quoted "$1") && exec bash $(quoted "$3")" Enter
+	tmux -L "$REPO_NAME" send-keys -t "$pane" "cd $(printf %q "$1") && exec bash $(printf %q "$3")" Enter
 }
 
 # open_session <worktree> <name> <issue> <mode> [--continue]: returns once the session runs, in a
@@ -201,7 +195,7 @@ open_session() {
 		running_session "$1" >/dev/null && return
 		sleep 1
 	done
-	die "no session runs in $1 30 seconds after its launch: run bash $(quoted "$launcher") there to see why"
+	die "no session runs in $1 30 seconds after its launch: run bash $(printf %q "$launcher") there to see why"
 }
 
 # Whether branch $1 holds commits that exist nowhere else. They are safe when there are none beyond
