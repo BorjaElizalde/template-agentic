@@ -1,7 +1,7 @@
 ---
 name: start
 description: Use to start, open or resume the session of any task or subagent — a new task, or an existing issue with or without a worktree or a session. Finds or creates the issue, creates or reuses its worktree, and opens, resumes or brings forward its session. Also use to park, release or link an issue, and to plan a backlog.
-allowed-tools: Bash(gh issue list:*), Bash(gh issue view:*), Bash(gh issue create:*), Bash(gh issue edit:*), Bash(bash:*)
+allowed-tools: Bash(bash:*)
 ---
 
 Every subagent session belongs to one issue in BorjaElizalde/template-agentic and works in its own worktree,
@@ -27,9 +27,7 @@ The same steps start a new task and pick up an existing one.
 3. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" start <n> <type>`. Before anything else, it
    refuses a type it does not know, and an issue that must wait (see below), naming its open
    blocker or the reason it is parked: tell the owner, and start nothing in its place. Otherwise
-   it first runs `task.sh cleanup`, which finishes every task whose issue is closed, as a bare
-   `/task:finish` does, then prints the status line of every other task, with no backlog. Then it
-   picks up what the issue already has:
+   it picks up what the issue already has:
    - its worktree, else its branch (left without a worktree, or pushed from another clone), else
      a new branch from `origin/develop`;
    - its running session, never opened twice, else its last session, resumed, else a new one, in
