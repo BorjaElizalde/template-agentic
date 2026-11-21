@@ -47,10 +47,11 @@ CWD="$(printf '%s' "$payload" | jq -r '.cwd // ""' 2>/dev/null || true)"
 # Relative paths in the payload resolve against CWD, exactly as the shell would resolve them.
 absolutize() { case "$1" in /*) printf '%s' "$1" ;; *) printf '%s/%s' "$CWD" "$1" ;; esac; }
 
-# Same shape bash-guard.sh uses for the same concept, deliberately: a substring test both misses
-# (`git  commit`, `git -c user.name=z commit`) and over-fires (`git log --grep="git commit"`,
-# which would run the whole scan).
-RE_COMMIT='(^|[[:space:]&;|])git[[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+[[:space:]]+)*commit([[:space:]]|$)'
+# A substring test both misses (`git  commit`, `git -c user.name=z commit`, `bash -c "git commit"`)
+# and over-fires (`git log --grep="git commit"`, which would run the whole scan), so a quote
+# before `git` counts only after `bash -c`, `sh -c` or `eval`.
+RE_WRAPPER="((ba)?sh[[:space:]]+-c|eval)[[:space:]]+[\"']"
+RE_COMMIT="(^|[[:space:]&;|]|$RE_WRAPPER)git[[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+[[:space:]]+)*commit([[:space:]]|$)"
 [[ "$COMMAND" =~ $RE_COMMIT ]] || exit 0
 [ -x "$CHECKER" ] || [ -f "$CHECKER" ] || exit 0
 
