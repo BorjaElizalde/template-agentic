@@ -1,14 +1,17 @@
-# Published text clarity
+---
+paths: ["**/.claude/**/*.{md,md.jinja}", "**/CLAUDE.md"]
+---
+# Writing
 
-Agents write the issues, plans, PR bodies and commit messages, and people read them: to decide
-what to build, to review a change, and to learn later why the code is as it is. Text that helps a
-model think is not the same as text that a person understands. Each of these texts must be easy
-for a person to understand. Agents read them too, as a task's brief or a plan to review, and plain
-text serves them as well.
+Agents write two kinds of text that others read. Published text is an issue, a comment that
+briefs a task, a plan, a PR body or a commit message: people read it to decide what to build, to
+review a change, and to learn later why the code is as it is. Instruction text is a `.md` file
+under `.claude/` or a `CLAUDE.md`: Claude follows it, and the owner reads it to know what Claude
+will do. Text that helps a model think is not the same as text that a person understands. Write
+both kinds for a person to understand, in one pass: plain text serves Claude as well.
 
-These rules govern only the text you publish: an issue, a comment that briefs a task, a plan, a PR
-body and a commit message. They do not govern how you think, plan or answer in chat. The step that
-writes the text says what it holds; these rules say how to write it.
+These rules do not govern how you think, plan or answer in chat. The step that writes a text says
+what it holds; these rules say how to write it.
 
 - Keep every fact, reason and doubt the text would hold without these rules. Less is more: cut
   words, never content.
@@ -28,3 +31,7 @@ writes the text says what it holds; these rules say how to write it.
   know.
 - Leave out filler: no preamble, no summary of what the text already said, no praise of the
   change.
+- In instruction text, say each rule once, in the file that does its step, and name that file
+  from elsewhere. A file that loads in every session holds only what a session must do before any
+  skill loads.
+- In instruction text, read a script, a hook or a file before you state what it does.

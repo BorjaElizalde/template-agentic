@@ -84,7 +84,7 @@ scratchpad, `/tmp` or `/private/tmp` path: a restart wipes them, and a consumer 
 task's input files that way. What a task needs goes in the issue, or the task rebuilds it.
 
 Before you write an issue, or a comment written the same way, read
-`.claude/published-text-clarity.md`, and write the text as it says.
+`.claude/rules/writing.md`, and write the text as it says.
 
 ## Issues that must wait
 
