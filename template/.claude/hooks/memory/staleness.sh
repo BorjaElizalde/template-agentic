@@ -52,6 +52,9 @@ resolve_path() {
   printf ''
 }
 
+# cites_symbol <path> <repo>: a name with no extension under a folder that exists names a symbol.
+cites_symbol() { [[ "$(basename "$1")" != *.* ]] && [ -n "$(resolve_path "$2" "$(dirname "$1")")" ]; }
+
 # One dialect, one vocabulary: every store writes the harness shape, a `metadata:` block with an
 # indented `type:` drawn from the harness's four kinds. The agent-only spellings `memory_type:`,
 # `navigation` and `maintainer-guidance` are gone. `navigation` in particular named the content that
@@ -169,9 +172,8 @@ check_store() {
       [ -n "$clean" ] || continue
       [ -n "$(resolve_path "$repo" "$clean")" ] && continue
 
+      cites_symbol "$clean" "$repo" && continue
       base="$(basename "$clean")"
-      # A name with no extension under a folder that exists cites a symbol, not a file.
-      [[ "$base" != *.* ]] && [ -n "$(resolve_path "$repo" "$(dirname "$clean")")" ] && continue
 
       hist="$(git -C "$repo" log --oneline -1 -- "$clean" 2>/dev/null)"
       elsewhere="$(git -C "$repo" ls-files 2>/dev/null | grep -E "/${base}$" | head -1)"

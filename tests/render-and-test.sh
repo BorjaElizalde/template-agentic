@@ -159,8 +159,8 @@ expect "the task skills, the session files and pull-request name the issues repo
   grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' &&
   grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md' &&
   grep -qF acme/tasks '$D/.claude/skills/task/session/prompt.md' &&
-  for step in task/skills/status/SKILL.md task/session/execution.md pull-request/SKILL.md; do
-    grep -qF 'gh issue view <n> -R acme/tasks --json title,body,comments' \"$D/.claude/skills/\$step\" || exit 1
+  for file in task/skills/status/SKILL.md task/session/execution.md pull-request/SKILL.md; do
+    grep -qF 'gh issue view <n> -R acme/tasks --json title,body,comments' \"$D/.claude/skills/\$file\" || exit 1
   done"
 expect "the execution session posts its plan with task.sh plan, which task.sh has" bash -c "
   grep -qF 'bash .claude/skills/task/scripts/task.sh plan <n> <file>' '$D/.claude/skills/task/session/execution.md' &&
@@ -182,7 +182,7 @@ expect "the issue, plan, PR and commit steps each send the agent to .claude/publ
   done"
 for agent in "$D"/.claude/agents/*.md; do
   name="$(basename "$agent" .md)"
-  expect "the execution session spawns $name, which has no tool that edits, nor memory, which adds Write and Edit" bash -c "
+  expect "the execution session names $name, which has no tool that edits, nor memory, which adds Write and Edit" bash -c "
     grep -qF '\`$name\`' '$D/.claude/skills/task/session/execution.md' &&
     grep -q '^tools: Read' '$agent' && ! grep -qE '^(tools:.*(Edit|Write|Agent)|memory:)' '$agent'"
 done
