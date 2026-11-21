@@ -5,8 +5,7 @@ allowed-tools: Bash(bash:*)
 ---
 
 Every subagent session belongs to one issue in BorjaElizalde/template-agentic and works in its own worktree,
-research tasks included: the worktree is the agent's workspace for notes, test runs and drafts.
-The same steps start a new task and pick up an existing one.
+research tasks included. The same steps start a new task and pick up an existing one.
 
 1. Find the issue. Given a number, use it. Otherwise search the open issues with
    `gh issue list -R BorjaElizalde/template-agentic --state open --search "<keywords>"` and reuse one that
@@ -84,7 +83,7 @@ scratchpad, `/tmp` or `/private/tmp` path: a restart wipes them, and a consumer 
 task's input files that way. What a task needs goes in the issue, or the task rebuilds it.
 
 Before you write an issue, or a comment written the same way, read
-`.claude/published-text-clarity.md`, and write the text as it says.
+`.claude/rules/writing.md`, and write the text as it says.
 
 ## Issues that must wait
 

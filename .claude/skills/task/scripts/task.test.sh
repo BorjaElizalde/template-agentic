@@ -186,20 +186,16 @@ sessions_exit() {  # every running session exits, and its window closes; each re
 launched() { jq -e -Rs 'split("\u0000")[:-1] | '"$1" "$TASK_TEST_STATE/launched"; }  # launched <jq filter>: over the last launch's arguments
 launched_arg() { launched ".[index(\"$1\") + 1]" | jq -r .; }  # the value the launch gave option $1
 # launches_in execution|design: the session last opened launches in that mode. Every session has its
-# permission prompts denied, and the words both modes share, then its mode's own, as the system
-# prompt it appends. An execution session has no question tool and has a Stop hook; a design
-# session has the tool and no hook. claude --settings reads a file or a JSON string.
+# permission prompts denied, no question tool, and the words both modes share, then its mode's own,
+# as the system prompt it appends. Only an execution session has a Stop hook. claude --settings
+# reads a file or a JSON string.
 launches_in() {
   local settings
   settings="$(launched_arg --settings)"
   [ ! -f "$settings" ] || settings="$(cat "$settings")"
-  jq -e '.hooks.PermissionRequest' <<<"$settings" &&
-    [ "$(launched_arg --append-system-prompt)" = "$(cat "$SESSION/prompt.md" "$SESSION/$1.md")" ] || return 1
-  if [ "$1" = design ]; then
-    launched 'index("--disallowed-tools") == null' && jq -e '.hooks | has("Stop") | not' <<<"$settings"
-  else
-    [ "$(launched_arg --disallowed-tools)" = AskUserQuestion ] && jq -e '.hooks.Stop' <<<"$settings"
-  fi
+  jq -e '.hooks.PermissionRequest' <<<"$settings" && [ "$(launched_arg --disallowed-tools)" = AskUserQuestion ] &&
+    [ "$(launched_arg --append-system-prompt)" = "$(cat "$SESSION/prompt.md" "$SESSION/$1.md")" ] &&
+    jq -e --arg mode "$1" '.hooks | has("Stop") == ($mode == "execution")' <<<"$settings"
 }
 # The session last opened runs claude interactively, with no -p or --print, as its window's only
 # process: claude is the process tmux started in the window's pane.
@@ -296,7 +292,7 @@ ISSUE25="$WORK/repos/worktrees/25-design-the-next-step"
 check "backend starts issue 25 as design"      run_in "$BACKEND" start 25 design
 check "on a design branch"                     test "$(branch_of "$ISSUE25/backend")" = design/25-design-the-next-step
 check "and the start names design mode"        grep -qxF '✓ session opened in design mode: #25 backend: Design the next step' "$WORK/out"
-check "in design mode: the question tool, no Stop hook, permission prompts denied" launches_in design
+check "in design mode: no question tool, no Stop hook, permission prompts denied" launches_in design
 transcript "$ISSUE25/backend"
 sessions_exit
 check "a start with no type"                   run_in "$BACKEND" start 25
