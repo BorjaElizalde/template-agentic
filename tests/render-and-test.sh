@@ -75,11 +75,14 @@ GATE="$D/.github/workflows/gate.yaml"
 BRANCH_PROTECTION="$D/.github/workflows/branch-protection.yaml"
 expect "the Gate and Branch protection workflows are valid workflows" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows \
   "$GATE" "$BRANCH_PROTECTION"
-expect "the Gate workflow runs the stack's checks, never make" bash -c "
-  grep -qx '      - uses: ./.github/actions/stack-gate' '$GATE' && ! grep -v '^[[:space:]]*#' '$GATE' | grep -qw make"
-expect "the Gate workflow skips a draft, and runs when one is marked ready" bash -c "
+expect "the Gate workflow calls the stack's checks, never make" bash -c "
+  [ \"\$(uvx --quiet yq -r '.jobs.gate.uses' '$GATE')\" = ./.github/workflows/gate-checks.yaml ] &&
+  ! grep -v '^[[:space:]]*#' '$GATE' | grep -qw make"
+# A skipped job that calls a workflow reports only as gate, never as the gate / <job> a ruleset requires.
+expect "the Gate workflow skips a draft through the checks' skip input, and runs when one is marked ready" bash -c "
   grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' '$GATE' &&
-  grep -qF '\${{ !github.event.pull_request.draft' '$GATE'"
+  [ \"\$(uvx --quiet yq -r '.jobs.gate.if' '$GATE')\" = null ] &&
+  uvx --quiet yq -r '.jobs.gate.with.skip' '$GATE' | grep -qF '\${{ github.event.pull_request.draft'"
 expect "the Branch protection job reports as branch-protection on a PR into staging or main, and as up-to-date otherwise" bash -c "
   [ \"\$(uvx --quiet yq -r '.jobs[\"branch-protection\"].name' '$BRANCH_PROTECTION')\" = \
     \"\\\${{ github.event_name == 'pull_request' && github.base_ref != 'develop' && 'branch-protection' || 'up-to-date' }}\" ]"
@@ -123,12 +126,9 @@ expect "both preset files and every renovate.json are valid Renovate config" uvx
 expect "the project's renovate.json is the pointer to the project preset only" jq -e '
   keys == ["$schema", "description", "extends"]
   and .extends == ["github>BorjaElizalde/template-agentic//renovate/default"]' "$D/renovate.json"
-# $p is jq's variable. Tried double quotes, but then each " and $ of the program needs a backslash.
-# shellcheck disable=SC2016
 expect "the project preset is the shared rules, with Renovate off the template's CI files" jq -e '
   .extends == ["github>BorjaElizalde/template-agentic//renovate/base"]
-  and (.["github-actions"].ignorePaths as $p
-    | any($p[]; . == ".github/workflows/gate.yaml") and any($p[]; . == ".github/actions/stack-gate/**"))' \
+  and .["github-actions"].ignorePaths == [".github/workflows/gate-checks.yaml"]' \
   "$ROOT/renovate/default.json"
 expect "this repository takes the shared rules only, so Renovate keeps its own CI files' pins current" jq -e \
   '.extends == ["github>BorjaElizalde/template-agentic//renovate/base"] and (has("github-actions") | not)' \
