@@ -10,6 +10,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # No gate: main takes only staging, and staging only develop, whose ruleset requires the gate on
+  # an up-to-date branch, so the tree Build releases already passed it. Tried running the gate here
+  # too, but on the same tree it only tries newer tool versions, which protects no project.
+
   # YYYYMMDD.N from the commit date: Copier and Renovate order template versions by PEP 440, which
   # the YYYYMMDD-shortsha image tags do not satisfy.
   version-tag:
