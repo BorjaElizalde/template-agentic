@@ -44,10 +44,10 @@ Agents review the task, and each gets the command that reads its issue,
 Each reviewer posts its report as a comment, then returns it to you: `plan-reviewer` and
 `method-reviewer` on the issue, `code-reviewer` and `readability-reviewer` on the PR. Before you
 act on a review's findings, post your reply beside it. Head it with the review's heading and
-`reply`, as in `## Plan review reply`, then give one line per finding: what you do about it, or
-why you do nothing. Post the reply from a file with `--body-file <file>`: the Bash guard reads a
-heredoc as part of the command, and blocks a git command it finds there. A review that found
-nothing gets no reply.
+`reply`, as in `## Plan review reply` or `## Method review reply`, then give one line per finding:
+what you do about it, or why you do nothing. Post the reply from a file with `--body-file <file>`:
+the Bash guard reads a heredoc as part of the command, and blocks a git command it finds there. A
+review that found nothing gets no reply.
 
 Before you build a change or run a method, spawn the reviewer of its plan. It only reports: you
 decide on its findings, and you alone change the plan. Take a design or a method it presents

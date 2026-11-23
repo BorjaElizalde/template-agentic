@@ -175,6 +175,7 @@ done
 expect "method-reviewer first reads the issue without the plan, the method review and its reply, by their exact headings" bash -c "
   grep -qx \"PLAN_HEADING='## Plan'\" '$D/.claude/skills/task/scripts/task.sh' &&
   grep -qF '\`## Method review\`' '$D/.claude/agents/method-reviewer.md' &&
+  grep -qF '\`## Method review reply\`' '$D/.claude/skills/task/session/execution.md' &&
   grep -qF 'test(\"^## (Plan|Method review( reply)?)\\n\")' '$D/.claude/agents/method-reviewer.md'"
 expect "method-reviewer reads the project's .claude/evidence.md, which the template never renders" bash -c "
   grep -qF '\`.claude/evidence.md\`' '$D/.claude/agents/method-reviewer.md' && [ ! -e '$D/.claude/evidence.md' ]"
