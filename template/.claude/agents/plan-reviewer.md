@@ -20,15 +20,17 @@ plan takes.
 
 A research task answers its issue's question, and its plan holds the method that will answer it.
 Its branch is `research/<n>-<slug>`, and `git branch --show-current` gives the branch. For such a
-plan, five parts of this file change. Every other part applies as written.
+plan, these parts of this file change. Every other part applies as written.
 
 - The yardstick is the question, not the Design Philosophy. You judge whether the method can
   answer it, and at what cost, before any of it runs.
 - Step 1 also reads `.claude/evidence.md`, when the project has it. Step 2 asks what evidence
   would answer the question, and the cheapest way to get it.
 - Step 4 holds the method against the checks below, in place of the screen for complexity.
-- A method you present is a clear win when it answers the question as well as the plan's, for
-  less.
+- Step 3, the Alternatives and the Output compare two methods by what each can answer and what it
+  costs, not by what each adds.
+- A method you present is a clear win when it answers the question as well as the plan's for
+  less, or answers it where the plan's method cannot.
 - The Verdict says that the method answers the question, answers it at a cost that a cheaper
   method avoids, or cannot answer it.
 
