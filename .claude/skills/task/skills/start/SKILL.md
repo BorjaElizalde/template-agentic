@@ -13,13 +13,12 @@ research tasks included. The same steps start a new task and pick up an existing
    "Write an issue" below says. On an existing issue, add what was settled since as a comment,
    written the same way.
 2. Pick the branch type. It is the task's mode, for the task's life:
-   - **Execution**, the default: its session works alone and never waits for a person. `feat`,
-     `fix`, `refactor` or `chore` for a change, which starts from a problem; `research` for a
-     question.
-   - **Design**: `design`, for a question, only when the owner asks to work it out together
-     ("with me", "let's design", "let's discuss"), never on your own guess. Its session asks the
-     owner, in its tmux window, what is the owner's to decide, and builds nothing: its result,
-     delivered as a research task's, is the decisions taken and the issues for the work.
+   - **Execution**, the default: `feat`, `fix`, `refactor` or `chore` for a change, `research`
+     for a task whose result is an answer. Its session works alone and never waits for a person.
+   - **Design**: `design`, only when the owner asks to work the task out together ("with me",
+     "let's design", "let's discuss"), never on your own guess. Its session asks the owner, in
+     its tmux window, what is the owner's to decide, and builds nothing: its result, delivered
+     as a research task's, is the decisions taken and the issues for the work.
 
    The type names a new branch only: an issue that has a branch keeps it, and its mode. To talk
    an execution task through, the owner uses its PR; to build what a design task decided, start
@@ -43,57 +42,39 @@ research tasks included. The same steps start a new task and pick up an existing
 
 ## Write an issue
 
-An issue states a problem or a question. A change starts from a problem: the task finds the
-solution and, before it builds, posts its plan as the issue's pinned comment, headed `Plan`; the
-PR that closes the issue states the solution. A research or a design task starts from a question:
-the task finds the answer, and a research task posts its method as that plan before it runs it. A
-reader who has only the issue must see why the work exists, whether it is worth doing, and when it
-is done. The session reads it to find the simplest design or the cheapest method, and to find its
-way back when one fails: a problem or a question leaves it free to do both, where a prescribed
-solution or method ties it to one.
+An issue states the problem; the task that starts from it finds the solution and, before it
+builds, posts its plan as the issue's pinned comment, headed `Plan`; the PR that closes the issue
+states the solution. A reader who has only the issue must see why the work exists, whether it is
+worth doing, and when it is done. The session reads it to find the simplest design, and to find
+its way back when a design fails: a problem leaves it free to do both, where a prescribed solution
+ties it to one design.
 
-So an issue holds no part of a solution or a method: no design, no change to make, no option tried
-and no advice on how to build or how to answer. The owner's decisions are the one exception.
+So an issue holds no part of a solution: no design, no change to make, no option tried and no
+advice on how to build it. The owner's decisions are the one exception.
 
 The title names the problem or the outcome, not a step to take: "A restart wipes a task's input
-files", not "Move task inputs out of /tmp". A research or a design task's title names its
-question. The title's first 40 characters name the task's branch, session and status line, so
-they must tell the task apart.
+files", not "Move task inputs out of /tmp". Its first 40 characters name the task's branch,
+session and status line, so they must tell the task apart.
 
-A change's issue opens with these two parts, in this order:
+The body opens with the first two parts below, in this order. The other two follow, in this
+order, only when there is something to put in them:
 
 ```markdown
 ## Problem
 What is wrong or missing today, whom it costs and how, and the evidence: `file:line`, an issue,
-an error, a number, the owner's words quoted.
+an error, a number, the owner's words quoted. For a research task, the question and why its
+answer is needed.
 
 ## What is true when this is solved
 What the result is checked against: outcomes that any design which solves the problem meets, not
-a file, a text or a step that only one design has.
-```
+a file, a text or a step that only one design has. For a research or a design task, also where
+its result goes: a PR, or a comment on the issue.
 
-A research or a design task's issue opens with these two in their place:
-
-```markdown
-## Question
-The question, why its answer is needed, and the evidence that raises it, in the same forms as a
-problem's.
-
-## What is true when this is answered
-What the answer is checked against: what it must settle, whatever method finds it, and where it
-goes: a PR, or a comment on the issue.
-```
-
-Either issue goes on with these two parts, in this order, only when there is something to put in
-them:
-
-```markdown
 ## The owner's decisions
 Only what the owner decided, quoted in the owner's words, which the session follows.
 
 ## Findings
-What an earlier discussion found out about the problem or the question, so the session does not
-find it again.
+What an earlier discussion found out about the problem, so the session does not find it again.
 ```
 
 The issue is the session's whole brief: it sees nothing of the conversation that started it, so

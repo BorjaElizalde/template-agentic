@@ -553,7 +553,7 @@ printf '%s' "$OWNERS" >"$TASK_TEST_STATE/comment-24000"
 printf 'Build one thing.\n' >"$ISSUE11/backend/plan.md"
 check "a session posts its plan, from a path relative to its folder" run_in "$ISSUE11/backend" plan 24 plan.md
 check "as a comment headed Plan, which says whose words it holds, then the file's text" test "$(cat "$TASK_TEST_STATE/comment-24001")" = \
-  "$(printf '%s\n\n%s\n\n%s' '## Plan' '_The design this task builds, or the method it runs. Its session chose it and keeps it current here; it is not a decision of the owner._' 'Build one thing.')"
+  "$(printf '%s\n\n%s\n\n%s' '## Plan' '_The design this task builds. Its session chose it and keeps it current here; it is not a decision of the owner._' 'Build one thing.')"
 check "the issue's pinned comment"             test "$(cat "$TASK_TEST_STATE/pinned-24")" = 24001
 rm "$TASK_TEST_STATE/pinned-24"
 printf 'Build another thing.\n\n### Changes\n\n- Another thing: the first one failed.\n' >"$WORK/plan.md"

@@ -60,7 +60,7 @@ park() {
 # The two lines that open an issue's plan comment. The second says whose words they are: the
 # session posts under the owner's account.
 PLAN_HEADING='## Plan'
-PLAN_AUTHOR='_The design this task builds, or the method it runs. Its session chose it and keeps it current here; it is not a decision of the owner._'
+PLAN_AUTHOR='_The design this task builds. Its session chose it and keeps it current here; it is not a decision of the owner._'
 
 # plan <issue> <file>: an issue holds one plan, so a run that finds the comment under PLAN_HEADING
 # gives it the file's text and posts none. Every run pins it: GitHub keeps one pinned comment per

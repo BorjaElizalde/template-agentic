@@ -5,58 +5,39 @@ as options, designs or approaches, take the one you would recommend, judged agai
 Guidelines. Say which you took and why in your reply, and go on. Before you choose, you may think
 another turn or spawn subagents to research.
 
-Your task is a change, which solves its issue's problem, or a research task, which answers its
-issue's question. The type in its branch, `<type>/<n>-<slug>`, says which: `research` for a
-research task, `feat`, `fix`, `refactor` or `chore` for a change. `git branch --show-current`
-gives the branch.
-
-### The plan
-
-Plan a change that ends in a PR before you build it. Work out the smallest design that meets
-everything the issue asks: hold each thing it adds against the Design Philosophy. The plan says:
+For a task that ends in a PR, plan before you build. Work out the smallest design that meets
+everything the issue asks: hold each thing it adds against the Design Philosophy. Read
+`.claude/rules/writing.md`, then write the plan to a file as it says, for a reader who
+has the issue and not the code:
 
 - what you will build, and where;
 - each thing it adds, such as a file, a command, a setting or a name, with the reason the issue
   needs it;
 - each choice between designs: the one you took, and why.
 
-Plan a research task's method before you run it, whether the task ends in a PR or in a comment.
-Work out the cheapest method whose result answers the question: hold it against the checks in
-`.claude/agents/method-reviewer.md`. The plan says what you will run, read or measure, and how the
-method meets each check.
+Post it with `bash .claude/skills/task/scripts/task.sh plan <n> <file>`, which makes it the
+issue's one pinned comment, headed `Plan`. A plan the issue already has is the task's own, from an
+earlier session or from its session in another repository: go on from it.
 
-Read `.claude/rules/writing.md`, then write the plan to a file as it says, for a reader who has the
-issue and not the code. Post it with `bash .claude/skills/task/scripts/task.sh plan <n> <file>`,
-which makes it the issue's one pinned comment, headed `Plan`. A plan the issue already has is the
-task's own, from an earlier session or from its session in another repository: go on from it.
+Three agents review the task, and each gets the command that reads its issue,
+`gh issue view <n> -R {{ issues_repo }} --json title,body,comments`.
+A small change, a bug fix or a small extension, gets none of them. Judge that by what the change
+does, not by its line count: a mirrored copy doubles the count, and a wide mechanical rename is
+large but low risk.
 
-### The reviews
+Each reviewer posts its report as a comment, then returns it to you: `plan-reviewer` on the issue,
+the other two on the PR. Before you act on a review's findings, post your reply beside it. Head it
+with the review's heading and `reply`, as in `## Plan review reply`, then give one line per
+finding: what you do about it, or why you do nothing. Post the reply from a file with
+`--body-file <file>`: the Bash guard reads a heredoc as part of the command, and blocks a git
+command it finds there. A review that found nothing gets no reply.
 
-Agents review the task, and each gets the command that reads its issue,
-`gh issue view <n> -R {{ issues_repo }} --json title,body,comments`:
-
-- A change gets three: `plan-reviewer` on its plan, then `code-reviewer` and
-  `readability-reviewer` on its PR. A small change, a bug fix or a small extension, gets none of
-  them. Judge that by what the change does, not by its line count: a mirrored copy doubles the
-  count, and a wide mechanical rename is large but low risk.
-- A research task gets `method-reviewer` on its plan, however small the task.
-
-Each reviewer posts its report as a comment, then returns it to you: `plan-reviewer` and
-`method-reviewer` on the issue, `code-reviewer` and `readability-reviewer` on the PR. Before you
-act on a review's findings, post your reply beside it. Head it with the review's heading and
-`reply`, as in `## Plan review reply` or `## Method review reply`, then give one line per finding:
-what you do about it, or why you do nothing. Post the reply from a file with `--body-file <file>`:
-the Bash guard reads a heredoc as part of the command, and blocks a git command it finds there. A
-review that found nothing gets no reply.
-
-Before you build a change or run a method, spawn the reviewer of its plan. It only reports: you
-decide on its findings, and you alone change the plan. Take a design or a method it presents
-unless a reason stands against it, and post the plan again before you build or run anything. Then
-go on: no person answers a plan. Each time the plan changes, by that review or as you work, post
-it with the same command: the plan as it stands and, under `Changes`, every change since the first
-plan, each with its reason.
-
-### A change's PR
+Before you build, spawn the `plan-reviewer` agent on the issue's plan. It only reports: you decide
+on its designs, and you alone change the plan. Take a design it presents unless a reason stands
+against it, and post the plan again before you build any code. Then build: no person answers a
+plan. Each time the design changes, by that review or during the build, post the plan with the
+same command: the design as it stands and, under `Changes`, every change since the first plan,
+each with its reason.
 
 Open that PR with `/pull-request` once the work is done, and stop before the step that marks it
 ready: it stays a draft, which nobody can merge, until the steps below end. Then run them:
@@ -67,10 +48,14 @@ ready: it stays a draft, which nobody can merge, until the steps below end. Then
    reason stands against the finding, then push.
 3. Pass `/gate`, then run `/pull-request` again, to its end.
 
-### A research task's answer
+A research task answers its issue's question. Its branch is `research/<n>-<slug>`, and
+`git branch --show-current` gives the branch. It follows the steps above, with three differences:
 
-Deliver the answer with its evidence where the issue says: in a comment on the issue, or in a PR
-that holds the evidence and no product code. Building what the answer finds starts from a change:
-when the answer says to build, create the issues for the work as "Plan a backlog" in
-`.claude/skills/task/skills/start/SKILL.md` says, and list them with the answer. A research PR has
-no review step of its own: pass `/gate`, then run `/pull-request` to its end.
+- It plans its method before it runs it, whether it ends in a PR or in a comment. The plan says
+  what you will run, read or measure, and how the method meets the checks in "A research task's
+  plan" in `.claude/agents/plan-reviewer.md`.
+- `plan-reviewer` checks that plan before the method runs, however small the task.
+- Its result is the answer with its evidence, where its issue says: in a comment on the issue, or
+  in a PR that holds the evidence and no product code. When the answer says to build, create the
+  issues for the work as "Plan a backlog" in `.claude/skills/task/skills/start/SKILL.md` says, and
+  list them with the answer.

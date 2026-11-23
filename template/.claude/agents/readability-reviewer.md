@@ -1,7 +1,7 @@
 ---
 name: readability-reviewer
 description: >-
-  Readability check of a change task's open PR; it edits nothing. Reads the changed code as a
+  Readability check of an execution task's open PR; it edits nothing. Reads the changed code as a
   person who knows the task's problem and has not seen its plan, and reports on the PR each place
   that does not meet a property of readable code, with what a reader can't do there.
 tools: Read, Grep, Glob, Bash
