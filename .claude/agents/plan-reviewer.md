@@ -88,7 +88,6 @@ applies as written:
 
 - The yardstick is the question, not the Design Philosophy. You judge whether the method can
   answer the question, and at what cost, before any part of the method runs.
-- In step 1, also read `.claude/evidence.md`, if the project has it.
 - In step 2, ask what evidence would answer the question, and the cheapest way to get it, in place
   of what you would build.
 - In step 3, in the Alternatives and in the Output, compare your method and the plan's method by
@@ -117,8 +116,9 @@ check does not apply to a question that needs no measurement.
 7. **Provenance:** whether the method confirms the idea behind the question on the same data that
    suggested the idea. A confirmation on that data proves nothing.
 
-A project adds its own evidence standards in `.claude/evidence.md`, such as the noise its
-measurements carry or its machine budget. Where the file and a check above differ, the file wins.
+A project's `CLAUDE.md` and `.claude/rules/` can hold its own rules for evidence, such as the noise
+its measurements carry or its machine budget. Hold the method to them too. Where a project's rule
+and a check above differ, the rule wins.
 
 **Proof for a method.** Before "already answered", name the issue, the file or the page that
 answers it. Before "cheaper", name the evidence and what it costs. Before "cannot detect", give the

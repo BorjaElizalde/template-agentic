@@ -172,8 +172,6 @@ for reviewer in plan-reviewer readability-reviewer; do
     grep -qF '\`## Plan review reply\`' '$D/.claude/skills/task/session/execution.md' &&
     grep -qF 'test(\"^## Plan( review( reply)?)?\\n\")' '$D/.claude/agents/$reviewer.md'"
 done
-expect "plan-reviewer reads the project's .claude/evidence.md, which the template never renders" bash -c "
-  grep -qF '\`.claude/evidence.md\`' '$D/.claude/agents/plan-reviewer.md' && [ ! -e '$D/.claude/evidence.md' ]"
 expect "the rules hold the Readable code section that readability-reviewer names" bash -c "
   grep -qx '## Readable code' '$D/.claude/rules/conventions.md' &&
   grep -qF '\"Readable code\" in \`.claude/rules/conventions.md\`' '$D/.claude/agents/readability-reviewer.md'"

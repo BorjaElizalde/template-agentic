@@ -4,7 +4,7 @@ include .claude/agentic.mk
 gate: ## Render the template the way a project gets it, then run every rendered suite.
 	@bash tests/render-and-test.sh
 
-OWNED := --exclude /memory/ --exclude /agent-memory/ --exclude /settings.local.json --exclude /evidence.md
+OWNED := --exclude /memory/ --exclude /agent-memory/ --exclude /settings.local.json
 
 render: ## Make .claude/ and .github/workflows/ match a render of the working tree, except the paths this repository owns.
 	@. .claude/agentic.conf && tmp="$$(mktemp -d)" && trap 'rm -rf "$$tmp"' EXIT && \
