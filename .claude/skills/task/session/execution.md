@@ -48,14 +48,14 @@ ready: it stays a draft, which nobody can merge, until the steps below end. Then
    reason stands against the finding, then push.
 3. Pass `/gate`, then run `/pull-request` again, to its end.
 
-A research task answers its issue's question. Its branch is `research/<n>-<slug>`, and
-`git branch --show-current` gives the branch. It follows the steps above, with three differences:
+A research task, on a `research/<n>-<slug>` branch, answers its issue's question. It follows the
+steps above, with three differences:
 
-- It plans its method before it runs it, whether it ends in a PR or in a comment. The plan says
+- Plan the method before you run it, whether the task ends in a PR or in a comment. The plan says
   what you will run, read or measure, and how the method meets the checks in "A research task's
   plan" in `.claude/agents/plan-reviewer.md`.
-- `plan-reviewer` checks that plan before the method runs, however small the task.
-- Its result is the answer with its evidence, where its issue says: in a comment on the issue, or
-  in a PR that holds the evidence and no product code. When the answer says to build, create the
-  issues for the work as "Plan a backlog" in `.claude/skills/task/skills/start/SKILL.md` says, and
-  list them with the answer.
+- Spawn `plan-reviewer` on that plan before the method runs, however small the task.
+- The task's result is the answer with its evidence. Deliver it where the issue says: in a comment
+  on the issue, or in a PR that holds the evidence and no product code. When the answer says to
+  build, create the issues for the work as "Plan a backlog" in
+  `.claude/skills/task/skills/start/SKILL.md` says, and list them with the answer.
