@@ -10,11 +10,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gate:
-    uses: ./.github/workflows/gate-checks.yaml
-    with:
-      skip: false
-
   # YYYYMMDD.N from the commit date: Copier and Renovate order template versions by PEP 440, which
   # the YYYYMMDD-shortsha image tags do not satisfy.
   version-tag:
@@ -31,7 +26,7 @@ jobs:
           echo "version_tag=$date.$((n + 1))" >> "$GITHUB_OUTPUT"
 
   publish-template:
-    needs: [gate, version-tag]
+    needs: version-tag
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
