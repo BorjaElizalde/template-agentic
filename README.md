@@ -27,7 +27,7 @@ changed. A stack template takes this template in four steps:
    `.github/workflows/gate-checks.yaml` at its root, with the contract below, except that they may
    run `make gate`. Make its `renovate.json` extend `renovate/base` with no `ignorePaths`, so that
    Renovate updates the pins of its own checks.
-2. Release from the `Build` workflow, after the gate, on each merge to `main`: in the checkout of
+2. Release from the `Build` workflow on each merge to `main`: in the checkout of
    `main`, with a git identity and `contents: write`, clone this repository at the recorded
    version and run `bash <clone>/release.sh <tag>`, which pushes the tag. `GITHUB_TOKEN` may push
    it: GitHub refuses a workflow file at the root `.github/workflows/` only.
