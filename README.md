@@ -24,10 +24,10 @@ changed. A stack template takes this template in four steps:
    The copy writes `.copier-answers.agentic.yaml`, which records the version to bundle and which
    Renovate's Copier manager moves in an update PR. It also brings the `Branch protection` workflow
    and the `Gate` workflow, so put the stack template's own CI checks in
-   `.github/actions/stack-gate/action.yaml` at its root. Make its `renovate.json` extend
-   `renovate/base`, with only `.github/workflows/gate.yaml` in `github-actions.ignorePaths`, so
-   that Renovate updates that action's pins.
-2. Release from the `Build` workflow, after the gate, on each merge to `main`: in the checkout of
+   `.github/workflows/gate-checks.yaml` at its root, with the contract below, except that they may
+   run `make gate`. Make its `renovate.json` extend `renovate/base` with no `ignorePaths`, so that
+   Renovate updates the pins of its own checks.
+2. Release from the `Build` workflow on each merge to `main`: in the checkout of
    `main`, with a git identity and `contents: write`, clone this repository at the recorded
    version and run `bash <clone>/release.sh <tag>`, which pushes the tag. `GITHUB_TOKEN` may push
    it: GitHub refuses a workflow file at the root `.github/workflows/` only.
@@ -48,7 +48,7 @@ A stack template supplies these files in its `template/`, so that each project g
 
 | File | Contract |
 |---|---|
-| `.github/actions/stack-gate/action.yaml` | The composite action that the `Gate` workflow runs after the checkout, on every PR into `develop` or `staging` but a draft and the promotion of `develop`. It calls the stack's tools directly, never `make gate`. |
+| `.github/workflows/gate-checks.yaml` | The workflow that the `Gate` workflow calls on every PR into `develop` or `staging`, through `workflow_call` with one required boolean input, `skip`. `skip` is true on a draft and on the promotion of `develop`, and every job skips then, with `if: ${{ !inputs.skip }}`. It checks out the code and calls the stack's tools directly, never `make gate`. Its checks report as `gate / <job>`. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit or Write, with the hook payload on stdin. |
 

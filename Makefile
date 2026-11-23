@@ -14,4 +14,4 @@ render: ## Make .claude/ and .github/workflows/ match a render of the working tr
 	    --data "agent_merges=$${AGENT_MERGES:-false}" \
 	    "$$tmp/src" "$$tmp/out" && \
 	  rsync -a --delete $(OWNED) "$$tmp/out/.claude/" .claude/ && \
-	  rsync -a --delete --exclude /build.yaml "$$tmp/out/.github/workflows/" .github/workflows/
+	  rsync -a --delete --exclude /build.yaml --exclude /gate-checks.yaml "$$tmp/out/.github/workflows/" .github/workflows/
