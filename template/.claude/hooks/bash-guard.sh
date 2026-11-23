@@ -73,11 +73,12 @@ RE_WRAPPER='(^|[[:space:]])((ba)?sh[[:space:]]+-c|eval)[[:space:]]+'
 # $c and $repo are jq's variables. Tried double quotes, but then every " and $ of the program
 # needs a backslash.
 # shellcheck disable=SC2016
-JQ_PR='[.statusCheckRollup[]? | if .__typename == "StatusContext" then {w: null, c: .state}
-    else {w: .workflowName, c: (if .status == "COMPLETED" then .conclusion else "PENDING" end)} end] as $c
+JQ_PR='[.statusCheckRollup[]? | if .__typename == "StatusContext" then {workflow: null, conclusion: .state}
+    else {workflow: .workflowName,
+      conclusion: (if .status == "COMPLETED" then .conclusion else "PENDING" end)} end] as $c
   | (.url | capture("github\\.com/(?<r>[^/]+/[^/]+)/pull/").r | ascii_downcase) as $repo
-  | (if any($c[]; .w == "Gate" and .c == "SUCCESS") | not then "no-passed-gate"
-     elif all($c[]; .c == "SUCCESS" or .c == "NEUTRAL" or .c == "SKIPPED") then "green"
+  | (if any($c[]; .workflow == "Gate" and .conclusion == "SUCCESS") | not then "no-passed-gate"
+     elif all($c[]; .conclusion == "SUCCESS" or .conclusion == "NEUTRAL" or .conclusion == "SKIPPED") then "green"
      else "a-check-not-passed" end) as $verdict
   | [.baseRefName, .headRefName, .headRefOid, $repo, $verdict] | join(" ")'
 
