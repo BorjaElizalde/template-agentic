@@ -172,6 +172,12 @@ for reviewer in plan-reviewer readability-reviewer; do
     grep -qF '\`## Plan review reply\`' '$D/.claude/skills/task/session/execution.md' &&
     grep -qF 'test(\"^## Plan( review( reply)?)?\\n\")' '$D/.claude/agents/$reviewer.md'"
 done
+expect "method-reviewer first reads the issue without the plan, the method review and its reply, by their exact headings" bash -c "
+  grep -qx \"PLAN_HEADING='## Plan'\" '$D/.claude/skills/task/scripts/task.sh' &&
+  grep -qF '\`## Method review\`' '$D/.claude/agents/method-reviewer.md' &&
+  grep -qF 'test(\"^## (Plan|Method review( reply)?)\\n\")' '$D/.claude/agents/method-reviewer.md'"
+expect "method-reviewer reads the project's .claude/evidence.md, which the template never renders" bash -c "
+  grep -qF '\`.claude/evidence.md\`' '$D/.claude/agents/method-reviewer.md' && [ ! -e '$D/.claude/evidence.md' ]"
 expect "the rules hold the Readable code section that readability-reviewer names" bash -c "
   grep -qx '## Readable code' '$D/.claude/rules/conventions.md' &&
   grep -qF '\"Readable code\" in \`.claude/rules/conventions.md\`' '$D/.claude/agents/readability-reviewer.md'"

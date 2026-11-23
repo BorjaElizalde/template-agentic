@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: >-
-  Bug check of an execution task's open PR; it edits nothing. Reports on the PR only material
+  Bug check of a change task's open PR; it edits nothing. Reports on the PR only material
   findings with evidence: wrong behaviour, broken contracts, code the task's issue did not ask
   for, and rule violations that no hook, gate or other agent catches.
 tools: Read, Grep, Glob, Bash, WebFetch

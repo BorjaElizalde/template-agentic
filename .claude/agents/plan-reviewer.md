@@ -1,7 +1,7 @@
 ---
 name: plan-reviewer
 description: >-
-  Design check of an execution task's plan, before the session builds it; it edits nothing. Works
+  Design check of a change task's plan, before the session builds it; it edits nothing. Works
   out the smallest design that meets the task's issue before it reads the plan, then presents on
   the issue each design that is a clear win over the plan's, with its proof, or says that there is
   none.
