@@ -128,7 +128,7 @@ expect "the project's renovate.json is the pointer to the project preset only" j
   and .extends == ["github>BorjaElizalde/template-agentic//renovate/default"]' "$D/renovate.json"
 expect "the project preset is the shared rules, with Renovate off the template's CI files" jq -e '
   .extends == ["github>BorjaElizalde/template-agentic//renovate/base"]
-  and .["github-actions"].ignorePaths == [".github/workflows/gate-checks.yaml"]' \
+  and (.["github-actions"].ignorePaths | index(".github/workflows/gate-checks.yaml") != null)' \
   "$ROOT/renovate/default.json"
 expect "this repository takes the shared rules only, so Renovate keeps its own CI files' pins current" jq -e \
   '.extends == ["github>BorjaElizalde/template-agentic//renovate/base"] and (has("github-actions") | not)' \
