@@ -1,7 +1,6 @@
-# This repository's own CI checks, which the Gate workflow of its template and the Build workflow
-# call. A template repository's CI may run make gate: the rule that CI never runs it is for
-# projects' CI.
-name: Gate checks
+# This repository's own CI checks, which the Gate workflow of its template calls. A template
+# repository's CI may run make gate: the rule that CI never runs it is for projects' CI.
+name: Gate
 
 on:
   workflow_call:
