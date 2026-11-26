@@ -428,7 +428,9 @@ echo "$ISSUE11/backend $LISTED_PID idle" >"$TASK_TEST_STATE/running"
 transcript "$ISSUE11/backend" old 200001010000
 transcript "$ISSUE11/backend"
 PENDING='{"__typename": "CheckRun", "name": "gate", "status": "IN_PROGRESS", "conclusion": ""}'
-PASSED='{"__typename": "CheckRun", "name": "gate", "status": "COMPLETED", "conclusion": "SUCCESS"}'
+PASSED='{"__typename": "CheckRun", "name": "gate / checks", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SUCCESS"}'
+GATE_SKIPPED='{"__typename": "CheckRun", "name": "gate / checks", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SKIPPED"}'
+OTHER_GATE='{"__typename": "CheckRun", "name": "gate", "workflowName": "Lint", "status": "COMPLETED", "conclusion": "SUCCESS"}'
 SKIPPED='{"__typename": "CheckRun", "name": "lint", "status": "COMPLETED", "conclusion": "SKIPPED"}'
 FAILED='{"__typename": "CheckRun", "name": "gate", "status": "COMPLETED", "conclusion": "FAILURE"}'
 NO_CONCLUSION='{"__typename": "CheckRun", "name": "gate", "status": "COMPLETED", "conclusion": ""}'
@@ -447,6 +449,12 @@ check "a failed check outweighs a pending one" bash -c "grep -qF '#11 Task 11: s
 pr_from feat/11-task-11 OPEN true "[$PASSED, $SKIPPED, $CONTEXT]"
 run_in "$BACKEND" status
 check "a draft whose checks passed or skipped" bash -c "grep -qF 'PR #21 draft, checks passed,' '$WORK/out'"
+pr_from feat/11-task-11 OPEN false "[$GATE_SKIPPED, $SKIPPED, $CONTEXT]"
+run_in "$BACKEND" status
+check "a PR whose gate skipped has not passed" bash -c "grep -qF 'PR #21 open, gate not run,' '$WORK/out'"
+pr_from feat/11-task-11 OPEN false "[$OTHER_GATE, $CONTEXT]"
+run_in "$BACKEND" status
+check "nor one whose only passed gate is from another workflow" bash -c "grep -qF 'PR #21 open, gate not run,' '$WORK/out'"
 pr_from feat/11-task-11 OPEN false "[$PASSED, $NO_CONCLUSION]"
 run_in "$BACKEND" status
 check "a check completed with no conclusion has not passed" bash -c "grep -qF 'PR #21 open, checks failed,' '$WORK/out'"

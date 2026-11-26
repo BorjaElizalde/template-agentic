@@ -320,19 +320,22 @@ cleanup() {
 	done
 }
 
-# "PR #<n> <state>, checks <result>" of the newest PR from branch $1, else "no PR". A check has
-# passed once it succeeded, or was neutral or skipped, as the merge guard reads it; a failure
-# outweighs a pending check.
+# "PR #<n> <state>, <checks>" of the newest PR from branch $1, else "no PR". The checks passed as
+# the merge guard reads them: each one succeeded, or was neutral or skipped, and a check of the
+# Gate workflow succeeded among them. A failure outweighs a pending check, and a pending check
+# outweighs a gate not run, since it may be the gate running.
 pr_line() {
 	gh pr list --head "$1" --state all --json number,state,isDraft,statusCheckRollup | jq -r '
 		if length == 0 then "no PR" else .[0]
-		| [.statusCheckRollup[]? | if .__typename == "StatusContext" then .state
-			elif .status == "COMPLETED" then .conclusion else "PENDING" end] as $c
+		| [.statusCheckRollup[]? | {workflow: .workflowName,
+			conclusion: (if .__typename == "StatusContext" then .state
+				elif .status == "COMPLETED" then .conclusion else "PENDING" end)}] as $c
 		| "PR #\(.number) \(if .isDraft then "draft" else .state | ascii_downcase end), "
 			+ if $c == [] then "no checks"
-			elif any($c[]; IN("SUCCESS", "NEUTRAL", "SKIPPED", "PENDING", "EXPECTED") | not) then "checks failed"
-			elif any($c[]; IN("PENDING", "EXPECTED")) then "checks pending"
-			else "checks passed" end
+			elif any($c[].conclusion; IN("SUCCESS", "NEUTRAL", "SKIPPED", "PENDING", "EXPECTED") | not) then "checks failed"
+			elif any($c[].conclusion; IN("PENDING", "EXPECTED")) then "checks pending"
+			elif any($c[]; .workflow == "Gate" and .conclusion == "SUCCESS") then "checks passed"
+			else "gate not run" end
 		end'
 }
 
