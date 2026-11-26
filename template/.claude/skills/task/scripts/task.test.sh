@@ -430,9 +430,11 @@ transcript "$ISSUE11/backend"
 PENDING='{"__typename": "CheckRun", "name": "gate", "status": "IN_PROGRESS", "conclusion": ""}'
 PASSED='{"__typename": "CheckRun", "name": "gate / checks", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SUCCESS"}'
 GATE_SKIPPED='{"__typename": "CheckRun", "name": "gate / checks", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SKIPPED"}'
+READ_DRAFT='{"__typename": "CheckRun", "name": "read-draft", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-01-01T00:00:10Z"}'
+READ_DRAFT_CANCELLED='{"__typename": "CheckRun", "name": "read-draft", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "CANCELLED", "startedAt": "2026-01-01T00:00:00Z"}'
 OTHER_GATE='{"__typename": "CheckRun", "name": "gate", "workflowName": "Lint", "status": "COMPLETED", "conclusion": "SUCCESS"}'
 SKIPPED='{"__typename": "CheckRun", "name": "lint", "status": "COMPLETED", "conclusion": "SKIPPED"}'
-FAILED='{"__typename": "CheckRun", "name": "gate", "status": "COMPLETED", "conclusion": "FAILURE"}'
+FAILED='{"__typename": "CheckRun", "name": "test", "status": "COMPLETED", "conclusion": "FAILURE"}'
 NO_CONCLUSION='{"__typename": "CheckRun", "name": "gate", "status": "COMPLETED", "conclusion": ""}'
 CONTEXT='{"__typename": "StatusContext", "context": "ci", "state": "SUCCESS"}'
 pr_from feat/11-task-11 OPEN false "[$PENDING, $CONTEXT]"
@@ -452,6 +454,12 @@ check "a draft whose checks passed or skipped" bash -c "grep -qF 'PR #21 draft, 
 pr_from feat/11-task-11 OPEN false "[$GATE_SKIPPED, $SKIPPED, $CONTEXT]"
 run_in "$BACKEND" status
 check "a PR whose gate skipped has not passed" bash -c "grep -qF 'PR #21 open, gate not run,' '$WORK/out'"
+pr_from feat/11-task-11 OPEN false "[$READ_DRAFT, $GATE_SKIPPED, $CONTEXT]"
+run_in "$BACKEND" status
+check "nor one whose gate skipped where the Gate workflow's read-draft passed" bash -c "grep -qF 'PR #21 open, gate not run,' '$WORK/out'"
+pr_from feat/11-task-11 OPEN false "[$READ_DRAFT, $READ_DRAFT_CANCELLED, $PASSED]"
+run_in "$BACKEND" status
+check "a check counts by its newest run, not by an earlier one cancelled" bash -c "grep -qF 'PR #21 open, checks passed,' '$WORK/out'"
 pr_from feat/11-task-11 OPEN false "[$OTHER_GATE, $CONTEXT]"
 run_in "$BACKEND" status
 check "nor one whose only passed gate is from another workflow" bash -c "grep -qF 'PR #21 open, gate not run,' '$WORK/out'"

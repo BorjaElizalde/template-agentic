@@ -82,7 +82,23 @@ expect "the Gate workflow calls the stack's checks, never make" bash -c "
 expect "the Gate workflow skips a draft through the checks' skip input, and runs when one is marked ready" bash -c "
   grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' '$GATE' &&
   [ \"\$(uvx --quiet yq -r '.jobs.gate.if' '$GATE')\" = null ] &&
-  uvx --quiet yq -r '.jobs.gate.with.skip' '$GATE' | grep -qF '\${{ github.event.pull_request.draft'"
+  [ \"\$(uvx --quiet yq -r '.jobs.gate.needs' '$GATE')\" = read-draft ] &&
+  uvx --quiet yq -r '.jobs.gate.with.skip' '$GATE' | grep -qF '\${{ needs.read-draft.outputs.draft'"
+# A stub gh that says PR 7 of acme/app is a draft, and fails on any other call.
+READ_DRAFT="$OUT/read-draft"
+mkdir -p "$READ_DRAFT/bin"
+cat >"$READ_DRAFT/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+[ "$*" = "api repos/acme/app/pulls/7 --jq .draft" ] && echo true
+EOF
+chmod +x "$READ_DRAFT/bin/gh"
+reads_the_draft() {
+  { echo '#!/usr/bin/env bash'; uvx --quiet yq -r '.jobs["read-draft"].steps[0].run' "$GATE"; } >"$READ_DRAFT/step.sh"
+  GITHUB_REPOSITORY=acme/app PR=7 GITHUB_OUTPUT="$READ_DRAFT/output" PATH="$READ_DRAFT/bin:$PATH" \
+    bash -e "$READ_DRAFT/step.sh" && [ "$(cat "$READ_DRAFT/output")" = draft=true ] &&
+    [ "$(uvx --quiet yq -r '.jobs["read-draft"].outputs.draft' "$GATE")" = "\${{ steps.read.outputs.draft }}" ]
+}
+expect "read-draft reads from GitHub whether the PR is a draft as the run starts, and gives it as its output draft" reads_the_draft
 PI="$OUT/paths-ignore"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data 'gate_paths_ignore={"**.md": "no check reads Markdown", ".claude/**": "no check reads the agent setup"}' "$OUT/src" "$PI"
 expect "a gate_paths_ignore answer becomes the Gate workflow's paths-ignore, each pattern with its reason, in a valid workflow" bash -c "
