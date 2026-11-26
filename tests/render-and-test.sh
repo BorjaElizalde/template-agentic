@@ -99,6 +99,12 @@ reads_the_draft() {
     [ "$(uvx --quiet yq -r '.jobs["read-draft"].outputs.draft' "$GATE")" = "\${{ steps.read.outputs.draft }}" ]
 }
 expect "read-draft reads from GitHub whether the PR is a draft as the run starts, and gives it as its output draft" reads_the_draft
+PI="$OUT/paths-ignore"
+uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data 'gate_paths_ignore={"**.md": "no check reads Markdown", ".claude/**": "no check reads the agent setup"}' "$OUT/src" "$PI"
+expect "a gate_paths_ignore answer becomes the Gate workflow's paths-ignore, each pattern with its reason, in a valid workflow" bash -c "
+  uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows '$PI/.github/workflows/gate.yaml' &&
+  [ \"\$(uvx --quiet yq -c '.on.pull_request[\"paths-ignore\"]' '$PI/.github/workflows/gate.yaml')\" = '[\"**.md\",\".claude/**\"]' ] &&
+  grep -qxF '      - \"**.md\"  # no check reads Markdown' '$PI/.github/workflows/gate.yaml'"
 expect "the Branch protection job reports as branch-protection on a PR into staging or main, and as up-to-date otherwise" bash -c "
   [ \"\$(uvx --quiet yq -r '.jobs[\"branch-protection\"].name' '$BRANCH_PROTECTION')\" = \
     \"\\\${{ github.event_name == 'pull_request' && github.base_ref != 'develop' && 'branch-protection' || 'up-to-date' }}\" ]"
