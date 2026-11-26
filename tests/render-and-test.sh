@@ -82,7 +82,29 @@ expect "the Gate workflow calls the stack's checks, never make" bash -c "
 expect "the Gate workflow skips a draft through the checks' skip input, and runs when one is marked ready" bash -c "
   grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' '$GATE' &&
   [ \"\$(uvx --quiet yq -r '.jobs.gate.if' '$GATE')\" = null ] &&
-  uvx --quiet yq -r '.jobs.gate.with.skip' '$GATE' | grep -qF '\${{ github.event.pull_request.draft'"
+  [ \"\$(uvx --quiet yq -r '.jobs.gate.needs' '$GATE')\" = read-draft ] &&
+  uvx --quiet yq -r '.jobs.gate.with.skip' '$GATE' | grep -qF '\${{ needs.read-draft.outputs.draft'"
+# A stub gh that says PR 7 of acme/app is a draft, and fails on any other call.
+READ_DRAFT="$OUT/read-draft"
+mkdir -p "$READ_DRAFT/bin"
+cat >"$READ_DRAFT/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+[ "$*" = "api repos/acme/app/pulls/7 --jq .draft" ] && echo true
+EOF
+chmod +x "$READ_DRAFT/bin/gh"
+reads_the_draft() {
+  { echo '#!/usr/bin/env bash'; uvx --quiet yq -r '.jobs["read-draft"].steps[0].run' "$GATE"; } >"$READ_DRAFT/step.sh"
+  GITHUB_REPOSITORY=acme/app PR=7 GITHUB_OUTPUT="$READ_DRAFT/output" PATH="$READ_DRAFT/bin:$PATH" \
+    bash -e "$READ_DRAFT/step.sh" && [ "$(cat "$READ_DRAFT/output")" = draft=true ] &&
+    [ "$(uvx --quiet yq -r '.jobs["read-draft"].outputs.draft' "$GATE")" = "\${{ steps.read.outputs.draft }}" ]
+}
+expect "read-draft reads from GitHub whether the PR is a draft as the run starts, and gives it as its output draft" reads_the_draft
+PI="$OUT/paths-ignore"
+uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data 'gate_paths_ignore={"**.md": "no check reads Markdown", ".claude/**": "no check reads the agent setup"}' "$OUT/src" "$PI"
+expect "a gate_paths_ignore answer becomes the Gate workflow's paths-ignore, each pattern with its reason, in a valid workflow" bash -c "
+  uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows '$PI/.github/workflows/gate.yaml' &&
+  [ \"\$(uvx --quiet yq -c '.on.pull_request[\"paths-ignore\"]' '$PI/.github/workflows/gate.yaml')\" = '[\"**.md\",\".claude/**\"]' ] &&
+  grep -qxF '      - \"**.md\"  # no check reads Markdown' '$PI/.github/workflows/gate.yaml'"
 expect "the Branch protection job reports as branch-protection on a PR into staging or main, and as up-to-date otherwise" bash -c "
   [ \"\$(uvx --quiet yq -r '.jobs[\"branch-protection\"].name' '$BRANCH_PROTECTION')\" = \
     \"\\\${{ github.event_name == 'pull_request' && github.base_ref != 'develop' && 'branch-protection' || 'up-to-date' }}\" ]"
@@ -234,11 +256,14 @@ help_lists_each_layer() {  # each target of make help, after the file it is list
     { printf 'FAIL make help listed:\n%s\n' "$owners"; return 1; }
 }
 expect "in the copy, bare make lists the targets of its Makefile, the stack fragment and this template's, each under its file" help_lists_each_layer
+# Stand-ins for the programs make claude runs. claude and tmux print their arguments, then each of
+# make's variables in their environment: make's own, and args and prompt from its command line.
 SI="$OUT/stand-ins"
-mkdir -p "$SI/claude" "$SI/caffeinate" "$SI/tmux"
+mkdir -p "$SI/claude" "$SI/caffeinate" "$SI/tmux" "$SI/env"
 cat >"$SI/claude/claude" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$@"
+export -p | while read -r _ var; do case $var in MAKE*|MFLAGS=*|args=*|prompt=*) echo "$var" ;; esac; done
 EOF
 cat >"$SI/caffeinate/caffeinate" <<'EOF'
 #!/bin/sh
@@ -250,8 +275,10 @@ cat >"$SI/tmux/tmux" <<'EOF'
 #!/bin/sh
 echo tmux
 printf '%s\n' "$@"
+export -p | while read -r _ var; do case $var in MAKE*|MFLAGS=*|args=*|prompt=*) echo "$var" ;; esac; done
 EOF
 chmod +x "$SI/claude/claude" "$SI/caffeinate/caffeinate" "$SI/tmux/tmux"
+ln -s "$(command -v env)" "$SI/env/"  # the env that make claude runs, on a PATH with no caffeinate
 MAKE_BIN="$(command -v make)"
 APP="$OUT/my.app"  # a copy of the project in a folder with a dot in its name
 cp -R "$B" "$APP"
@@ -261,15 +288,15 @@ make_claude() {  # make_claude <TMUX> <PATH> <expected output> <make arguments..
     { printf 'FAIL make claude ran:\n%s\n' "$out"; return 1; }
 }
 IN_ITS_TMUX=/tmp/tmux-1000/my.app,1,0  # TMUX in a window of the project's own tmux server
-expect "inside its own tmux, make claude keeps the machine awake and gives claude its flag, args and the prompt as one argument" make_claude \
+expect "inside its own tmux, make claude keeps the machine awake and gives claude its flag, args and the prompt as one argument, and none of make's variables" make_claude \
   "$IN_ITS_TMUX" "$SI/caffeinate:$SI/claude:$PATH" \
   "$(printf '%s\n' 'caffeinate -is' --remote-control --continue -- '/loop check the board; then stop')" \
   args=--continue 'prompt=/loop check the board; then stop'
 expect "with no caffeinate and no prompt, make claude starts claude alone, with no empty argument" make_claude \
-  "$IN_ITS_TMUX" "$SI/claude" --remote-control
+  "$IN_ITS_TMUX" "$SI/env:$SI/claude" --remote-control
 STARTS_ITS_TMUX="$(printf '%s\n' tmux -L my.app source-file .claude/tmux.conf ';' new-session -A -s my_app -n main \
   caffeinate -is claude --remote-control --continue -- '/loop check the board; then stop')"
-expect "outside tmux, make claude starts the repository's tmux, named after its folder, with tmux.conf, and claude kept awake in its main window, or attaches to it" \
+expect "outside tmux, make claude starts the repository's tmux, named after its folder, with tmux.conf and none of make's variables, and claude kept awake in its main window, or attaches to it" \
   make_claude '' "$SI/tmux:$SI/caffeinate:$SI/claude:$PATH" "$STARTS_ITS_TMUX" \
   args=--continue 'prompt=/loop check the board; then stop'
 expect "inside another tmux, make claude starts the repository's tmux all the same" \

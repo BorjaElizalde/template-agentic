@@ -35,9 +35,10 @@ changed. A stack template takes this template in four steps:
    give its own settings and questions. Copier joins the two documents' `_skip_if_exists` lists,
    and where both name `_answers_file` or a question, the stack template's wins. So list only its
    own seeded files, name its own `_answers_file`, and give its questions names that this
-   template does not use. They come after this template's questions, so they and its files may
-   read this template's answers. Add no answers-file template: the bundle brings
-   `{{ _copier_conf.answers_file }}.jinja`.
+   template does not use, except `gate_paths_ignore`. They come after this template's questions,
+   so they and its files may read this template's answers. Add no answers-file template: the
+   bundle brings `{{ _copier_conf.answers_file }}.jinja`. Give `gate_paths_ignore` a default:
+   the files that the stack's checks never read, each pattern mapped to its reason.
 4. Start the validator of a question that has no default with
    `{% if 'issues_repo' not in _copier_answers %}`, whose message says to copy a release tag. It
    stops a copy of a branch.
@@ -67,7 +68,9 @@ second recipe.
 
 The stack's rules go in its `template/.claude/rules/`, beside the bundled `agentic.md`,
 `conventions.md` and `writing.md`. One of them lists the stack's skipped-check directives and
-the tools whose docs to read, which `conventions.md` leaves to the stack.
+the tools whose docs to read, which `conventions.md` leaves to the stack. One says how a test is
+written, which `.claude/skills/task/session/execution.md` asks a session to follow when it writes
+the test that reproduces a bug.
 
 Claude Code reads one shared project settings file, `.claude/settings.json`, and this template
 renders it for every stack. A new stack adds its permissions and environment to
