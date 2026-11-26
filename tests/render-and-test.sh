@@ -62,6 +62,11 @@ expect "the SessionStart hook says nothing where no task is" session_start_quiet
 MERGE_ALLOWED='any(.permissions.allow[]; . == "Bash(gh pr merge:*)")'
 expect "by default settings.json leaves gh pr merge to a prompt" jq -e "$MERGE_ALLOWED | not" "$D/.claude/settings.json"
 expect "with agent_merges settings.json allows gh pr merge" jq -e "$MERGE_ALLOWED" "$AM/.claude/settings.json"
+GATE_RUN_READS='[.permissions.allow[] | select(startswith("Bash(gh run"))] | sort'
+expect "by default settings.json leaves the Gate run's reads, which only the agent's merge needs, to a prompt" \
+  jq -e "$GATE_RUN_READS == []" "$D/.claude/settings.json"
+expect "with agent_merges settings.json allows gh run list and gh run watch, which the pull-request skill waits with, and no other gh run call" \
+  jq -e "$GATE_RUN_READS == [\"Bash(gh run list:*)\", \"Bash(gh run watch:*)\"]" "$AM/.claude/settings.json"
 # $d is jq's variable. Tried double quotes, but then each " and $ of the program needs a backslash.
 # shellcheck disable=SC2016
 expect "settings.json denies claude -p and claude --print" jq -e '.permissions.deny as $d

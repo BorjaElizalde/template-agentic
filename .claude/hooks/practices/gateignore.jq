@@ -24,8 +24,8 @@ def practices($ctx; $kind):
   | {level: "stop", text: ("Stopped by the practices hook, skipped-checks rule"
       + " (.claude/rules/conventions.md). The Gate workflow skips every check of a PR that"
       + " changes only paths on its skip lists, so each pattern added to \($ctx.rel) loosens CI."
-      + " Keep a pattern only if no check reads the paths it matches. Its reason goes on the `#`"
-      + " lines directly above it, in this form: <why no check reads these paths>. Tried"
-      + " <alternative>, but <why it was discarded>. Write one \"Tried ..., but ...\" sentence per"
-      + " alternative. The hook checks only this form; review judges whether the reason holds.\n"
-      + join("\n"))};
+      + " Keep a pattern only if no check reads the paths it matches.\n"
+      + reason_steps("adding the pattern"; "the pattern";
+          "the tools that .github/workflows/gate-checks.yaml runs")
+      + "The reason goes on the `#` lines directly above the pattern: .gitignore has no comment"
+      + " on a pattern's own line.\n" + join("\n"))};
