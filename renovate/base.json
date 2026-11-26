@@ -15,10 +15,13 @@
       "rebaseWhen": "behind-base-branch"
     },
     {
-      "description": "Template updates reach projects within hours, each template layer in its own PR: the null groupName undoes group:allNonMajor.",
+      "description": "Template updates reach projects within hours, each template layer in its own PR: the null groupName undoes group:allNonMajor. The note says when to apply an update's rulesets, which .github/rulesets/apply.sh explains.",
       "matchManagers": ["copier"],
       "schedule": ["at any time"],
-      "groupName": null
+      "groupName": null,
+      "prBodyNotes": [
+        "When this update changes `.github/rulesets/`, apply the rulesets right before you merge it, with no PR into `staging` or `main` open: check out this PR's branch, run `make rulesets`, then merge."
+      ]
     }
   ]
 }

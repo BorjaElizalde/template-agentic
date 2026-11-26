@@ -6,7 +6,7 @@ gate: ## Render the template the way a project gets it, then run every rendered 
 
 OWNED := --exclude /memory/ --exclude /agent-memory/ --exclude /settings.local.json
 
-render: ## Make .claude/ and .github/workflows/ match a render of the working tree, except the paths this repository owns.
+render: ## Make .claude/ and .github/ match a render of the working tree, except the paths this repository owns.
 	@. .claude/agentic.conf && tmp="$$(mktemp -d)" && trap 'rm -rf "$$tmp"' EXIT && \
 	  mkdir "$$tmp/src" && tar --exclude .git -cf - . | tar -xf - -C "$$tmp/src" && \
 	  uvx --quiet copier copy --quiet --defaults --data "issues_repo=$$ISSUES_REPO" \
@@ -14,4 +14,4 @@ render: ## Make .claude/ and .github/workflows/ match a render of the working tr
 	    --data "agent_merges=$${AGENT_MERGES:-false}" \
 	    "$$tmp/src" "$$tmp/out" && \
 	  rsync -a --delete $(OWNED) "$$tmp/out/.claude/" .claude/ && \
-	  rsync -a --delete --exclude /build.yaml --exclude /gate-checks.yaml "$$tmp/out/.github/workflows/" .github/workflows/
+	  rsync -a --delete --exclude /workflows/build.yaml --exclude /workflows/gate-checks.yaml "$$tmp/out/.github/" .github/

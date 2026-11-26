@@ -18,7 +18,7 @@ comma := ,
 # Inside tmux, TMUX holds "<socket path>,<pid>,<session>".
 TMUX_SOCKET_IN := $(firstword $(subst $(comma), ,$(TMUX)))
 
-.PHONY: help claude
+.PHONY: help claude rulesets rulesets-check
 help: ## List every target, under the file that defines it.
 	@awk -F ':.*## ' '/^[a-zA-Z0-9_-]+:.*## / { if (FILENAME != f) { f = FILENAME; printf "\n%s\n", f } printf "  %-14s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
@@ -28,3 +28,9 @@ help: ## List every target, under the file that defines it.
 # repository's tmux claude runs in place.
 claude: ## Start Claude in this repository's tmux, or attach to it, kept awake until Claude exits; inside that tmux, start it in place: args="--continue" prompt="/loop ..."
 	@$(if $(filter %/$(TMUX_SOCKET),$(TMUX_SOCKET_IN)),$(MAIN_SESSION),tmux -L '$(TMUX_SOCKET)' source-file .claude/tmux.conf \; new-session -A -s '$(TMUX_SESSION)' -n main $(MAIN_SESSION))
+
+rulesets: ## Make the GitHub rulesets of develop, staging and main match .github/rulesets/; for a template update that changes them, run it on the update's branch right before you merge it.
+	@bash .github/rulesets/apply.sh
+
+rulesets-check: ## Show where the GitHub rulesets differ from .github/rulesets/, and change nothing.
+	@bash .github/rulesets/apply.sh --check

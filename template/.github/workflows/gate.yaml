@@ -1,5 +1,5 @@
 # From the agentic template: change the template, not this copy.
-# The develop and staging rulesets require its checks, `gate / <job>`.
+# The develop and staging rulesets, in .github/rulesets/, require its check, `gate / checks`.
 name: Gate
 
 on:

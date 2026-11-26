@@ -2,9 +2,10 @@
 
 A [Copier](https://copier.readthedocs.io/) template for the language-neutral half of an agentic
 coding setup: the Claude Code hooks, rules, skills and agents, the issue → worktree → session
-task workflow, and the `Gate` and `Branch protection` workflows. A stack template, such as
-`template-python-service`, carries it inside each of its releases and fills its plug-in points for
-one stack, so a project applies the stack template only.
+task workflow, the `Gate` and `Branch protection` workflows, and the rulesets of `develop`,
+`staging` and `main`. A stack template, such as `template-python-service`, carries it inside each
+of its releases and fills its plug-in points for one stack, so a project applies the stack
+template only.
 
 ## Bundle into a stack template
 
@@ -26,7 +27,8 @@ changed. A stack template takes this template in four steps:
    and the `Gate` workflow, so put the stack template's own CI checks in
    `.github/workflows/gate-checks.yaml` at its root, with the contract below, except that they may
    run `make gate`. Make its `renovate.json` extend `renovate/base` with no `ignorePaths`, so that
-   Renovate updates the pins of its own checks.
+   Renovate updates the pins of its own checks. Once its `develop`, `staging` and `main` are on
+   GitHub, run `make rulesets`, which gives them the rulesets in `.github/rulesets/`.
 2. Release from the `Build` workflow on each merge to `main`: in the checkout of
    `main`, with a git identity and `contents: write`, clone this repository at the recorded
    version and run `bash <clone>/release.sh <tag>`, which pushes the tag. `GITHUB_TOKEN` may push
@@ -48,7 +50,7 @@ A stack template supplies these files in its `template/`, so that each project g
 
 | File | Contract |
 |---|---|
-| `.github/workflows/gate-checks.yaml` | The workflow that the `Gate` workflow calls on every PR into `develop` or `staging`, through `workflow_call` with one required boolean input, `skip`. `skip` is true on a draft and on the promotion of `develop`, and every job skips then, with `if: ${{ !inputs.skip }}`. It checks out the code and calls the stack's tools directly, never `make gate`. Its checks report as `gate / <job>`. |
+| `.github/workflows/gate-checks.yaml` | The workflow that the `Gate` workflow calls on every PR into `develop` or `staging`, through `workflow_call` with one required boolean input, `skip`. `skip` is true on a draft and on the promotion of `develop`. It has one job, `checks`, which skips then, with `if: ${{ !inputs.skip }}`, and reports as `gate / checks`: the `develop` and `staging` rulesets in `.github/rulesets/` require that name. It checks out the code and calls the stack's tools directly, never `make gate`. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit or Write, with the hook payload on stdin. |
 

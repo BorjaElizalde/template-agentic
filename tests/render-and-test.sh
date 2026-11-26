@@ -117,6 +117,67 @@ marks_the_stale_prs() {
     grep -q '^api repos/acme/app/statuses/b .*-f state=failure -f context=up-to-date ' "$UP_TO_DATE/statuses"
 }
 expect "a push to develop puts a failed up-to-date status on the head of each open PR that lacks its commits, once" marks_the_stale_prs
+export RULESETS="$D/.github/rulesets"
+# This repository's gate-checks.yaml stands in for a stack's, which the README holds to one job,
+# checks. The Branch protection job reports under its id on a PR into staging or main.
+reported_checks() {
+  local caller
+  caller="$(uvx --quiet yq -r '.jobs | to_entries[] | select(.value.uses == "./.github/workflows/gate-checks.yaml") | .key' "$GATE")"
+  uvx --quiet yq -r '.jobs | keys[]' "$ROOT/.github/workflows/gate-checks.yaml" | sed "s#^#$caller / #"
+  uvx --quiet yq -r '.jobs | keys[]' "$BRANCH_PROTECTION"
+}
+requires_reported_checks() {
+  local unreported
+  unreported="$(jq -r '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context' \
+    "$RULESETS"/*.json | LC_ALL=C sort -u | LC_ALL=C comm -23 - <(reported_checks | LC_ALL=C sort -u))"
+  [ -z "$unreported" ] || { printf 'FAIL no workflow reports %s\n' "$unreported"; return 1; }
+}
+expect "each check a ruleset requires is one that the Gate or Branch protection workflow reports" requires_reported_checks
+expect "settings.json asks before make rulesets, with or without arguments, and not before make rulesets-check" \
+  jq -e '.permissions.ask == ["Bash(make rulesets *)"]' "$D/.claude/settings.json"
+# A stub gh: GitHub holds Develop protection with its rules in another order, and Staging protection
+# without branch-protection, and lacks Main protection; with NO_RULESETS, it refuses as on a plan
+# with no rulesets. Calls are logged.
+export STUB_RULESETS="$OUT/rulesets"
+mkdir -p "$STUB_RULESETS/bin"
+cat >"$STUB_RULESETS/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+echo "$*" >>"$STUB_RULESETS/calls"
+[ -z "${NO_RULESETS:-}" ] ||
+  { echo 'gh: Upgrade to GitHub Pro or make this repository public to enable this feature. (HTTP 403)' >&2; exit 1; }
+case "$*" in
+  "api repos/{owner}/{repo}/rulesets --jq .[].id") printf '1\n2\n' ;;
+  "api repos/{owner}/{repo}/rulesets/1") jq '{id: 1, created_at: "2026-11-06"} + . | .rules |= reverse' "$RULESETS/develop.json" ;;
+  "api repos/{owner}/{repo}/rulesets/2") jq '{id: 2} + . | (.rules[] | select(.type == "required_status_checks")
+    | .parameters.required_status_checks) |= map(select(.context != "branch-protection"))' "$RULESETS/staging.json" ;;
+  "api -X POST repos/{owner}/{repo}/rulesets --input "*" --silent") ;;
+  "api -X PUT repos/{owner}/{repo}/rulesets/2 --input "*" --silent") ;;
+  *) exit 64 ;;
+esac
+EOF
+chmod +x "$STUB_RULESETS/bin/gh"
+rulesets() {  # rulesets [--check]: apply.sh against the stub; what it prints lands in $STUB_RULESETS/out
+  rm -f "$STUB_RULESETS/calls"
+  PATH="$STUB_RULESETS/bin:$PATH" bash "$RULESETS/apply.sh" "$@" >"$STUB_RULESETS/out" 2>&1
+}
+writes() { sed -n 's#^\(api -X [A-Z]* [^ ]*\) --input .*/#\1 #p' "$STUB_RULESETS/calls"; }
+checks_each_ruleset() {
+  ! rulesets --check && [ -z "$(writes)" ] &&
+    grep -qx 'Develop protection: matches' "$STUB_RULESETS/out" &&
+    grep -qx 'Staging protection: differs' "$STUB_RULESETS/out" &&
+    grep -qxF -e '-            "context": "branch-protection"' "$STUB_RULESETS/out" &&
+    grep -qx 'Main protection: missing' "$STUB_RULESETS/out"
+}
+expect "make rulesets-check says which ruleset matches, differs with its diff, or is missing, fails, and changes nothing" checks_each_ruleset
+applies_each_difference() {
+  rulesets && [ "$(writes)" = "$(printf '%s\n' 'api -X POST repos/{owner}/{repo}/rulesets main.json --silent' \
+    'api -X PUT repos/{owner}/{repo}/rulesets/2 staging.json --silent')" ]
+}
+expect "make rulesets creates the missing ruleset and replaces the one that differs, from their files" applies_each_difference
+says_github_offers_no_rulesets() {
+  ! NO_RULESETS=1 rulesets && grep -qF 'Upgrade to GitHub Pro' "$STUB_RULESETS/out" && [ "$(wc -l <"$STUB_RULESETS/calls")" -eq 1 ]
+}
+expect "on a plan with no rulesets, make rulesets stops at its first call with GitHub's reason" says_github_offers_no_rulesets
 expect "both preset files and every renovate.json are valid Renovate config" uvx --quiet check-jsonschema \
   --schemafile https://docs.renovatebot.com/renovate-schema.json \
   "$ROOT/renovate/base.json" "$ROOT/renovate/default.json" "$ROOT/renovate.json" "$D/renovate.json"
@@ -230,7 +291,8 @@ expect "a copy of a stack template that bundles this one gives the two layers' f
 help_lists_each_layer() {  # each target of make help, after the file it is listed under
   local owners
   owners="$(cd "$B" && make -s | awk '/^[^ ]/ { f = $0 } /^  / { print f, $1 }')"
-  [ "$owners" = "$(printf '%s\n' 'Makefile run' 'stack.mk gate' '.claude/agentic.mk help' '.claude/agentic.mk claude')" ] ||
+  [ "$owners" = "$(printf '%s\n' 'Makefile run' 'stack.mk gate' '.claude/agentic.mk help' '.claude/agentic.mk claude' \
+    '.claude/agentic.mk rulesets' '.claude/agentic.mk rulesets-check')" ] ||
     { printf 'FAIL make help listed:\n%s\n' "$owners"; return 1; }
 }
 expect "in the copy, bare make lists the targets of its Makefile, the stack fragment and this template's, each under its file" help_lists_each_layer
