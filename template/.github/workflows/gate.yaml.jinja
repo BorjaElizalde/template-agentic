@@ -13,7 +13,10 @@ on:
     # The files that no check reads, from the Copier answer gate_paths_ignore.
     # A PR that changes only these files gets no Gate run.
     # Where a ruleset requires the gate, that PR can never merge, so the list stays empty there.
-    paths-ignore: {{ gate_paths_ignore | tojson }}
+    paths-ignore:
+{%- for pattern, reason in gate_paths_ignore.items() %}
+      - {{ pattern | tojson }}  # {{ reason }}
+{%- endfor %}
 {%- endif %}
 {% raw %}
 concurrency:

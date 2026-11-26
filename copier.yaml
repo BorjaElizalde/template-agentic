@@ -28,5 +28,5 @@ agent_merges:
 
 gate_paths_ignore:
   type: yaml
-  help: The files that no check reads, as GitHub paths-ignore patterns. A PR that changes only these files gets no Gate run. Leave the list empty where a ruleset requires the gate.
-  default: []
+  help: The files that no check reads, each GitHub paths-ignore pattern mapped to its reason. A PR that changes only these files gets no Gate run. Leave it empty where a ruleset requires the gate.
+  default: {}
