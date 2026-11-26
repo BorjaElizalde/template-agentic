@@ -6,7 +6,6 @@ _answers_file: .copier-answers.agentic.yaml
 _skip_if_exists:
   - .claude/memory/MEMORY.md
   - renovate.json
-  - .github/gateignore
 
 issues_repo:
   type: str
@@ -26,3 +25,8 @@ agent_merges:
   type: bool
   help: Let the agent squash-merge its own PR into develop once every check on its head, gate among them, has passed
   default: false
+
+gate_paths_ignore:
+  type: yaml
+  help: Paths that no check reads, as patterns of GitHub's paths-ignore; a PR that changes only these starts no Gate run, so leave it empty where a ruleset requires the gate
+  default: []

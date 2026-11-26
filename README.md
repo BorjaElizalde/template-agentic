@@ -25,9 +25,8 @@ changed. A stack template takes this template in four steps:
    Renovate's Copier manager moves in an update PR. It also brings the `Branch protection` workflow
    and the `Gate` workflow, so put the stack template's own CI checks in
    `.github/workflows/gate-checks.yaml` at its root, with the contract below, except that they may
-   run `make gate`. Make its `renovate.json` extend `renovate/base`, with only
-   `.github/workflows/gate.yaml` in `github-actions.ignorePaths`, so that Renovate updates the
-   pins of its own checks and leaves this template's to its update PR.
+   run `make gate`. Make its `renovate.json` extend `renovate/base` with no `ignorePaths`, so that
+   Renovate updates the pins of its own checks.
 2. Release from the `Build` workflow on each merge to `main`: in the checkout of
    `main`, with a git identity and `contents: write`, clone this repository at the recorded
    version and run `bash <clone>/release.sh <tag>`, which pushes the tag. `GITHUB_TOKEN` may push
@@ -36,7 +35,7 @@ changed. A stack template takes this template in four steps:
    give its own settings and questions. Copier joins the two documents' `_skip_if_exists` lists,
    and where both name `_answers_file` or a question, the stack template's wins. So list only its
    own seeded files, name its own `_answers_file`, and give its questions names that this
-   template does not use. They come after this template's questions, so they and its files may
+   template does not use, except `gate_paths_ignore` (below). They come after this template's questions, so they and its files may
    read this template's answers. Add no answers-file template: the bundle brings
    `{{ _copier_conf.answers_file }}.jinja`.
 4. Start the validator of a question that has no default with
@@ -49,10 +48,16 @@ A stack template supplies these files in its `template/`, so that each project g
 
 | File | Contract |
 |---|---|
-| `.github/workflows/gate-checks.yaml` | The workflow that the `Gate` workflow calls on every PR into `develop` or `staging`, through `workflow_call` with one required boolean input, `skip`. `skip` is true on a draft, on the promotion of `develop`, and on a PR whose every changed path the skip lists match, and every job skips then, with `if: ${{ !inputs.skip }}`. It checks out the code and calls the stack's tools directly, never `make gate`. Its checks report as `gate / <job>`. |
-| `.github/gate-checks/gateignore` | Optional: the stack's skip list, the paths that its checks never read, as `.gitignore` patterns. Each pattern takes its reason on the `#` lines directly above it, and a folder is written `dir/**`. The `Gate` workflow reads it, then the project's `.github/gateignore`, which this template seeds once: a later pattern wins, so a project's `!` pattern runs the checks on a path the stack lists. As in `.gitignore`, a `!` can't put back a file inside a folder that a pattern matches, until `!dir/**/` puts back the folders. The workflow reads both lists as the PR's base has them, so a PR can't skip its own checks by listing what it changes. Without a list, every check runs on every PR. |
+| `.github/workflows/gate-checks.yaml` | The workflow that the `Gate` workflow calls on every PR into `develop` or `staging`, through `workflow_call` with one required boolean input, `skip`. `skip` is true on a draft and on the promotion of `develop`, and every job skips then, with `if: ${{ !inputs.skip }}`. It checks out the code and calls the stack's tools directly, never `make gate`. Its checks report as `gate / <job>`. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit or Write, with the hook payload on stdin. |
+
+Its `copier.yaml` gives the question `gate_paths_ignore` its default: the paths that the stack's
+checks never read, as patterns of GitHub's `paths-ignore`, each with its reason in a comment
+beside it. The `Gate` workflow renders them on its trigger, so a PR that changes only these paths
+starts no run. Every check runs where the list is empty: this template's default, and the answer
+of a repository whose rulesets require the gate, such as the templates' own. A project changes
+its list as it changes any answer, with `copier update --data`, and gives the reason in that PR.
 
 The stack template seeds the project's `Makefile`, which includes only the stack's make fragment.
 That fragment defines `gate`, the project's full local validation, which `/gate` runs, and must

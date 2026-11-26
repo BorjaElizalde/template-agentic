@@ -1,9 +1,0 @@
-# This project's paths that no check reads, on top of the stack's in
-# .github/gate-checks/gateignore: the Gate workflow skips the checks of a PR that changes only
-# listed paths. The patterns are .gitignore's, read after the stack's, so a later pattern wins
-# and a `!` pattern runs the checks on a path the stack lists. As in .gitignore, a `!` can't put
-# back a file inside a folder that a pattern matches: write a folder as `dir/**`, and put back
-# its subfolders with `!dir/**/` before a file in one of them. The Gate reads this file as the
-# PR's base has it, so a change here applies to the PRs after the one that makes it.
-# Each pattern takes its reason on the `#` lines directly above it, in the form
-# .claude/rules/conventions.md gives under Skipped checks.

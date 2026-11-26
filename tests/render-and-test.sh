@@ -62,11 +62,6 @@ expect "the SessionStart hook says nothing where no task is" session_start_quiet
 MERGE_ALLOWED='any(.permissions.allow[]; . == "Bash(gh pr merge:*)")'
 expect "by default settings.json leaves gh pr merge to a prompt" jq -e "$MERGE_ALLOWED | not" "$D/.claude/settings.json"
 expect "with agent_merges settings.json allows gh pr merge" jq -e "$MERGE_ALLOWED" "$AM/.claude/settings.json"
-GATE_RUN_READS='[.permissions.allow[] | select(startswith("Bash(gh run"))] | sort'
-expect "by default settings.json leaves the Gate run's reads, which only the agent's merge needs, to a prompt" \
-  jq -e "$GATE_RUN_READS == []" "$D/.claude/settings.json"
-expect "with agent_merges settings.json allows gh run list and gh run watch, which the pull-request skill waits with, and no other gh run call" \
-  jq -e "$GATE_RUN_READS == [\"Bash(gh run list:*)\", \"Bash(gh run watch:*)\"]" "$AM/.claude/settings.json"
 # $d is jq's variable. Tried double quotes, but then each " and $ of the program needs a backslash.
 # shellcheck disable=SC2016
 expect "settings.json denies claude -p and claude --print" jq -e '.permissions.deny as $d
@@ -83,20 +78,18 @@ expect "the Gate and Branch protection workflows are valid workflows" uvx --quie
 expect "the Gate workflow calls the stack's checks, never make" bash -c "
   [ \"\$(uvx --quiet yq -r '.jobs.gate.uses' '$GATE')\" = ./.github/workflows/gate-checks.yaml ] &&
   ! grep -v '^[[:space:]]*#' '$GATE' | grep -qw make"
-yq_r() { uvx --quiet yq -r "$@"; }
-# A skipped job that calls a workflow reports only as gate, never as the gate / <job> a ruleset
-# requires, so the gate job runs after a skipped changes too.
-PROMOTION="(github.base_ref == 'staging' && github.head_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository)"
-skips_a_draft_the_promotion_and_unread_changes() {
-  grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' "$GATE" &&
-    [ "$(yq_r '.jobs.changes.if' "$GATE")" = "\${{ !github.event.pull_request.draft && !$PROMOTION }}" ] &&
-    [ "$(yq_r '.jobs.gate.needs' "$GATE")" = changes ] &&
-    [ "$(yq_r '.jobs.gate.if' "$GATE")" = "\${{ !cancelled() }}" ] &&
-    [ "$(yq_r '.jobs.gate.with.skip' "$GATE")" = \
-      "\${{ github.event.pull_request.draft || $PROMOTION || needs.changes.outputs.unread == 'true' }}" ]
-}
-expect "the Gate workflow skips the checks on a draft, the promotion and unread changes, where changes skips or says unread, and runs when a draft is marked ready" \
-  skips_a_draft_the_promotion_and_unread_changes
+# A skipped job that calls a workflow reports only as gate, never as the gate / <job> a ruleset requires.
+expect "the Gate workflow skips a draft through the checks' skip input, and runs when one is marked ready" bash -c "
+  grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' '$GATE' &&
+  [ \"\$(uvx --quiet yq -r '.jobs.gate.if' '$GATE')\" = null ] &&
+  uvx --quiet yq -r '.jobs.gate.with.skip' '$GATE' | grep -qF '\${{ github.event.pull_request.draft'"
+expect "by default the Gate workflow runs on every PR, with no paths-ignore" bash -c "
+  [ \"\$(uvx --quiet yq -r '.on.pull_request[\"paths-ignore\"]' '$GATE')\" = null ]"
+PI="$OUT/paths-ignore"
+uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data 'gate_paths_ignore=["**.md", ".claude/**"]' "$OUT/src" "$PI"
+expect "a gate_paths_ignore answer becomes the Gate workflow's paths-ignore, in a valid workflow" bash -c "
+  uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows '$PI/.github/workflows/gate.yaml' &&
+  [ \"\$(uvx --quiet yq -c '.on.pull_request[\"paths-ignore\"]' '$PI/.github/workflows/gate.yaml')\" = '[\"**.md\",\".claude/**\"]' ]"
 expect "the Branch protection job reports as branch-protection on a PR into staging or main, and as up-to-date otherwise" bash -c "
   [ \"\$(uvx --quiet yq -r '.jobs[\"branch-protection\"].name' '$BRANCH_PROTECTION')\" = \
     \"\\\${{ github.event_name == 'pull_request' && github.base_ref != 'develop' && 'branch-protection' || 'up-to-date' }}\" ]"
@@ -131,60 +124,6 @@ marks_the_stale_prs() {
     grep -q '^api repos/acme/app/statuses/b .*-f state=failure -f context=up-to-date ' "$UP_TO_DATE/statuses"
 }
 expect "a push to develop puts a failed up-to-date status on the head of each open PR that lacks its commits, once" marks_the_stale_prs
-# The changes job's match step, run in a checkout of a branch merged into develop. The stack's
-# list matches *.md and docs/**; each case gives the base's own setup and the branch's change.
-export CHANGES="$OUT/changes"
-mkdir -p "$CHANGES"
-{ echo '#!/usr/bin/env bash'; yq_r '.jobs.changes.steps[1].run' "$GATE"; } >"$CHANGES/match.sh"
-match() {  # match: the step in $CHANGES/repo; what it writes to GITHUB_OUTPUT lands in $CHANGES/out
-  : >"$CHANGES/out"
-  (cd "$CHANGES/repo" && RUNNER_TEMP="$(mktemp -d)" GITHUB_OUTPUT="$CHANGES/out" bash -e "$CHANGES/match.sh")
-}
-match_merge() {  # match_merge <base setup> <change on the branch>
-  local repo="$CHANGES/repo"
-  rm -rf "$repo"
-  git init -q -b develop "$repo"
-  (
-    cd "$repo" && mkdir -p .github/gate-checks src docs/api &&
-      printf '%s\n' '*.md' 'docs/**' >.github/gate-checks/gateignore &&
-      echo r >README.md && echo a >src/a.py && echo k >docs/keep.txt && echo a >docs/api/a.txt &&
-      eval "$1" && commit . base &&
-      git switch -qc feat && eval "$2" && commit . change &&
-      git switch -q develop && echo o >other.txt && commit . 'develop moves on' &&
-      git -c user.name=t -c user.email=t@t merge -q --no-ff --no-edit feat
-  ) && match
-}
-unread() { match_merge "$@" && [ "$(cat "$CHANGES/out")" = unread=true ]; }
-read_by_a_check() { match_merge "$@" && [ ! -s "$CHANGES/out" ]; }
-expect "changes says unread when the stack's list matches every changed path" \
-  unread : 'echo z >>README.md && echo z >>docs/api/a.txt'
-expect "changes says nothing when one changed path is on no list" \
-  read_by_a_check : 'echo z >>README.md && echo z >>src/a.py'
-expect "changes says nothing when a file moves from an unlisted path to a listed one" \
-  read_by_a_check 'echo b >src/b.py' 'git mv src/b.py docs/b.md'
-expect "changes says nothing when the PR changes a list too" \
-  read_by_a_check : "printf 'src/**\n' >.github/gateignore && echo z >>src/a.py"
-expect "changes reads the lists as the base has them, so a PR that lists every path, its list among them, runs the checks" \
-  read_by_a_check : "printf '**\n' >.github/gateignore && echo z >>src/a.py"
-expect "changes says unread when the project's list adds the path the stack's leaves out" \
-  unread "printf 'src/**\n' >.github/gateignore" 'echo z >>src/a.py && echo z >>README.md'
-expect "changes says nothing on a path that the project puts back with !" \
-  read_by_a_check "printf '!README.md\n' >.github/gateignore" 'echo z >>README.md'
-expect "changes says nothing on a file directly in a dir/** folder that the project puts back" \
-  read_by_a_check "printf '!docs/keep.txt\n' >.github/gateignore" 'echo z >>docs/keep.txt'
-expect "changes says nothing on a nested file that the project puts back after !dir/**/" \
-  read_by_a_check "printf '!docs/**/\n!docs/api/a.txt\n' >.github/gateignore" 'echo z >>docs/api/a.txt'
-expect "changes reads the project's list after a stack's list that ends with no newline" \
-  unread "printf '*.md' >.github/gate-checks/gateignore && printf 'src/**\n' >.github/gateignore" \
-  'echo z >>src/a.py && echo z >>README.md'
-expect "changes says nothing when neither list exists" \
-  read_by_a_check 'rm .github/gate-checks/gateignore' 'echo z >>README.md'
-no_base() {  # a checkout whose HEAD has no parent, so the step can't tell what changed
-  rm -rf "$CHANGES/repo" && git init -q "$CHANGES/repo" && mkdir -p "$CHANGES/repo/.github/gate-checks" &&
-    printf '*.md\n' >"$CHANGES/repo/.github/gate-checks/gateignore" && echo r >"$CHANGES/repo/README.md" &&
-    commit "$CHANGES/repo" only && match && [ ! -s "$CHANGES/out" ]
-}
-expect "changes says nothing, and passes, when the checkout holds no base" no_base
 expect "both preset files and every renovate.json are valid Renovate config" uvx --quiet check-jsonschema \
   --schemafile https://docs.renovatebot.com/renovate-schema.json \
   "$ROOT/renovate/base.json" "$ROOT/renovate/default.json" "$ROOT/renovate.json" "$D/renovate.json"
@@ -196,8 +135,7 @@ expect "the project's renovate.json is the pointer to the project preset only" j
   and .extends == ["github>BorjaElizalde/template-agentic//renovate/default"]' "$D/renovate.json"
 expect "the project preset is the shared rules, with Renovate off the template's CI files" jq -e '
   .extends == ["github>BorjaElizalde/template-agentic//renovate/base"]
-  and (.["github-actions"].ignorePaths
-    | index(".github/workflows/gate-checks.yaml") != null and index(".github/workflows/gate.yaml") != null)' \
+  and (.["github-actions"].ignorePaths | index(".github/workflows/gate-checks.yaml") != null)' \
   "$ROOT/renovate/default.json"
 expect "this repository takes the shared rules only, so Renovate keeps its own CI files' pins current" jq -e \
   '.extends == ["github>BorjaElizalde/template-agentic//renovate/base"] and (has("github-actions") | not)' \
@@ -211,7 +149,7 @@ expect "a first copy keeps the project's renovate.json" bash -c "[ \"\$(cat '$X/
 expect "the task plugin's manifest names it task" bash -c "[ \"\$(jq -r .name '$D/.claude/skills/task/.claude-plugin/plugin.json')\" = task ]"
 expect "no .claude/scripts folder is rendered" test ! -e "$D/.claude/scripts"
 expect "every script parses" bash -c "for f in \$(find '$D' -name '*.sh'); do bash -n \"\$f\" || exit 1; done"
-expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$UP_TO_DATE' '$CHANGES/match.sh' '$ROOT/tests' '$ROOT/bundle.sh' '$ROOT/release.sh' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
+expect "shellcheck finds nothing in any script" bash -c "set -o pipefail; find '$D' '$UP_TO_DATE' '$ROOT/tests' '$ROOT/bundle.sh' '$ROOT/release.sh' -name '*.sh' -exec uvx --quiet --from shellcheck-py==0.11.0.1 shellcheck --format gcc {} + | sed 's/^/FAIL /'"
 expect "bash-guard suite" bash "$D/.claude/hooks/bash-guard.test.sh"
 expect "worktree-guard suite" bash "$D/.claude/hooks/worktree-guard.test.sh"
 expect "practices protocol suite" bash "$D/.claude/hooks/practices/guard.test.sh"
@@ -274,7 +212,6 @@ cp -R "$OUT/src" "$NEXT"
 printf 'probe\n' >"$NEXT/template/update-probe.txt"
 rm "$NEXT/template/.claude/skills/commit/SKILL.md"
 printf '{}\n' >"$NEXT/template/renovate.json"
-printf '# v2\n' >"$NEXT/template/.github/gateignore"
 printf 'gate:\n\t@echo v2\n' >"$S/template/Makefile"
 commit "$S" 'Change the seeded Makefile'
 build v2 "$NEXT"
@@ -361,8 +298,7 @@ commit "$B" copy
 expect "copier update across a bundled release delivers this template's change, without --trust" bash -c "
   [ -f '$B/update-probe.txt' ] && [ ! -e '$B/.claude/skills/commit/SKILL.md' ] && grep -qx '_commit: v2' '$B/.copier-answers.stack.yaml'"
 expect "the update keeps the files both layers seed once" bash -c "
-  cmp -s '$OUT/src/template/renovate.json' '$B/renovate.json' && cmp -s '$OUT/src/tests/stack/template/Makefile' '$B/Makefile' &&
-  cmp -s '$OUT/src/template/.github/gateignore' '$B/.github/gateignore'"
+  cmp -s '$OUT/src/template/renovate.json' '$B/renovate.json' && cmp -s '$OUT/src/tests/stack/template/Makefile' '$B/Makefile'"
 expect "bundle.sh refuses a stack template that has its own copy of a file it bundles" bash -c "
   mkdir -p '$OUT/clash/template' && cp '$OUT/src/template/renovate.json' '$OUT/clash/template/' && ! bash '$OUT/src/bundle.sh' '$OUT/clash'"
 

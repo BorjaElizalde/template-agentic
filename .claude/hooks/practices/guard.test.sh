@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
-# Regression suite for the guard's protocol (layer lookup, verdict levels, fail-open paths), for
-# the reason form in lib.jq, and for this template's own layer, the skip lists' gateignore.jq.
-# Run from any checkout: bash .claude/hooks/practices/guard.test.sh
+# Regression suite for the guard's protocol (registry lookup, verdict levels, fail-open paths) and
+# for the reason form in lib.jq. Run from any checkout: bash .claude/hooks/practices/guard.test.sh
 # The guard runs from a copy beside a fixture registry whose single practice turns the words STOP
 # and REMIND on an added line into that level, and stops a SKIP: line whose text after it is not
 # a reason in the form, so no stack practice is involved.
@@ -12,7 +11,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(mktemp -d)"; NOGIT="$(mktemp -d)"
 trap 'rm -rf "$WORK" "$NOGIT"' EXIT
 mkdir -p "$WORK/practices"
-cp "$HERE/guard.sh" "$HERE/lib.jq" "$HERE/gateignore.jq" "$WORK/practices/"
+cp "$HERE/guard.sh" "$HERE/lib.jq" "$WORK/practices/"
 GUARD="$WORK/practices/guard.sh"
 REPO="$WORK/repo"
 git init -q "$REPO"
@@ -44,13 +43,8 @@ check() {  # check <want> <desc> <payload>
 write() { jq -n --arg p "$1" --arg c "$2" '{tool_input:{file_path:$p, content:$c}}'; }
 edit() { jq -n --arg p "$1" --arg o "$2" --arg n "$3" '{tool_input:{file_path:$p, old_string:$o, new_string:$n}}'; }
 
-PROJECT_LIST="$REPO/.github/gateignore"
-STACK_LIST="$REPO/.github/gate-checks/gateignore"
-REASON="# No check reads Markdown. Tried running the checks on it, but they read no Markdown."
-
-echo "-- no registry: the stack layer is absent, only the skip lists are judged"
+echo "-- no registry: the stack layer is absent, nothing runs"
 check 0 "STOP with no registry"           "$(write "$REPO/a.txt" "STOP")"
-check 2 "a skip-list pattern with no reason" "$(write "$PROJECT_LIST" '*.md')"
 
 registry
 echo "-- verdict levels"
@@ -85,22 +79,6 @@ check 0 "outside a git repo"              "$(write "$NOGIT/a.txt" "STOP")"
 check 0 "new file in a new folder"        "$(write "$REPO/new/dir/a.txt" "fine")"
 check 2 "new file in a new folder, STOP"  "$(write "$REPO/new/dir/a.txt" "STOP")"
 check 0 "no file path"                    '{"tool_input":{}}'
-
-echo "-- the skip lists: each added pattern takes its reason on the # lines directly above it"
-check 0 "the project's list, a pattern with its reason" "$(write "$PROJECT_LIST" "$REASON"$'\n*.md')"
-check 2 "the project's list, a pattern with no reason" "$(write "$PROJECT_LIST" "# Markdown"$'\n*.md')"
-check 2 "the stack's list, a pattern with no reason" "$(write "$STACK_LIST" '*.md')"
-check 2 "a reason with a blank line below it" "$(write "$PROJECT_LIST" "$REASON"$'\n\n*.md')"
-check 0 "a ! pattern, which runs more checks" "$(write "$PROJECT_LIST" '!docs/api.md')"
-check 0 "comment lines alone"             "$(write "$PROJECT_LIST" '# Paths no check reads.')"
-mkdir -p "$(dirname "$PROJECT_LIST")"
-printf '%s\n%s\n' "$REASON" '*.md' >"$PROJECT_LIST"
-check 2 "an edit that adds a second pattern under the first's reason" "$(edit "$PROJECT_LIST" '*.md' $'*.md\ndocs/**')"
-check 0 "an edit that only rewords a reason" "$(edit "$PROJECT_LIST" 'No check reads Markdown.' 'No check reads a Markdown file.')"
-out="$(bash "$GUARD" <<<"$(write "$PROJECT_LIST" 'notebooks/**')" 2>&1 >/dev/null)"
-if [[ "$out" == *"- \`notebooks/**\`"* && "$out" == *"Tried <alternative>, but <why it was discarded>"* ]]
-then pass=$((pass+1)); echo "PASS the stop names the pattern and spells out the form"
-else fail=$((fail+1)); echo "FAIL the stop names the pattern and spells out the form"; fi
 
 echo "== $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
