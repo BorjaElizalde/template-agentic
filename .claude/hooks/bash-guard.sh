@@ -68,14 +68,15 @@ RE_WRAPPER='(^|[[:space:]])((ba)?sh[[:space:]]+-c|eval)[[:space:]]+'
 
 # One PR lookup answers every merge question: "<base> <head> <head sha> <owner/name> <verdict>".
 # The verdict is green when every check on the head has passed (succeeded, or was neutral or
-# skipped) and a gate check succeeded among them: a `gate / <job>` check of the Gate workflow, as
-# the rulesets require, whatever the job is named. Not any check of the Gate workflow: its
-# read-draft check passes on a draft too. A CheckRun counts only once COMPLETED; a StatusContext
-# reads its state.
+# skipped) and a `gate / <job>` check of the Gate workflow succeeded, as the rulesets require. Its
+# read-draft check does not count, since it passes on a draft too. A check counts by its newest
+# run, as in `gh pr checks`: the head keeps the checks of every run, a run cancelled by a later one
+# included. A CheckRun counts only once COMPLETED; a StatusContext reads its state.
 # $c and $repo are jq's variables. Tried double quotes, but then every " and $ of the program
 # needs a backslash.
 # shellcheck disable=SC2016
-JQ_PR='[.statusCheckRollup[]? | if .__typename == "StatusContext" then {gate: false, conclusion: .state}
+JQ_PR='[.statusCheckRollup // [] | group_by([.workflowName, .name, .context])[] | max_by(.startedAt)
+    | if .__typename == "StatusContext" then {gate: false, conclusion: .state}
     else {gate: (.workflowName == "Gate" and (.name | startswith("gate / "))),
       conclusion: (if .status == "COMPLETED" then .conclusion else "PENDING" end)} end] as $c
   | (.url | capture("github\\.com/(?<r>[^/]+/[^/]+)/pull/").r | ascii_downcase) as $repo

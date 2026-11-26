@@ -31,8 +31,9 @@ done
 if [ -z "$repo" ]; then
   url="$(git remote get-url origin 2>/dev/null)" && repo="${url#https://github.com/}" && repo="${repo%.git}"
 fi
-run() {  # run <name> <workflow> <status> <conclusion>
-  printf '{"__typename":"CheckRun","name":"%s","workflowName":"%s","status":"%s","conclusion":"%s"}' "$1" "$2" "$3" "$4"
+run() {  # run <name> <workflow> <status> <conclusion> [<started at>]
+  printf '{"__typename":"CheckRun","name":"%s","workflowName":"%s","status":"%s","conclusion":"%s","startedAt":"%s"}' \
+    "$1" "$2" "$3" "$4" "${5:-}"
 }
 ctx() { printf '{"__typename":"StatusContext","context":"%s","state":"%s"}' "$1" "$2"; }
 GATE="$(run 'gate / checks' Gate COMPLETED SUCCESS)"
@@ -60,6 +61,7 @@ case "$pr" in
   29) pr_json develop feat/x "$(run gate Lint COMPLETED SUCCESS)" ;;
   30) pr_json develop feat/x "$(run 'gate / checks' Gate COMPLETED SKIPPED)" ;;
   31) pr_json develop feat/x "$(run read-draft Gate COMPLETED SUCCESS),$(run 'gate / checks' Gate COMPLETED SKIPPED)" ;;
+  32) pr_json develop feat/x "$(run read-draft Gate COMPLETED SUCCESS 2026-01-01T00:00:10Z),$(run read-draft Gate COMPLETED CANCELLED 2026-01-01T00:00:00Z),$GATE" ;;
   *) exit 1 ;;
 esac
 EOF
@@ -179,7 +181,7 @@ echo "   passed with a gate / … check among them (PR 21 green; 22 gate running
 echo "   failed; 25 a status pending; 26 no checks; 27 a check completed with no conclusion;"
 echo "   28 develop moved on after its checks passed; 29 a check named gate from another workflow;"
 echo "   30 gate skipped; 31 gate skipped where the Gate workflow's read-draft passed;"
-echo "   16 bugfix→staging)"
+echo "   32 read-draft passed in a later run than the one that cancelled it; 16 bugfix→staging)"
 t_on 0 "own green PR, squash, pinned head"   "gh pr merge 21 --squash --match-head-commit $H"
 t_on 0 "promotion still passes"              'gh pr merge 12 --merge'
 t_on 2 "pin to another commit"               'gh pr merge 21 --squash --match-head-commit 2222222222222222222222222222222222222222'
@@ -196,6 +198,7 @@ t_on 2 "a failed up-to-date status, though the checks passed" "gh pr merge 28 --
 t_on 2 "a check named gate from another workflow" "gh pr merge 29 --squash --match-head-commit $H"
 t_on 2 "gate skipped"                        "gh pr merge 30 --squash --match-head-commit $H"
 t_on 2 "gate skipped, read-draft passed"     "gh pr merge 31 --squash --match-head-commit $H"
+t_on 0 "a check counts by its newest run, not by an earlier one cancelled" "gh pr merge 32 --squash --match-head-commit $H"
 t_on 2 "another repository after cd"         "cd $STUB/other && gh pr merge 21 --squash --match-head-commit $H"
 t_on 2 "bugfix into staging stays the owner's" "gh pr merge 16 --squash --match-head-commit $H"
 t_on 2 "feature into main stays the owner's" "gh pr merge 15 --squash --match-head-commit $H"
