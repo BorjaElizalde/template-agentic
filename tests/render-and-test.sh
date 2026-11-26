@@ -250,11 +250,14 @@ help_lists_each_layer() {  # each target of make help, after the file it is list
     { printf 'FAIL make help listed:\n%s\n' "$owners"; return 1; }
 }
 expect "in the copy, bare make lists the targets of its Makefile, the stack fragment and this template's, each under its file" help_lists_each_layer
+# Stand-ins for the programs make claude runs. claude and tmux print their arguments, then each of
+# make's variables in their environment: make's own, and args and prompt from its command line.
 SI="$OUT/stand-ins"
-mkdir -p "$SI/claude" "$SI/caffeinate" "$SI/tmux"
+mkdir -p "$SI/claude" "$SI/caffeinate" "$SI/tmux" "$SI/env"
 cat >"$SI/claude/claude" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$@"
+export -p | while read -r _ var; do case $var in MAKE*|MFLAGS=*|args=*|prompt=*) echo "$var" ;; esac; done
 EOF
 cat >"$SI/caffeinate/caffeinate" <<'EOF'
 #!/bin/sh
@@ -266,8 +269,10 @@ cat >"$SI/tmux/tmux" <<'EOF'
 #!/bin/sh
 echo tmux
 printf '%s\n' "$@"
+export -p | while read -r _ var; do case $var in MAKE*|MFLAGS=*|args=*|prompt=*) echo "$var" ;; esac; done
 EOF
 chmod +x "$SI/claude/claude" "$SI/caffeinate/caffeinate" "$SI/tmux/tmux"
+ln -s "$(command -v env)" "$SI/env/"  # the env that make claude runs, on a PATH with no caffeinate
 MAKE_BIN="$(command -v make)"
 APP="$OUT/my.app"  # a copy of the project in a folder with a dot in its name
 cp -R "$B" "$APP"
@@ -277,15 +282,15 @@ make_claude() {  # make_claude <TMUX> <PATH> <expected output> <make arguments..
     { printf 'FAIL make claude ran:\n%s\n' "$out"; return 1; }
 }
 IN_ITS_TMUX=/tmp/tmux-1000/my.app,1,0  # TMUX in a window of the project's own tmux server
-expect "inside its own tmux, make claude keeps the machine awake and gives claude its flag, args and the prompt as one argument" make_claude \
+expect "inside its own tmux, make claude keeps the machine awake and gives claude its flag, args and the prompt as one argument, and none of make's variables" make_claude \
   "$IN_ITS_TMUX" "$SI/caffeinate:$SI/claude:$PATH" \
   "$(printf '%s\n' 'caffeinate -is' --remote-control --continue -- '/loop check the board; then stop')" \
   args=--continue 'prompt=/loop check the board; then stop'
 expect "with no caffeinate and no prompt, make claude starts claude alone, with no empty argument" make_claude \
-  "$IN_ITS_TMUX" "$SI/claude" --remote-control
+  "$IN_ITS_TMUX" "$SI/env:$SI/claude" --remote-control
 STARTS_ITS_TMUX="$(printf '%s\n' tmux -L my.app source-file .claude/tmux.conf ';' new-session -A -s my_app -n main \
   caffeinate -is claude --remote-control --continue -- '/loop check the board; then stop')"
-expect "outside tmux, make claude starts the repository's tmux, named after its folder, with tmux.conf, and claude kept awake in its main window, or attaches to it" \
+expect "outside tmux, make claude starts the repository's tmux, named after its folder, with tmux.conf and none of make's variables, and claude kept awake in its main window, or attaches to it" \
   make_claude '' "$SI/tmux:$SI/caffeinate:$SI/claude:$PATH" "$STARTS_ITS_TMUX" \
   args=--continue 'prompt=/loop check the board; then stop'
 expect "inside another tmux, make claude starts the repository's tmux all the same" \
