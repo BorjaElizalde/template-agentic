@@ -37,16 +37,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 2
-      # The lists are .gitignore patterns, which git matches in a repository of their own, where
-      # no .gitignore of the project's takes part. The echo ends a list whose last line has no
-      # newline. --no-renames lists a renamed file's old path too. A failed command sets no
-      # output, so every check runs.
+      # The lists are read as the base has them, so that a PR can't skip its own checks: a change
+      # to a list applies once it has merged. They are .gitignore patterns, which git matches in a
+      # repository of their own, where no .gitignore of the project's takes part. The echo ends a
+      # list whose last line has no newline. --no-renames lists a renamed file's old path too. A
+      # failed command sets no output, so every check runs.
       - id: match
         run: |
           lists="$RUNNER_TEMP/skip-lists"
           git init --quiet "$lists"
           for list in .github/gate-checks/gateignore .github/gateignore; do
-            if [ -f "$list" ]; then cat "$list"; echo; fi
+            if git cat-file -e "HEAD^1:$list" 2>/dev/null; then git show "HEAD^1:$list"; echo; fi
           done >"$lists/.git/info/exclude"
           if git diff --name-only --no-renames -z HEAD^1 HEAD >"$RUNNER_TEMP/changed" &&
             git -C "$lists" check-ignore -z --stdin <"$RUNNER_TEMP/changed" >"$RUNNER_TEMP/listed" &&

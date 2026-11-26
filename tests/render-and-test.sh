@@ -164,6 +164,8 @@ expect "changes says nothing when a file moves from an unlisted path to a listed
   read_by_a_check 'echo b >src/b.py' 'git mv src/b.py docs/b.md'
 expect "changes says nothing when the PR changes a list too" \
   read_by_a_check : "printf 'src/**\n' >.github/gateignore && echo z >>src/a.py"
+expect "changes reads the lists as the base has them, so a PR that lists every path, its list among them, runs the checks" \
+  read_by_a_check : "printf '**\n' >.github/gateignore && echo z >>src/a.py"
 expect "changes says unread when the project's list adds the path the stack's leaves out" \
   unread "printf 'src/**\n' >.github/gateignore" 'echo z >>src/a.py && echo z >>README.md'
 expect "changes says nothing on a path that the project puts back with !" \
