@@ -1,5 +1,5 @@
 # From the agentic template: change the template, not this copy.
-# The develop and staging rulesets require its checks, `gate / <job>`.
+# In the template repositories, the develop and staging rulesets require its checks, `gate / <job>`.
 name: Gate
 
 on:
@@ -9,7 +9,16 @@ on:
     branches: [develop, staging]
     # ready_for_review gates a draft once it is marked ready; the default types leave it out.
     types: [opened, synchronize, reopened, ready_for_review]
-
+{%- if gate_paths_ignore %}
+    # The files that no check reads, from the Copier answer gate_paths_ignore.
+    # A PR that changes only these files gets no Gate run.
+    # Where a ruleset requires the gate, that PR can never merge, so the list stays empty there.
+    paths-ignore:
+{%- for pattern, reason in gate_paths_ignore.items() %}
+      - {{ pattern | tojson }}  # {{ reason }}
+{%- endfor %}
+{%- endif %}
+{% raw %}
 concurrency:
   group: gate-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
@@ -31,3 +40,4 @@ jobs:
         ${{ github.event.pull_request.draft
         || (github.base_ref == 'staging' && github.head_ref == 'develop'
         && github.event.pull_request.head.repo.full_name == github.repository) }}
+{% endraw -%}
