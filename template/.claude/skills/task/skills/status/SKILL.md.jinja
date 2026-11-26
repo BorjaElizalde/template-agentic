@@ -24,11 +24,9 @@ allowed-tools: Bash(bash:*)
      then ready, which starts the gate on its head. ⏳
    - idle, PR draft: its review steps have not ended, and it marks the PR ready when they do.
      Send the session back to them with SendMessage. ⏳
-   - idle, no PR, with a result to close the issue on in its last message: the owner reviews the
-     result before you finish the task. 👀
-   - idle, no PR, with a blocker or a question in its last message: make each choice it holds as
-     **Choices** in `.claude/rules/agentic.md` says, and send the session what it needs to go on
-     with SendMessage. ⏳ A choice that stays the owner's makes the mark 💬.
+   - idle, no PR: its last message holds a result to close the issue on, a blocker, or a
+     question. Act on it as **Choices** in `.claude/rules/agentic.md` says, and mark it 💬 when
+     that leaves it to the owner.
    - waiting: the owner answers it in its tmux window, `#<n>`. ✋
    - no session: resume it with `/task:start <n>`. ⏳
 
@@ -36,18 +34,17 @@ allowed-tools: Bash(bash:*)
 4. Reply in plain words: short sentences, the answer first, and no hashes, file paths or commands
    unless the owner needs one to act.
    - Open with one line: how many cards need the owner.
-   - Then the legend: 👀 PR or result to review · ✋ your own step · 💬 your decision · ⏳ running.
+   - Then the legend: 👀 PR to review · ✋ your own step · 💬 decision needed · ⏳ running.
    - Then one card per task, first those that need the owner, then the running ones:
 
      ```
      ### 👀 #n The task in plain words
      - **Goal:** one sentence.
-     - **Now:** where it stands: the session, the PR and its checks, and each choice you made.
-     - **You:** what the owner does, with your pick and the PR or issue link.
+     - **Now:** where it stands: the session, the PR and its checks.
+     - **You:** what to do, with your pick and the PR or issue link.
      ```
 
-     **You** also carries the `Owner steps`, and each choice from the session's last message that
-     stays the owner's. A running card has no **You**.
+     **You** also carries the `Owner steps` and each choice that **Choices** leaves to the owner.
    - Then three lists, one line per issue, its number and what it is in plain words: **Ready**,
      **Blocked**, with the issues it waits on, and **Parked**, with the reason. The cards are for
      the tasks in progress only. Leave out a list with no issue, and give a list of more than ten
