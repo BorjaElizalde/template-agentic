@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
 # PreToolUse(Edit|Write) coding-practice guard: one hook, one verdict per edit.
-# The stack layer supplies registry.jq beside this script, the one plug-in point:
+# A layer beside this script judges each file, the first that gives it a kind: this template's
+# gateignore.jq, for the Gate workflow's skip lists, then registry.jq, which the stack layer
+# supplies as its one plug-in point. Each layer exposes:
 #   kind($path)              -> the file's kind, or null when no practice applies
 #   practices($ctx; $kind)   -> a stream of {level, text} from its practice modules
 # Each practice module exposes check($ctx) over the edit_context in lib.jq. The strongest level
@@ -11,16 +13,20 @@
 #             gets the short note next to its result
 # No practice asks the owner: an unattended session counts a permission prompt as a refusal.
 # Messages are short fixed text; the rules files are never loaded. jq only, no grep (ugrep shim,
-# see bash-guard.sh). Fails OPEN without a registry, for files of no kind, outside a git repo, for
-# git-ignored files, and on any jq error.
+# see bash-guard.sh). Fails OPEN for files of no kind, which without a registry is every file but
+# the skip lists, outside a git repo, for git-ignored files, and on any jq error.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-[ -f "$HERE/registry.jq" ] || exit 0
 PAYLOAD="$(cat)"
 FILE_PATH="$(jq -r '.tool_input.file_path // empty' <<<"$PAYLOAD" 2>/dev/null || true)"
 [ -n "$FILE_PATH" ] || exit 0
-KIND="$(jq -nr -L "$HERE" --arg path "$FILE_PATH" 'import "registry" as registry; registry::kind($path) // empty' 2>/dev/null)"
+KIND=""
+for LAYER in gateignore registry; do
+  [ -f "$HERE/$LAYER.jq" ] || continue
+  KIND="$(jq -nr -L "$HERE" --arg path "$FILE_PATH" 'import "'"$LAYER"'" as layer; layer::kind($path) // empty' 2>/dev/null)"
+  [ -z "$KIND" ] || break
+done
 [ -n "$KIND" ] || exit 0
 
 # Nearest existing ancestor (a new file may sit in a not-yet-created dir), resolved physically so
@@ -39,10 +45,10 @@ OLD_FILE="${OLD_FILE%x}"
 
 VERDICT="$(jq -c -L "$HERE" --arg old_file "$OLD_FILE" --arg rel "$REL" --arg kind "$KIND" '
   include "lib";
-  import "registry" as registry;
+  import "'"$LAYER"'" as layer;
 
   edit_context($old_file; $rel) as $ctx
-  | [registry::practices($ctx; $kind)]
+  | [layer::practices($ctx; $kind)]
   | {stop: map(select(.level == "stop") | .text), remind: map(select(.level == "remind") | .text)}
 ' <<<"$PAYLOAD" 2>/dev/null)" || exit 0
 

@@ -6,6 +6,7 @@ _answers_file: .copier-answers.agentic.yaml
 _skip_if_exists:
   - .claude/memory/MEMORY.md
   - renovate.json
+  - .github/gateignore
 
 issues_repo:
   type: str

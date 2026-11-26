@@ -8,7 +8,7 @@
 #   * block merging a PR in any form but the two the skills write, and into a protected branch
 #     except the promotion hops develop→staging and staging→main as merge commits and, in a project
 #     that answered agent_merges, its own PR into develop as a squash pinned to a head whose every
-#     check has passed; block the API merge routes
+#     check and newest Gate run have passed; block the API merge routes
 #   * block committing in the primary working tree / main checkout (any branch) — worktree workflow
 #   * block skipping the commit hooks: --no-verify, commit -n, SKIP=/HUSKY= env, core.hooksPath
 #   * check the command that bash -c, sh -c or eval runs, as if it were sent on its own
@@ -16,7 +16,7 @@
 # PR creation (gh pr create) is unrestricted — PRs may target any base branch.
 # Pure bash 3.2 regex via [[ =~ ]] — NO grep (grep can be a ugrep shim, which
 # mis-parses flags like --force-with-lease). jq reads the command from the stdin payload; gh
-# looks up the base branch of a PR being merged.
+# looks up the base branch of a PR being merged, and the Gate run on its head.
 # Fails OPEN (exit 0) on an empty/unparseable command. A PR merge whose base cannot be looked up
 # is blocked.
 # Every function here runs: any_segment calls each segment_* check by the name it is given, and the
@@ -67,20 +67,26 @@ RE_GH_URL='github\.com[:/]+([^/]+/[^/]+)$'
 RE_WRAPPER='(^|[[:space:]])((ba)?sh[[:space:]]+-c|eval)[[:space:]]+'
 
 # One PR lookup answers every merge question: "<base> <head> <head sha> <owner/name> <verdict>".
-# The verdict is green when every check on the head has passed (succeeded, or was neutral or
-# skipped) and a check of the Gate workflow succeeded among them, whatever its job is named. A
-# CheckRun counts only once COMPLETED; a StatusContext reads its state.
+# The verdict is green when every check on the head has passed: succeeded, or was neutral or
+# skipped. A CheckRun counts only once COMPLETED; a StatusContext reads its state.
 # $c and $repo are jq's variables. Tried double quotes, but then every " and $ of the program
 # needs a backslash.
 # shellcheck disable=SC2016
-JQ_PR='[.statusCheckRollup[]? | if .__typename == "StatusContext" then {workflow: null, conclusion: .state}
-    else {workflow: .workflowName,
-      conclusion: (if .status == "COMPLETED" then .conclusion else "PENDING" end)} end] as $c
+JQ_PR='[.statusCheckRollup[]? | if .__typename == "StatusContext" then .state
+    elif .status == "COMPLETED" then .conclusion else "PENDING" end] as $c
   | (.url | capture("github\\.com/(?<r>[^/]+/[^/]+)/pull/").r | ascii_downcase) as $repo
-  | (if any($c[]; .workflow == "Gate" and .conclusion == "SUCCESS") | not then "no-passed-gate"
-     elif all($c[]; .conclusion == "SUCCESS" or .conclusion == "NEUTRAL" or .conclusion == "SKIPPED") then "green"
+  | (if all($c[]; . == "SUCCESS" or . == "NEUTRAL" or . == "SKIPPED") then "green"
      else "a-check-not-passed" end) as $verdict
   | [.baseRefName, .headRefName, .headRefOid, $repo, $verdict] | join(" ")'
+
+# The conclusion of the newest run of the Gate workflow on commit $1, empty while it runs or when
+# none ran. Its checks can't tell: GitHub creates a job's check only once the jobs it needs have
+# finished, so for a moment after the Gate's first job passes, no check is pending. Two runs that
+# start in the same second come back in either order, so the run number picks the newest.
+newest_gate_run() {
+  (cd "$DIR" 2>/dev/null && gh run list --commit "$1" --workflow gate.yaml --json number,conclusion \
+    --jq 'max_by(.number).conclusion // ""' 2>/dev/null)
+}
 
 block() { echo "Blocked: $1" >&2; exit 2; }
 
@@ -135,7 +141,9 @@ agent_may_merge() {
   elif [ "$match" != "$oid" ]; then
     MERGE_WHY="merging into develop without pinning the head the checks ran on: pass --match-head-commit $oid, the PR's head, so a later push cannot land unchecked."
   elif [ "$verdict" != green ]; then
-    MERGE_WHY="merging into develop before every check on $oid has passed with a check of the Gate workflow among them ($verdict). Wait with 'gh pr checks <n> --watch', then merge."
+    MERGE_WHY="merging into develop before every check on $oid has passed ($verdict). Wait with 'gh pr checks <n> --watch', then merge."
+  elif [ "$(newest_gate_run "$oid")" != success ]; then
+    MERGE_WHY="merging into develop before the newest run of the Gate workflow on $oid has passed. Wait for it as the pull-request skill says, then merge."
   else
     return 0
   fi

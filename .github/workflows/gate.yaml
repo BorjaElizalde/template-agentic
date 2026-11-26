@@ -15,19 +15,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Whether every path the PR changes is on a skip list, the paths that no check reads: the
+  # stack's list, then the project's, whose later patterns win. Skipped on a draft, which can't
+  # merge and is gated when it is marked ready, and on the promotion of develop, whose code passed
+  # the checks on its way in, so a second run only costs minutes. Those runs then conclude
+  # skipped, never success, so the merge guard can't take one for the gate of the ready PR. Tried
+  # the head's name alone, but a fork's develop would skip too, and so would a branch Develop into
+  # develop, since == ignores case. Tried a trigger filter, but it can't read a PR's head or its
+  # draft state.
+  changes:
+    if: >-
+      ${{ !github.event.pull_request.draft
+      && !(github.base_ref == 'staging' && github.head_ref == 'develop'
+      && github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      unread: ${{ steps.match.outputs.unread }}
+    steps:
+      # HEAD is the PR merged into its base, and HEAD^1 that base.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 2
+      # The lists are .gitignore patterns, which git matches in a repository of their own, where
+      # no .gitignore of the project's takes part. The echo ends a list whose last line has no
+      # newline. --no-renames lists a renamed file's old path too. A failed command sets no
+      # output, so every check runs.
+      - id: match
+        run: |
+          lists="$RUNNER_TEMP/skip-lists"
+          git init --quiet "$lists"
+          for list in .github/gate-checks/gateignore .github/gateignore; do
+            if [ -f "$list" ]; then cat "$list"; echo; fi
+          done >"$lists/.git/info/exclude"
+          if git diff --name-only --no-renames -z HEAD^1 HEAD >"$RUNNER_TEMP/changed" &&
+            git -C "$lists" check-ignore -z --stdin <"$RUNNER_TEMP/changed" >"$RUNNER_TEMP/listed" &&
+            cmp -s "$RUNNER_TEMP/changed" "$RUNNER_TEMP/listed"; then
+            echo "unread=true" >>"$GITHUB_OUTPUT"
+          fi
+
   gate:
+    needs: changes
+    # Also after a skipped or failed changes: a skipped job that calls a workflow reports only as
+    # gate, so a required gate / <job> never reports and blocks the merge, where a skipped check
+    # passes.
+    if: ${{ !cancelled() }}
     # The stack's checks, each tool called directly, and each job of them skips when skip is true.
     # A project's CI never runs make gate, so a change that relaxes the local gate can't relax CI.
     uses: ./.github/workflows/gate-checks.yaml
     with:
-      # Skipped on a draft, which can't merge and is gated when it is marked ready, and on the
-      # promotion of develop, whose code passed this check on its way in, so a second run only
-      # costs minutes. Tried an if on this job, but a skipped job that calls a workflow reports
-      # only as gate, so a required gate / <job> never reports and blocks the merge, where a
-      # skipped check passes. Tried the head's name alone, but a fork's develop would skip too,
-      # and so would a branch Develop into develop, since == ignores case. Tried a trigger filter,
-      # but it can't read a PR's head or its draft state.
-      skip: >-
-        ${{ github.event.pull_request.draft
-        || (github.base_ref == 'staging' && github.head_ref == 'develop'
-        && github.event.pull_request.head.repo.full_name == github.repository) }}
+      # A skipped changes is a draft or the promotion of develop.
+      skip: ${{ needs.changes.result == 'skipped' || needs.changes.outputs.unread == 'true' }}

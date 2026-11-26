@@ -39,15 +39,18 @@ description: Use when committed and validated feature-branch work is ready for a
    can merge and the gate skips: the gate runs on the head the PR has when it is marked ready.
 {%- if agent_merges %}
 8. This project lets the agent merge its own PR into `develop` (`agent_merges`). Step 7 started
-   the gate: once `gh pr checks <n>` no longer lists `gate / …` as skipped, wait for the PR's
-   checks with `gh pr checks <n> --watch`; on a failed or cancelled check, stop and report it. A
-   failed `up-to-date` says that `develop` moved on meanwhile: fetch and merge it as in step 4,
-   pass the gate on the result, push, and wait for the checks again. When
-   every check has passed, read the head they ran on, `gh pr view <n> --json headRefOid --jq
-   .headRefOid`, and merge that head only: `gh pr merge <n> --squash --match-head-commit <sha>`.
-   The guard blocks the merge unless the PR is this repository's, the merge is a squash pinned to
-   the current head, and every check on it has passed with a check of the `Gate` workflow among
-   them.
+   the gate on the PR's head: read that head, `gh pr view <n> --json headRefOid --jq
+   .headRefOid`. Its newest Gate run is
+   `gh run list --commit <sha> --workflow gate.yaml --json databaseId,number,conclusion --jq
+   'max_by(.number)'`; until the run that step 7 started appears, it is the draft's, which
+   skipped. Once it did not skip, wait for it with `gh run watch <id> --exit-status`, then for
+   the PR's other checks with `gh pr checks <n> --watch`; on a failed or cancelled run or check,
+   stop and report it. A failed `up-to-date` says that `develop` moved on meanwhile: fetch and
+   merge it as in step 4, pass the gate on the result, push, and wait for the checks again. When
+   every check has passed, merge the head they ran on only:
+   `gh pr merge <n> --squash --match-head-commit <sha>`. The guard blocks the merge unless the PR
+   is this repository's, the merge is a squash pinned to the current head, every check on it has
+   passed, and its newest Gate run has passed.
 9. Return the PR URL and the merge result.
 {%- else %}
 8. Return the PR URL.
