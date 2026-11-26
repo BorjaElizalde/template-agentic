@@ -67,7 +67,9 @@ second recipe.
 
 The stack's rules go in its `template/.claude/rules/`, beside the bundled `agentic.md`,
 `conventions.md` and `writing.md`. One of them lists the stack's skipped-check directives and
-the tools whose docs to read, which `conventions.md` leaves to the stack.
+the tools whose docs to read, which `conventions.md` leaves to the stack. One says how a test is
+written, which `.claude/skills/task/session/execution.md` asks a session to follow when it writes
+the test that reproduces a bug.
 
 Claude Code reads one shared project settings file, `.claude/settings.json`, and this template
 renders it for every stack. A new stack adds its permissions and environment to
