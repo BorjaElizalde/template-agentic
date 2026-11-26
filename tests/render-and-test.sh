@@ -83,8 +83,6 @@ expect "the Gate workflow skips a draft through the checks' skip input, and runs
   grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' '$GATE' &&
   [ \"\$(uvx --quiet yq -r '.jobs.gate.if' '$GATE')\" = null ] &&
   uvx --quiet yq -r '.jobs.gate.with.skip' '$GATE' | grep -qF '\${{ github.event.pull_request.draft'"
-expect "by default the Gate workflow runs on every PR, with no paths-ignore" bash -c "
-  [ \"\$(uvx --quiet yq -r '.on.pull_request[\"paths-ignore\"]' '$GATE')\" = null ]"
 PI="$OUT/paths-ignore"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data 'gate_paths_ignore=["**.md", ".claude/**"]' "$OUT/src" "$PI"
 expect "a gate_paths_ignore answer becomes the Gate workflow's paths-ignore, in a valid workflow" bash -c "

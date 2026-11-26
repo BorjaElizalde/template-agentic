@@ -1,5 +1,5 @@
 # From the agentic template: change the template, not this copy.
-# The develop and staging rulesets require its checks, `gate / <job>`.
+# In the template repositories, the develop and staging rulesets require its checks, `gate / <job>`.
 name: Gate
 
 on:
@@ -10,8 +10,9 @@ on:
     # ready_for_review gates a draft once it is marked ready; the default types leave it out.
     types: [opened, synchronize, reopened, ready_for_review]
 {%- if gate_paths_ignore %}
-    # The paths no check reads (Copier's gate_paths_ignore): a PR that changes only these starts
-    # no run, so no ruleset may require its checks.
+    # The files that no check reads, from the Copier answer gate_paths_ignore.
+    # A PR that changes only these files gets no Gate run.
+    # Where a ruleset requires the gate, that PR can never merge, so the list stays empty there.
     paths-ignore: {{ gate_paths_ignore | tojson }}
 {%- endif %}
 {% raw %}

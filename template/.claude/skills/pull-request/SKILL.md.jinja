@@ -47,8 +47,8 @@ description: Use when committed and validated feature-branch work is ready for a
    .headRefOid`, and merge that head only: `gh pr merge <n> --squash --match-head-commit <sha>`.
    The guard blocks the merge unless the PR is this repository's, the merge is a squash pinned to
    the current head, and every check on it has passed with a check of the `Gate` workflow among
-   them. A PR whose every changed path `paths-ignore` in `.github/workflows/gate.yaml` lists
-   starts no Gate run: leave its merge to the owner.
+   them. A PR that changes only files on the `paths-ignore` list in
+   `.github/workflows/gate.yaml` gets no Gate run: leave its merge to the owner.
 9. Return the PR URL and the merge result.
 {%- else %}
 8. Return the PR URL.
