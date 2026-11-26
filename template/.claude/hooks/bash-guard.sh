@@ -83,7 +83,7 @@ JQ_PR='[.statusCheckRollup[]? | if .__typename == "StatusContext" then .state
 # none ran. Its checks can't tell: GitHub creates a job's check only once the jobs it needs have
 # finished, so for a moment after the Gate's first job passes, no check is pending. Two runs that
 # start in the same second come back in either order, so the run number picks the newest.
-newest_gate_run() {
+newest_gate_conclusion() {
   (cd "$DIR" 2>/dev/null && gh run list --commit "$1" --workflow gate.yaml --json number,conclusion \
     --jq 'max_by(.number).conclusion // ""' 2>/dev/null)
 }
@@ -142,7 +142,7 @@ agent_may_merge() {
     MERGE_WHY="merging into develop without pinning the head the checks ran on: pass --match-head-commit $oid, the PR's head, so a later push cannot land unchecked."
   elif [ "$verdict" != green ]; then
     MERGE_WHY="merging into develop before every check on $oid has passed ($verdict). Wait with 'gh pr checks <n> --watch', then merge."
-  elif [ "$(newest_gate_run "$oid")" != success ]; then
+  elif [ "$(newest_gate_conclusion "$oid")" != success ]; then
     MERGE_WHY="merging into develop before the newest run of the Gate workflow on $oid has passed. Wait for it as the pull-request skill says, then merge."
   else
     return 0

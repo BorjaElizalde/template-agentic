@@ -64,5 +64,9 @@ jobs:
     # A project's CI never runs make gate, so a change that relaxes the local gate can't relax CI.
     uses: ./.github/workflows/gate-checks.yaml
     with:
-      # A skipped changes is a draft or the promotion of develop.
-      skip: ${{ needs.changes.result == 'skipped' || needs.changes.outputs.unread == 'true' }}
+      # The cases that changes skips on, then its verdict.
+      skip: >-
+        ${{ github.event.pull_request.draft
+        || (github.base_ref == 'staging' && github.head_ref == 'develop'
+        && github.event.pull_request.head.repo.full_name == github.repository)
+        || needs.changes.outputs.unread == 'true' }}

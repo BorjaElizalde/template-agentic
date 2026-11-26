@@ -86,16 +86,17 @@ expect "the Gate workflow calls the stack's checks, never make" bash -c "
 yq_r() { uvx --quiet yq -r "$@"; }
 # A skipped job that calls a workflow reports only as gate, never as the gate / <job> a ruleset
 # requires, so the gate job runs after a skipped changes too.
-skips_through_changes() {
+PROMOTION="(github.base_ref == 'staging' && github.head_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository)"
+skips_a_draft_the_promotion_and_unread_changes() {
   grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' "$GATE" &&
-    yq_r '.jobs.changes.if' "$GATE" | grep -qF "\${{ !github.event.pull_request.draft" &&
+    [ "$(yq_r '.jobs.changes.if' "$GATE")" = "\${{ !github.event.pull_request.draft && !$PROMOTION }}" ] &&
     [ "$(yq_r '.jobs.gate.needs' "$GATE")" = changes ] &&
     [ "$(yq_r '.jobs.gate.if' "$GATE")" = "\${{ !cancelled() }}" ] &&
     [ "$(yq_r '.jobs.gate.with.skip' "$GATE")" = \
-      "\${{ needs.changes.result == 'skipped' || needs.changes.outputs.unread == 'true' }}" ]
+      "\${{ github.event.pull_request.draft || $PROMOTION || needs.changes.outputs.unread == 'true' }}" ]
 }
-expect "the Gate workflow skips a draft through changes, whose verdict the checks' skip input reads, and runs when one is marked ready" \
-  skips_through_changes
+expect "the Gate workflow skips the checks on a draft, the promotion and unread changes, where changes skips or says unread, and runs when a draft is marked ready" \
+  skips_a_draft_the_promotion_and_unread_changes
 expect "the Branch protection job reports as branch-protection on a PR into staging or main, and as up-to-date otherwise" bash -c "
   [ \"\$(uvx --quiet yq -r '.jobs[\"branch-protection\"].name' '$BRANCH_PROTECTION')\" = \
     \"\\\${{ github.event_name == 'pull_request' && github.base_ref != 'develop' && 'branch-protection' || 'up-to-date' }}\" ]"

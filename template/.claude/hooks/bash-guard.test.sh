@@ -38,12 +38,14 @@ done
 gate_run() { printf '{"number":%s,"conclusion":"%s"}' "$1" "$2"; }
 if [ "$command" = "run list" ]; then
   runs=""
-  [ "$workflow" != gate.yaml ] || case "$commit" in
-    "$H") runs="$(gate_run 7 skipped),$(gate_run 8 success)" ;;
-    "$(own_head 22)") runs="$(gate_run 9 '')" ;;
-    "$(own_head 30)") runs="$(gate_run 5 skipped)" ;;
-    "$(own_head 32)") runs="$(gate_run 5 skipped),$(gate_run 6 '')" ;;
-  esac
+  if [ "$workflow" = gate.yaml ]; then
+    case "$commit" in
+      "$H") runs="$(gate_run 7 skipped),$(gate_run 8 success)" ;;
+      "$(own_head 22)") runs="$(gate_run 9 '')" ;;
+      "$(own_head 30)") runs="$(gate_run 5 skipped)" ;;
+      "$(own_head 32)") runs="$(gate_run 5 skipped),$(gate_run 6 '')" ;;
+    esac
+  fi
   printf '[%s]\n' "$runs" | jq -r "$filter"
   exit
 fi
@@ -58,7 +60,7 @@ ctx() { printf '{"__typename":"StatusContext","context":"%s","state":"%s"}' "$1"
 GATE="$(run 'gate / checks' Gate COMPLETED SUCCESS)"
 # The checks of a PR whose every change the skip lists match, or of a draft just marked ready
 # before the new run creates its gate / checks: the draft's skipped one stays among them.
-CHANGES_ONLY="$(run changes Gate COMPLETED SUCCESS),$(run 'gate / checks' Gate COMPLETED SKIPPED)"
+CHANGES_PASSED_CHECKS_SKIPPED="$(run changes Gate COMPLETED SUCCESS),$(run 'gate / checks' Gate COMPLETED SKIPPED)"
 pr_json() {  # pr_json <base> <head> <checks> [<head sha>]
   printf '{"baseRefName":"%s","headRefName":"%s","headRefOid":"%s","url":"https://github.com/%s/pull/%s","statusCheckRollup":[%s]}\n' \
     "$1" "$2" "${4:-$H}" "${repo:-acme/app}" "${pr:-1}" "$3"
@@ -82,8 +84,8 @@ case "$pr" in
   28) pr_json develop feat/x "$GATE,$(run up-to-date 'Branch protection' COMPLETED SUCCESS),$(ctx up-to-date FAILURE)" ;;
   29) pr_json develop feat/x "$(run gate Lint COMPLETED SUCCESS)" "$(own_head 29)" ;;
   30) pr_json develop feat/x "$(run 'gate / checks' Gate COMPLETED SKIPPED)" "$(own_head 30)" ;;
-  31) pr_json develop feat/x "$CHANGES_ONLY" ;;
-  32) pr_json develop feat/x "$CHANGES_ONLY" "$(own_head 32)" ;;
+  31) pr_json develop feat/x "$CHANGES_PASSED_CHECKS_SKIPPED" ;;
+  32) pr_json develop feat/x "$CHANGES_PASSED_CHECKS_SKIPPED" "$(own_head 32)" ;;
   *) exit 1 ;;
 esac
 EOF
