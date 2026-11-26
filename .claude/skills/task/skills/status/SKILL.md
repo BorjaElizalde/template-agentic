@@ -25,8 +25,8 @@ allowed-tools: Bash(bash:*)
    - idle, PR draft: its review steps have not ended, and it marks the PR ready when they do.
      Send the session back to them with SendMessage. ⏳
    - idle, no PR: its last message holds a result to close the issue on, a blocker, or a
-     question. Act on it as **Choices** in `.claude/rules/agentic.md` says, and mark it 💬 when
-     that leaves it to the owner.
+     question. Act on it yourself, unless it is one of the three cases in **Choices** in
+     `.claude/rules/agentic.md`; then mark it 💬.
    - waiting: the owner answers it in its tmux window, `#<n>`. ✋
    - no session: resume it with `/task:start <n>`. ⏳
 
@@ -44,7 +44,7 @@ allowed-tools: Bash(bash:*)
      - **You:** what to do, with your pick and the PR or issue link.
      ```
 
-     **You** also carries the `Owner steps` and each choice that **Choices** leaves to the owner.
+     **You** also carries the `Owner steps`, and each question you ask the owner under **Choices**.
    - Then three lists, one line per issue, its number and what it is in plain words: **Ready**,
      **Blocked**, with the issues it waits on, and **Parked**, with the reason. The cards are for
      the tasks in progress only. Leave out a list with no issue, and give a list of more than ten

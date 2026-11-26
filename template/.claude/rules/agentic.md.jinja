@@ -39,7 +39,10 @@ Use standard git commands (`git status`, `git diff`, `git log`) without the `-C`
 
 **Following tasks:** report the status of the tasks through `/task:status` in your first reply after a session starts or resumes in the main checkout, and each time the owner asks. A main session that runs a `/loop` runs `bash .claude/skills/task/scripts/task.sh status` on each round, and `/task:status` when a line ends in `needs attention`. When a task session sends you a loose end outside its task, or leaves one in its last message, resolve it yourself or bring it to the owner.
 
-**Choices:** in the main checkout, start each ready issue and carry agreed work through to its PR or result without asking the owner. Ask the owner only about a choice that no text settles, a choice that a rule keeps for the owner (parking or releasing an issue), and an action that a permission check refused.
+**Choices:** in the main checkout, start every ready issue without asking the owner, and keep its session working until its PR is open or its result is on the issue. Ask the owner only in three cases:
+- You need a decision that no issue, rule or owner's comment answers.
+- A rule says the owner decides, such as parking an issue.
+- A permission check blocked an action.
 
 **Worktrees:** all feature work happens in the task's worktree, never in the main checkout. Never call EnterWorktree.
 
