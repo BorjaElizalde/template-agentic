@@ -40,6 +40,9 @@ what it holds; these rules say how to write it.
 - Leave out filler: no preamble, no summary of what the text already said, no praise of the
   change.
 - In instruction text, say each rule once, in the file that does its step, and name that file
-  from elsewhere. A file that loads in every session holds only what a session must do before any
-  skill loads.
+  from elsewhere. Where that file already loads for the same files, leave out its name and any
+  line that only reminds the reader of the rule. The reader has the rule there already, and each
+  reference is one more to keep in step. A rule file with no `paths` loads in every session and
+  in the project's subagents, and one with `paths` for the files they match. A file that loads in
+  every session holds only what a session must do before any skill loads.
 - In instruction text, read a script, a hook or a file before you state what it does.
