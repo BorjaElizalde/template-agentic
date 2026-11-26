@@ -25,8 +25,10 @@ changed. A stack template takes this template in four steps:
    Renovate's Copier manager moves in an update PR. It also brings the `Branch protection` workflow
    and the `Gate` workflow, whose `gate` job runs the stack template's own `make gate`. So put
    what that `make gate` needs on the runner in `.github/actions/gate-setup/action.yaml` at its
-   root, with the contract below. Make its `renovate.json` extend `renovate/base` with no
-   `ignorePaths`, so that Renovate updates the pins of its own CI files.
+   root, with the contract below. Make its `renovate.json` extend `renovate/base`, with
+   `"github-actions": {"ignorePaths": [".github/workflows/gate.yaml"]}`, so that Renovate updates
+   the pins of the stack template's own CI files, and the pins of its copy of the `Gate` workflow
+   arrive in this template's update PR.
 2. Release from the `Build` workflow on each merge to `main`: in the checkout of
    `main`, with a git identity and `contents: write`, clone this repository at the recorded
    version and run `bash <clone>/release.sh <tag>`, which pushes the tag. `GITHUB_TOKEN` may push
