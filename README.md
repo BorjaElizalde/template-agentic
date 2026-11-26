@@ -62,10 +62,10 @@ include this template's:
 include .claude/agentic.mk
 ```
 
-`.claude/agentic.mk` gives `make claude` and `make help`. The stack fragment must describe each
-target on its rule line, as `gate: ## <description>`, for `make help` to list it. It extends a
-target of `agentic.mk` only with a prerequisite or a variable set after the include, never with a
-second recipe.
+`.claude/agentic.mk` gives `make claude`, `make help`, `make rulesets` and `make rulesets-check`.
+The stack fragment must describe each target on its rule line, as `gate: ## <description>`, for
+`make help` to list it. It extends a target of `agentic.mk` only with a prerequisite or a variable
+set after the include, never with a second recipe.
 
 The stack's rules go in its `template/.claude/rules/`, beside the bundled `agentic.md`,
 `conventions.md` and `writing.md`. One of them lists the stack's skipped-check directives and

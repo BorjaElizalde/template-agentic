@@ -118,26 +118,38 @@ marks_the_stale_prs() {
 }
 expect "a push to develop puts a failed up-to-date status on the head of each open PR that lacks its commits, once" marks_the_stale_prs
 export RULESETS="$D/.github/rulesets"
-# This repository's gate-checks.yaml stands in for a stack's, which the README holds to one job,
-# checks. The Branch protection job reports under its id on a PR into staging or main.
+runs_on_prs_into() {  # runs_on_prs_into <branch> <workflow>: the workflow runs on a PR into the branch
+  uvx --quiet yq -r '.on.pull_request.branches[]' "$2" | grep -x "$1" >/dev/null
+}
+# reported_checks <branch>: the checks a PR into the branch reports, one per line. This repository's
+# gate-checks.yaml stands in for a stack's, which the README holds to one job, checks. The Branch
+# protection job reports under its id on a PR into staging or main, and as up-to-date into develop.
 reported_checks() {
   local caller
-  caller="$(uvx --quiet yq -r '.jobs | to_entries[] | select(.value.uses == "./.github/workflows/gate-checks.yaml") | .key' "$GATE")"
-  uvx --quiet yq -r '.jobs | keys[]' "$ROOT/.github/workflows/gate-checks.yaml" | sed "s#^#$caller / #"
-  uvx --quiet yq -r '.jobs | keys[]' "$BRANCH_PROTECTION"
+  if runs_on_prs_into "$1" "$GATE"; then
+    caller="$(uvx --quiet yq -r '.jobs | to_entries[] | select(.value.uses == "./.github/workflows/gate-checks.yaml") | .key' "$GATE")"
+    uvx --quiet yq -r '.jobs | keys[]' "$ROOT/.github/workflows/gate-checks.yaml" | sed "s#^#$caller / #"
+  fi
+  if [ "$1" != develop ] && runs_on_prs_into "$1" "$BRANCH_PROTECTION"; then
+    uvx --quiet yq -r '.jobs | keys[]' "$BRANCH_PROTECTION"
+  fi
 }
 requires_reported_checks() {
-  local unreported
-  unreported="$(jq -r '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context' \
-    "$RULESETS"/*.json | LC_ALL=C sort -u | LC_ALL=C comm -23 - <(reported_checks | LC_ALL=C sort -u))"
-  [ -z "$unreported" ] || { printf 'FAIL no workflow reports %s\n' "$unreported"; return 1; }
+  local file branch unreported
+  for file in "$RULESETS"/*.json; do
+    branch="$(jq -r '.conditions.ref_name.include[0] | ltrimstr("refs/heads/")' "$file")"
+    unreported="$(jq -r '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context' \
+      "$file" | LC_ALL=C sort -u | LC_ALL=C comm -23 - <(reported_checks "$branch" | LC_ALL=C sort -u))"
+    [ -z "$unreported" ] || { printf 'FAIL no workflow reports %s on a PR into %s\n' "$unreported" "$branch"; return 1; }
+  done
 }
-expect "each check a ruleset requires is one that the Gate or Branch protection workflow reports" requires_reported_checks
+expect "each check a ruleset requires is one that the Gate or Branch protection workflow reports on a PR into its branch" \
+  requires_reported_checks
 expect "settings.json asks before make rulesets, with or without arguments, and not before make rulesets-check" \
   jq -e '.permissions.ask == ["Bash(make rulesets *)"]' "$D/.claude/settings.json"
-# A stub gh: GitHub holds Develop protection with its rules in another order, and Staging protection
-# without branch-protection, and lacks Main protection; with NO_RULESETS, it refuses as on a plan
-# with no rulesets. Calls are logged.
+# A stub gh: GitHub holds Develop protection with its rules in another order, Staging protection
+# without branch-protection, and Old protection, which no file holds, and lacks Main protection;
+# with NO_RULESETS, it refuses as on a plan with no rulesets. Calls are logged.
 export STUB_RULESETS="$OUT/rulesets"
 mkdir -p "$STUB_RULESETS/bin"
 cat >"$STUB_RULESETS/bin/gh" <<'EOF'
@@ -146,10 +158,11 @@ echo "$*" >>"$STUB_RULESETS/calls"
 [ -z "${NO_RULESETS:-}" ] ||
   { echo 'gh: Upgrade to GitHub Pro or make this repository public to enable this feature. (HTTP 403)' >&2; exit 1; }
 case "$*" in
-  "api repos/{owner}/{repo}/rulesets --jq .[].id") printf '1\n2\n' ;;
+  "api repos/{owner}/{repo}/rulesets?includes_parents=false --jq .[].id") printf '1\n2\n3\n' ;;
   "api repos/{owner}/{repo}/rulesets/1") jq '{id: 1, created_at: "2026-11-06"} + . | .rules |= reverse' "$RULESETS/develop.json" ;;
   "api repos/{owner}/{repo}/rulesets/2") jq '{id: 2} + . | (.rules[] | select(.type == "required_status_checks")
     | .parameters.required_status_checks) |= map(select(.context != "branch-protection"))' "$RULESETS/staging.json" ;;
+  "api repos/{owner}/{repo}/rulesets/3") jq '{id: 3} + . | .name = "Old protection"' "$RULESETS/main.json" ;;
   "api -X POST repos/{owner}/{repo}/rulesets --input "*" --silent") ;;
   "api -X PUT repos/{owner}/{repo}/rulesets/2 --input "*" --silent") ;;
   *) exit 64 ;;
@@ -166,9 +179,13 @@ checks_each_ruleset() {
     grep -qx 'Develop protection: matches' "$STUB_RULESETS/out" &&
     grep -qx 'Staging protection: differs' "$STUB_RULESETS/out" &&
     grep -qxF -e '-            "context": "branch-protection"' "$STUB_RULESETS/out" &&
-    grep -qx 'Main protection: missing' "$STUB_RULESETS/out"
+    grep -qx 'Main protection: missing' "$STUB_RULESETS/out" &&
+    grep -qx 'Old protection: not in .github/rulesets/' "$STUB_RULESETS/out"
 }
-expect "make rulesets-check says which ruleset matches, differs with its diff, or is missing, fails, and changes nothing" checks_each_ruleset
+expect "make rulesets-check says which ruleset matches, differs with its diff, is missing, or is in no file, fails, and changes nothing" \
+  checks_each_ruleset
+refuses_another_argument() { ! rulesets --chek && [ ! -e "$STUB_RULESETS/calls" ] && grep -q '^usage: ' "$STUB_RULESETS/out"; }
+expect "apply.sh refuses an argument other than --check before it calls GitHub" refuses_another_argument
 applies_each_difference() {
   rulesets && [ "$(writes)" = "$(printf '%s\n' 'api -X POST repos/{owner}/{repo}/rulesets main.json --silent' \
     'api -X PUT repos/{owner}/{repo}/rulesets/2 staging.json --silent')" ]
