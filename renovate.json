@@ -1,5 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Renovate updates the template's CI files here, and this repository's copies of them in the same PR, so it takes the shared rules without the list of the templates' CI files.",
-  "extends": ["github>BorjaElizalde/template-agentic//renovate/base"]
+  "description": "Renovate updates the template's CI files here, and this repository's copies of them in the same PR, so it takes the shared rules without the list of the templates' CI files. Its github-actions manager also reads the template's workflow files that end in .jinja, which its default patterns miss.",
+  "extends": ["github>BorjaElizalde/template-agentic//renovate/base"],
+  "github-actions": {
+    "managerFilePatterns": ["template/.github/workflows/*.yaml.jinja"]
+  }
 }

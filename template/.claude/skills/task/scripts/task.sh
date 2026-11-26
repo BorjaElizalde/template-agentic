@@ -327,7 +327,7 @@ pr_line() {
 	gh pr list --head "$1" --state all --json number,state,isDraft,statusCheckRollup | jq -r '
 		if length == 0 then "no PR" else .[0]
 		| [.statusCheckRollup // [] | group_by([.workflowName, .name, .context])[] | max_by(.startedAt)
-			| {gate: (.workflowName == "Gate" and (.name | startswith("gate / "))),
+			| {gate: (.workflowName == "Gate" and .name == "gate"),
 				conclusion: (if .__typename == "StatusContext" then .state
 					elif .status == "COMPLETED" then .conclusion else "PENDING" end)}] as $c
 		| "PR #\(.number) \(if .isDraft then "draft" else .state | ascii_downcase end), "

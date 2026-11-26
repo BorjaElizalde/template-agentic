@@ -428,8 +428,8 @@ echo "$ISSUE11/backend $LISTED_PID idle" >"$TASK_TEST_STATE/running"
 transcript "$ISSUE11/backend" old 200001010000
 transcript "$ISSUE11/backend"
 PENDING='{"__typename": "CheckRun", "name": "gate", "status": "IN_PROGRESS", "conclusion": ""}'
-PASSED='{"__typename": "CheckRun", "name": "gate / checks", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SUCCESS"}'
-GATE_SKIPPED='{"__typename": "CheckRun", "name": "gate / checks", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SKIPPED"}'
+PASSED='{"__typename": "CheckRun", "name": "gate", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SUCCESS"}'
+GATE_SKIPPED='{"__typename": "CheckRun", "name": "gate", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SKIPPED"}'
 READ_DRAFT='{"__typename": "CheckRun", "name": "read-draft", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-01-01T00:00:10Z"}'
 READ_DRAFT_CANCELLED='{"__typename": "CheckRun", "name": "read-draft", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "CANCELLED", "startedAt": "2026-01-01T00:00:00Z"}'
 OTHER_GATE='{"__typename": "CheckRun", "name": "gate", "workflowName": "Lint", "status": "COMPLETED", "conclusion": "SUCCESS"}'

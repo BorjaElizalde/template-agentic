@@ -36,7 +36,7 @@ run() {  # run <name> <workflow> <status> <conclusion> [<started at>]
     "$1" "$2" "$3" "$4" "${5:-}"
 }
 ctx() { printf '{"__typename":"StatusContext","context":"%s","state":"%s"}' "$1" "$2"; }
-GATE="$(run 'gate / checks' Gate COMPLETED SUCCESS)"
+GATE="$(run gate Gate COMPLETED SUCCESS)"
 pr_json() {  # pr_json <base> <head> <checks>
   printf '{"baseRefName":"%s","headRefName":"%s","headRefOid":"%s","url":"https://github.com/%s/pull/%s","statusCheckRollup":[%s]}\n' \
     "$1" "$2" "$H" "${repo:-acme/app}" "${pr:-1}" "$3"
@@ -51,7 +51,7 @@ case "$pr" in
   "") pr_json feat/x fix/y "$GATE" ;;
   # The opt-in cases' PRs into develop, each with its checks.
   21) pr_json develop feat/x "$(run read-draft Gate COMPLETED SUCCESS),$GATE,$(run docs Docs COMPLETED SKIPPED),$(ctx legacy/ci SUCCESS)" ;;
-  22) pr_json develop feat/x "$(run 'gate / checks' Gate IN_PROGRESS '')" ;;
+  22) pr_json develop feat/x "$(run gate Gate IN_PROGRESS '')" ;;
   23) pr_json develop feat/x "$(run lint Lint COMPLETED SUCCESS)" ;;
   24) pr_json develop feat/x "$GATE,$(run test Test COMPLETED FAILURE)" ;;
   25) pr_json develop feat/x "$GATE,$(ctx legacy/ci PENDING)" ;;
@@ -59,8 +59,8 @@ case "$pr" in
   27) pr_json develop feat/x "$GATE,$(run test Test COMPLETED '')" ;;
   28) pr_json develop feat/x "$GATE,$(run up-to-date 'Branch protection' COMPLETED SUCCESS),$(ctx up-to-date FAILURE)" ;;
   29) pr_json develop feat/x "$(run gate Lint COMPLETED SUCCESS)" ;;
-  30) pr_json develop feat/x "$(run 'gate / checks' Gate COMPLETED SKIPPED)" ;;
-  31) pr_json develop feat/x "$(run read-draft Gate COMPLETED SUCCESS),$(run 'gate / checks' Gate COMPLETED SKIPPED)" ;;
+  30) pr_json develop feat/x "$(run gate Gate COMPLETED SKIPPED)" ;;
+  31) pr_json develop feat/x "$(run read-draft Gate COMPLETED SUCCESS),$(run gate Gate COMPLETED SKIPPED)" ;;
   32) pr_json develop feat/x "$(run read-draft Gate COMPLETED SUCCESS 2026-01-01T00:00:10Z),$(run read-draft Gate COMPLETED CANCELLED 2026-01-01T00:00:00Z),$GATE" ;;
   *) exit 1 ;;
 esac
@@ -177,8 +177,9 @@ t 0 "local merge into a feature branch" 'git merge origin/develop'
 t 2 "without agent_merges, a green pinned squash is still the owner's" "gh pr merge 21 --squash --match-head-commit $H"
 
 echo "-- agent_merges: the agent's own PR into develop, squashed, pinned to a head whose every check"
-echo "   passed with a gate / … check among them (PR 21 green; 22 gate running; 23 no gate; 24 a check"
-echo "   failed; 25 a status pending; 26 no checks; 27 a check completed with no conclusion;"
+echo "   passed with the Gate workflow's gate check among them (PR 21 green; 22 gate running;"
+echo "   23 no gate; 24 a check failed; 25 a status pending; 26 no checks; 27 a check completed with"
+echo "   no conclusion;"
 echo "   28 develop moved on after its checks passed; 29 a check named gate from another workflow;"
 echo "   30 gate skipped; 31 gate skipped where the Gate workflow's read-draft passed;"
 echo "   32 read-draft passed in a later run than the one that cancelled it; 16 bugfix→staging)"

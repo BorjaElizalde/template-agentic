@@ -75,15 +75,17 @@ GATE="$D/.github/workflows/gate.yaml"
 BRANCH_PROTECTION="$D/.github/workflows/branch-protection.yaml"
 expect "the Gate and Branch protection workflows are valid workflows" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows \
   "$GATE" "$BRANCH_PROTECTION"
-expect "the Gate workflow calls the stack's checks, never make" bash -c "
-  [ \"\$(uvx --quiet yq -r '.jobs.gate.uses' '$GATE')\" = ./.github/workflows/gate-checks.yaml ] &&
-  ! grep -v '^[[:space:]]*#' '$GATE' | grep -qw make"
-# A skipped job that calls a workflow reports only as gate, never as the gate / <job> a ruleset requires.
-expect "the Gate workflow skips a draft through the checks' skip input, and runs when one is marked ready" bash -c "
-  grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' '$GATE' &&
-  [ \"\$(uvx --quiet yq -r '.jobs.gate.if' '$GATE')\" = null ] &&
-  [ \"\$(uvx --quiet yq -r '.jobs.gate.needs' '$GATE')\" = read-draft ] &&
-  uvx --quiet yq -r '.jobs.gate.with.skip' '$GATE' | grep -qF '\${{ needs.read-draft.outputs.draft'"
+runs_make_gate() {  # the gate job's steps, each as its action without the pin, or as its command
+  [ "$(uvx --quiet yq -c '[.jobs.gate.steps[] | .uses // .run | sub("@.*"; "")]' "$GATE")" = \
+    '["actions/checkout","./.github/actions/gate-setup","make gate"]' ]
+}
+expect "the gate job checks out the code, runs the stack's gate-setup action, then runs make gate" runs_make_gate
+skips_a_draft() {
+  grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' "$GATE" &&
+    [ "$(uvx --quiet yq -r '.jobs.gate.needs' "$GATE")" = read-draft ] &&
+    uvx --quiet yq -r '.jobs.gate.if' "$GATE" | grep -qF "\${{ !cancelled() && needs.read-draft.outputs.draft != 'true'"
+}
+expect "the gate job skips a draft as read-draft reads it, and runs once one is marked ready, or when read-draft fails" skips_a_draft
 # A stub gh that says PR 7 of acme/app is a draft, and fails on any other call.
 READ_DRAFT="$OUT/read-draft"
 mkdir -p "$READ_DRAFT/bin"
@@ -150,12 +152,13 @@ expect "the project's renovate.json is the pointer to the project preset only" j
   and .extends == ["github>BorjaElizalde/template-agentic//renovate/default"]' "$D/renovate.json"
 expect "the project preset is the shared rules, with Renovate off the template's CI files" jq -e '
   .extends == ["github>BorjaElizalde/template-agentic//renovate/base"]
-  and (.["github-actions"].ignorePaths | index(".github/workflows/gate-checks.yaml") != null)' \
+  and (.["github-actions"].ignorePaths
+    | index(".github/workflows/gate.yaml") != null and index(".github/actions/gate-setup/**") != null)' \
   "$ROOT/renovate/default.json"
-expect "this repository takes the shared rules only, so Renovate keeps its own CI files' pins current" jq -e \
-  '.extends == ["github>BorjaElizalde/template-agentic//renovate/base"] and (has("github-actions") | not)' \
+expect "this repository takes the shared rules, and Renovate reads the template's .jinja workflows too, so it keeps every CI file's pins current" jq -e '
+  .extends == ["github>BorjaElizalde/template-agentic//renovate/base"]
+  and .["github-actions"] == {managerFilePatterns: ["template/.github/workflows/*.yaml.jinja"]}' \
   "$ROOT/renovate.json"
-expect "the release skill doesn't say CI runs make gate" bash -c "! grep -q 'make gate' '$D/.claude/skills/release/SKILL.md'"
 X="$OUT/existing"
 mkdir -p "$X"
 printf '{"extends": ["config:base"]}\n' >"$X/renovate.json"
