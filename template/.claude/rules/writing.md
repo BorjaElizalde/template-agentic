@@ -41,8 +41,9 @@ what it holds; these rules say how to write it.
   change.
 - In instruction text, say each rule once, in the file that does its step, and name that file
   from elsewhere. Where that file already loads for the same files, leave out its name and any
-  line that only reminds the reader of the rule. The reader has the rule there already, and each
-  reference is one more to keep in step. A rule file with no `paths` loads in every session and
-  in the project's subagents, and one with `paths` for the files they match. A file that loads in
-  every session holds only what a session must do before any skill loads.
+  line that only reminds the reader of the rule. The reader already has the rule, and each
+  reference is one more line to update when the rule changes. A rule file without `paths` loads
+  in every session and in the project's subagents. A rule file with `paths` loads when Claude
+  reads, writes or edits a file that its `paths` match. A file that loads in every session holds
+  only what a session must do before any skill loads.
 - In instruction text, read a script, a hook or a file before you state what it does.
