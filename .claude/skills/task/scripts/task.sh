@@ -320,10 +320,12 @@ cleanup() {
 	done
 }
 
-# "PR #<n> <state>, <checks>" of the newest PR from branch $1, else "no PR". The checks passed as
-# the merge guard reads them: each one succeeded, or was neutral or skipped, and a check of the
-# Gate workflow succeeded among them. A failure outweighs a pending check, and a pending check
-# outweighs a gate not run, since it may be the gate running.
+# "PR #<n> <state>, <checks>" of the newest PR from branch $1, else "no PR". The checks passed when
+# each one succeeded, or was neutral or skipped, and a check of the Gate workflow succeeded among
+# them. The merge guard also asks for the head's newest Gate run, which costs a status line one
+# more call per PR: without it, the line can read passed for the second before the Gate's checks
+# start. A failure outweighs a pending check, and a pending check outweighs a gate not run, since
+# it may be the gate running.
 pr_line() {
 	gh pr list --head "$1" --state all --json number,state,isDraft,statusCheckRollup | jq -r '
 		if length == 0 then "no PR" else .[0]
