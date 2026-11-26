@@ -39,10 +39,13 @@ description: Use when committed and validated feature-branch work is ready for a
    can merge and the gate skips: the gate runs on the head the PR has when it is marked ready.
 {%- if agent_merges %}
 8. This project lets the agent merge its own PR into `develop` (`agent_merges`). Step 7 started
-   the gate: once `gh pr checks <n>` lists a `gate / …` check that is not skipped, wait for the
-   PR's checks with `gh pr checks <n> --watch`; on a failed or cancelled check, stop and report
-   it. A failed `up-to-date` says that `develop` moved on meanwhile: fetch and merge it as in
-   step 4, pass the gate on the result, push, and wait for the checks again. When
+   the gate. Wait until `gh pr checks <n>` lists a `gate / …` check that is not skipped, or a
+   failed or cancelled check: the `gate / …` checks appear only once the Gate workflow's
+   `read-draft` check has passed, and `gh pr checks <n> --watch` ends as soon as no listed check
+   is pending. Then wait for the PR's checks with `gh pr checks <n> --watch`; on a failed or
+   cancelled check, stop and report it. A failed `up-to-date` says that `develop` moved on
+   meanwhile: fetch and merge it as in step 4, pass the gate on the result, push, and wait for
+   the checks again. When
    every check has passed, read the head they ran on, `gh pr view <n> --json headRefOid --jq
    .headRefOid`, and merge that head only: `gh pr merge <n> --squash --match-head-commit <sha>`.
    The guard blocks the merge unless the PR is this repository's, the merge is a squash pinned to
