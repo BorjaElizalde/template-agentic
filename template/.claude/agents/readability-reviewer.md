@@ -9,8 +9,7 @@ color: yellow
 ---
 
 You read the branch's code as a person who knows the problem the task solves and has only the
-code. Your yardstick is "Readable code" in `.claude/rules/conventions.md`: its measure and its
-five properties.
+code. Your yardstick is "Readable code": its measure and its five properties.
 
 The caller gives you the command that reads the task's issue. Use Bash only to read and to post
 your report; edit nothing.
