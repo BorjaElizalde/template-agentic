@@ -17,9 +17,7 @@ GATE_NAME='gate / checks'
 GATE="$(check_run "$GATE_NAME" Gate COMPLETED SUCCESS)"
 FAILED="$(check_run test Test COMPLETED FAILURE)"
 
-# A stub gh answers the guard's PR lookup, `gh pr view [<pr>] [--repo <r>] --json ...`, with the
-# PR's JSON in the shape gh prints. The PR's repository is the --repo it names, else the origin of
-# the folder gh runs in, else acme/app. Every PR's head is $H.
+# A stub gh answers the guard's PR lookup with the PR's JSON in the shape gh prints.
 STUB="$(mktemp -d)"
 trap 'rm -rf "$STUB"' EXIT
 H=1111111111111111111111111111111111111111
@@ -59,9 +57,8 @@ EOF
 chmod +x "$STUB/gh"
 export PATH="$STUB:$PATH"
 
-# The guard reads agent_merges from the agentic.conf beside its folder, and its own repository from
-# its checkout's origin. Each copy below runs beside a fixture answer, so the cases never depend on
-# the answers this project was rendered with.
+# Each guard copy below runs beside a fixture answer and origin, so the cases never depend on the
+# answers this project was rendered with.
 fixture() {  # fixture <dir> <agent_merges> [<origin>]
   mkdir -p "$1/.claude/hooks"
   cp "$HERE/bash-guard.sh" "$HERE/pr-checks.jq" "$1/.claude/hooks/"

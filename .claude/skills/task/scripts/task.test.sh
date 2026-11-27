@@ -3,12 +3,7 @@
 # Regression suite for task.sh. Run from any checkout: bash .claude/skills/task/scripts/task.test.sh
 # Two clones of one throwaway origin, named backend and frontend, stand in for two repositories,
 # each with a real tmux server of its own on a private socket folder.
-# Stub gh answers issue state and title, labels, blockers and comments, the open issues, and PRs,
-# from files under $TASK_TEST_STATE, keeps the labels, the comments and the pin it is given there,
-# and can't answer while $TASK_TEST_STATE/gh-down exists; stub window-shell is each tmux window's
-# shell; stub claude lists the sessions of $TASK_TEST_STATE/running whose process still runs, and
-# a session it launches keeps its arguments and runs in its window until it is killed or its window
-# closes; stub sleep waits a tenth of a second, as a window's shell takes real time to start.
+# Stub sleep waits a tenth of a second, as a window's shell takes real time to start.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(cd "$(mktemp -d)" && pwd -P)"
@@ -42,9 +37,6 @@ title() {
   esac
 }
 state() { cat "issue-$1" 2>/dev/null || echo OPEN; }
-# Issue $1 as JSON: its number and title, its labels, one per line of labels-<n>, its comments,
-# each with its URL, and the issues it is blocked by, one number per line of blocked-by-<n>, each
-# in the state its issue-<n> file gives.
 issue() {
   local blockers comments
   blockers=$(for m in $(cat "blocked-by-$1" 2>/dev/null); do echo "$m $(state "$m")"; done)
@@ -62,7 +54,6 @@ comment_url() { echo "https://github.com/acme/tasks/issues/${1%???}#issuecomment
 case "$1 $2" in
   "issue view")
     title "$3" >/dev/null || exit 1
-    # --json state,title asks for "<STATE> <title>", as its -q prints it; any other --json, for the issue.
     if [ "$7" = state,title ]; then echo "$(state "$3") $(title "$3")"; else issue "$3"; fi ;;
   "issue list")
     # The open issues, newest first, as gh lists them for --state open.
@@ -86,8 +77,6 @@ case "$1 $2" in
     # --force updates a label that exists, so the repository lists it once.
     grep -qxF "$3" "$TASK_TEST_STATE/repo-labels" 2>/dev/null || echo "$3" >>"$TASK_TEST_STATE/repo-labels" ;;
   "api -X")
-    # PATCH gives a comment the text of -f body=<text>, and PUT of its /pin makes it its issue's
-    # one pinned comment, which pinned-<n> names.
     id=${4#repos/acme/tasks/issues/comments/}
     case "$3 $id" in
       "PATCH "*) printf '%s' "${6#body=}" >"comment-$id" ;;
@@ -96,7 +85,6 @@ case "$1 $2" in
     esac ;;
   "pr list")
     while [ $# -gt 0 ]; do case "$1" in --head) branch=$2 ;; --state) state=$2 ;; esac; shift; done
-    # --state merged asks whether a PR from the branch merged; --state all, for its newest PR.
     if [ "$state" = merged ]; then
       grep -qxF "$branch" "$TASK_TEST_STATE/merged" 2>/dev/null && echo 1
     else
@@ -114,13 +102,8 @@ cat >"$WORK/bin/window-shell" <<'EOF'
 cd() { builtin cd "$@" && export HOOK_FOLDER=$PWD; }
 while IFS= read -r line; do eval "$line"; done
 EOF
-# claude agents --json, as Claude Code prints it. Each line of $TASK_TEST_STATE/running,
-# "<folder> <pid> [<status>]", is a background session, then an interactive one, busy unless the
-# line says else, listed while its process runs. While $TASK_TEST_STATE/claude-down exists, it
-# can't answer. Any other call launches a session, which fails while $TASK_TEST_STATE/no-start
-# exists, else adds its folder and pid to running: its arguments go to $TASK_TEST_STATE/launched,
-# each ended by a NUL, since the system prompt spans lines, and joined on one line of launches; its
-# pid to claude-pid; the folder its window's hook exported to hook-folder.
+# claude agents --json, as Claude Code prints it; any other call launches a session. A launch's
+# arguments each end in a NUL, since the system prompt spans lines.
 cat >"$WORK/bin/claude" <<'EOF'
 #!/usr/bin/env bash
 if [ "$*" != "agents --json" ]; then
@@ -186,10 +169,7 @@ sessions_exit() {  # every running session exits, and its window closes; each re
 }
 launched() { jq -e -Rs 'split("\u0000")[:-1] | '"$1" "$TASK_TEST_STATE/launched"; }  # launched <jq filter>: over the last launch's arguments
 launched_arg() { launched ".[index(\"$1\") + 1]" | jq -r .; }  # the value the launch gave option $1
-# launches_in execution|design: the session last opened launches in that mode. Every session has its
-# permission prompts denied, no question tool, and the words both modes share, then its mode's own,
-# as the system prompt it appends. Only an execution session has a Stop hook. claude --settings
-# reads a file or a JSON string.
+# launches_in execution|design: the session last opened launches in that mode.
 launches_in() {
   local settings
   settings="$(launched_arg --settings)"
@@ -198,8 +178,7 @@ launches_in() {
     [ "$(launched_arg --append-system-prompt)" = "$(cat "$SESSION/prompt.md" "$SESSION/$1.md")" ] &&
     jq -e --arg mode "$1" '.hooks | has("Stop") == ($mode == "execution")' <<<"$settings"
 }
-# The session last opened runs claude interactively, with no -p or --print, as its window's only
-# process: claude is the process tmux started in the window's pane.
+# The session last opened runs claude interactively, as its window's only process.
 interactive() {
   launched 'all(.[]; . != "-p" and . != "--print")' &&
     tmux -L backend list-panes -a -F '#{pane_pid}' | grep -qxF "$(cat "$TASK_TEST_STATE/claude-pid")"

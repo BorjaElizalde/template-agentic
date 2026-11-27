@@ -46,7 +46,7 @@ kept" settles nothing: say why the thing is needed, or build an alternative with
 
 Present a design only when it is a clear win over the plan's and you are sure of it: it meets
 every requirement of the issue, it is smaller than the plan's design, and the path from the plan
-to it is clear. That may be the design from step 2, one aimed at what the comparison or the screen
+to it is clear. That may be your own design, one aimed at what the comparison or the screen
 found, several designs or none. Leave out a design that is only different, one whose gain is
 small and one you can't prove: never present a design to fill the report.
 
