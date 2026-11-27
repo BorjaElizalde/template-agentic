@@ -557,7 +557,9 @@ run_in "$BACKEND" bar
 check "a task that needs attention is stalled, every other one runs, and one stalled task needs the owner" \
   test "$(cat "$WORK/out")" = '🛑 #11 · ⏳ #13 #15 #19 #23 #24 · 1 needs you'
 check "the main session marks a PR ready to merge" run_in "$BACKEND" mark 11 🟢
-check "which prints how many tasks need the owner, the table, those that need the owner first, a ✓ under each step done and the mark at the step the task is at, then the legend" \
+check "and prints nothing"                     test ! -s "$WORK/out"
+run_in "$BACKEND" reply
+check "the reply's lines: how many tasks need the owner, then the table, those that need the owner first, a ✓ under each step done and the mark at the step the task is at, then the legend" \
   test "$(cat "$WORK/out")" = "$(printf '%s\n\n' '1 thing needs you.'
     printf '%44s%s\n' '' 'plan    build   review  merge'
     printf '%-44s%s\n' '#11 Task 11' '✓       ✓       ✓       🟢' '#13 Task 13' '✓       ⏳' '#15 Task 15' '⏳' \
@@ -568,7 +570,7 @@ check "the bar gives the same marks"           test "$(cat "$WORK/out")" = '🟢
 transcript "$ISSUE11/backend"
 run_in "$BACKEND" bar
 check "a mark lapses once its session writes"  test "$(cat "$WORK/out")" = '⏳ #11 #13 #15 #19 #23 #24 · 0 need you'
-run_in "$BACKEND" mark
+run_in "$BACKEND" reply
 check "and the reply then opens with nothing that needs the owner" test "$(head -n 1 "$WORK/out")" = 'Nothing needs you. 6 tasks are running.'
 transcript "$ISSUE11/backend" session 200001010000
 task "$BACKEND" mark 11 🟢 >/dev/null
@@ -591,12 +593,12 @@ run_in "$BACKEND" bar
 check "a task whose issue closed leaves the bar" test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #15 #19 #24 · 2 need you'
 run_in "$FRONTEND" bar
 check "where no task is in progress, the bar says only that nothing needs the owner" test "$(cat "$WORK/out")" = '0 need you'
-run_in "$FRONTEND" mark
+run_in "$FRONTEND" reply
 check "and the reply says so, with no table"   test "$(cat "$WORK/out")" = 'Nothing needs you. 0 tasks are running.'
 touch "$TASK_TEST_STATE/gh-down"
 run_in "$BACKEND" bar
 check "a bar whose read of the tasks fails says so, and gives no count" test "$(cat "$WORK/out")" = 'The bar could not read the tasks.'
-check "a mark whose read fails fails, and prints no table" bash -c "! (cd '$BACKEND' && bash .claude/skills/task/scripts/task.sh mark) >'$WORK/out' 2>&1 && test ! -s '$WORK/out'"
+check "and a reply whose read fails fails, and prints nothing" bash -c "! (cd '$BACKEND' && bash .claude/skills/task/scripts/task.sh reply) >'$WORK/out' 2>&1 && test ! -s '$WORK/out'"
 rm "$TASK_TEST_STATE/gh-down"
 
 echo "-- usage"

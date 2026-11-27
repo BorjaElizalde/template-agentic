@@ -3,7 +3,7 @@
 # The task lifecycle: one issue, one worktree, one session.
 set -euo pipefail
 
-usage="usage: task.sh start <issue> [type] | finish <issue> | park <issue> <reason> | plan <issue> <file> | cleanup | status | mark [<issue> 🟢|💬]... | bar | on-session-start | point-memory"
+usage="usage: task.sh start <issue> [type] | finish <issue> | park <issue> <reason> | plan <issue> <file> | cleanup | status | mark [<issue> 🟢|💬]... | reply | bar | on-session-start | point-memory"
 
 CALLER=$(pwd -P)
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -413,7 +413,7 @@ MARK_JQ='
 		| map(capture("^(?<issue>[0-9]+) (?<mark>[^ ]+) (?<steps>[0-9]) (?<title>.*)$") | .issue |= tonumber | .steps |= tonumber)
 		| sort_by(rank, .issue);
 	def need: map(select(.mark != "⏳")) | length;
-	def count(one; many): "\(.) \(if . == 1 then one else many end)";
+	def number_with(one; many): "\(.) \(if . == 1 then one else many end)";
 '
 LEGEND='🟢 PR ready to merge · 💬 your answer · 🛑 stalled · ⏳ running'
 
@@ -477,27 +477,29 @@ bar() {
 	fi
 	printf '%s' "$tasks" | jq -Rrs "$MARK_JQ"'
 		tasks | [group_by(rank)[] | "\(.[0].mark) \(map("#\(.issue)") | join(" "))"]
-			+ ["\(need | count("needs"; "need")) you"]
+			+ ["\(need | number_with("needs"; "need")) you"]
 		| join(" · ")'
 }
 
-# The lines the reply takes from the marks: how many tasks need the owner; a table with a row per
-# task, in the bar's order, a ✓ under each step done and the mark under the step the task is at;
-# and the legend.
-reply_lines() {
+# The lines the status reply takes from the marks: how many tasks need the owner; the table, a row
+# per task in the bar's order, with a ✓ under each step done and the mark under the step the task
+# is at; and the legend.
+reply() {
 	local tasks
 	tasks=$(set -e; open_tasks)
 	printf '%s' "$tasks" | jq -Rrs --arg legend "$LEGEND" "$MARK_JQ"'
+		def cell: . + " " * (8 - length);
+		def table: map(.label = "#\(.issue) \(.title)") | (map(.label | length) | max + 3) as $width
+			| " " * $width + (["plan", "build", "review", "merge"] | map(cell) | join("") | sub(" +$"; "")),
+				(.[] | .label + " " * ($width - (.label | length)) + ("✓" | cell) * .steps + .mark);
 		tasks | need as $need
-		| if $need == 0 then "Nothing needs you. \(length | count("task is"; "tasks are")) running."
-			else "\($need | count("thing needs"; "things need")) you." end,
-		(select(. != []) | map(.label = "#\(.issue) \(.title)") | (map(.label | length) | max + 3) as $width
-			| "", " " * $width + "plan    build   review  merge",
-				(.[] | .label + " " * ($width - (.label | length)) + "✓       " * .steps + .mark),
-				"", $legend)'
+		| if $need == 0 then "Nothing needs you. \(length | number_with("task is"; "tasks are")) running."
+			else "\($need | number_with("thing needs"; "things need")) you." end,
+			(select(. != []) | "", table, "", $legend)'
 }
 
 # mark [<issue> 🟢|💬]...: the marks the main session gives, which replace those it gave before.
+# The bar shows them at once.
 mark() {
 	local worktree pr given=
 	SESSIONS=$(claude agents --json)
@@ -511,7 +513,6 @@ mark() {
 	[ $# -eq 0 ] || die "$usage"
 	printf '%s' "$given" >"$MARKS_FILE"
 	refresh_bar
-	reply_lines
 }
 
 # Each terminal attached to the repository's tmux runs the bar's command again. Where no tmux runs,
@@ -540,6 +541,7 @@ plan) [ $# -ge 3 ] || die "$usage"; plan "$2" "$3" ;;
 cleanup) cleanup ;;
 status) status ;;
 mark) shift; mark "$@" ;;
+reply) reply ;;
 bar) bar ;;
 on-session-start) on_session_start ;;
 point-memory) point_memory "$CHECKOUT" && echo "✓ auto memory points at $CHECKOUT/.claude/memory" ;;
