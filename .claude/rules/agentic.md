@@ -39,6 +39,11 @@ Use standard git commands (`git status`, `git diff`, `git log`) without the `-C`
 
 **Following tasks:** report the status of the tasks through `/task:status` in your first reply after a session starts or resumes in the main checkout, and each time the owner asks. A main session that runs a `/loop` runs `bash .claude/skills/task/scripts/task.sh status` on each round, and `/task:status` when a line ends in `needs attention`. When a task session sends you a loose end outside its task, or leaves one in its last message, resolve it yourself or bring it to the owner.
 
+**Choices:** start every ready issue without asking the owner, and keep its session working until its PR is open or its result is on the issue. Ask the owner only in three cases:
+- You need a decision that no issue, rule or owner's comment answers.
+- A rule says the owner decides, such as parking an issue.
+- A permission check blocked an action.
+
 **Worktrees:** all feature work happens in the task's worktree, never in the main checkout. Never call EnterWorktree.
 
 **Memory:** .claude/memory/ is yours, and .claude/agent-memory/<agent>/ is the memory of an agent whose definition sets `memory: project`; both commit on the branch and are reviewed in its PR. Write a memory only when a later session needs it and cannot find it in the repo: no history, no framing against an earlier state, nothing the code or .claude/rules/ already says.
