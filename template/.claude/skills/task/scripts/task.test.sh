@@ -162,6 +162,10 @@ closes() {  # closes <repository> <window>: that window of the repository's tmux
   done
   return 1
 }
+listed_as() {  # listed_as <folder> <status>: the session that runs in that folder is listed with that status
+  awk -v folder="$1" -v status="$2" '$1 == folder { $3 = status } 1' "$TASK_TEST_STATE/running" >"$WORK/running" &&
+    mv "$WORK/running" "$TASK_TEST_STATE/running"
+}
 sessions_exit() {  # every running session exits, and its window closes; each repository's main window stays
   local socket
   for socket in "$WORK"/tmux-*/*; do tmux -S "$socket" kill-window -a -t main; done
@@ -536,6 +540,56 @@ check "and pins it again, where the pin was lost" test "$(cat "$TASK_TEST_STATE/
 check "the owner's comment stays as it was"    test "$(cat "$TASK_TEST_STATE/comment-24000")" = "$OWNERS"
 refuses "a file that is not there posts no plan" 'No such file'         "$BACKEND" plan 23 "$WORK/none.md"
 check "not even an empty one"                  test ! -e "$TASK_TEST_STATE/comment-23000"
+
+echo "-- bar and mark: each task under its mark, those that need the owner first"
+# By now 11, 13, 15 and 19 have a task worktree in backend, and issue 24 has a plan.
+check "backend starts issue 23 in design mode" task "$BACKEND" start 23 design
+check "and issue 24 as research"               task "$BACKEND" start 24 research
+listed_as "$ISSUE11/backend" idle
+transcript "$ISSUE11/backend" session 200001010000
+transcript "$ISSUE13/backend"
+check "a plan posted on issue 13"              task "$BACKEND" plan 13 "$WORK/plan.md"
+PASSED='{"__typename": "CheckRun", "workflowName": "Gate", "name": "gate", "status": "COMPLETED", "conclusion": "SUCCESS"}'
+pr_from feat/11-task-11 OPEN false "[$PASSED]"
+pr_from feat/19-task-19 OPEN true "[$PENDING]"
+pr_from design/23-task-23-with-a-title-longer-than-the OPEN false "[$PASSED]"
+run_in "$BACKEND" bar
+check "a task that needs attention is stalled, every other one runs, and one stalled task needs the owner" \
+  test "$(cat "$WORK/out")" = '🛑 #11 · ⏳ #13 #15 #19 #23 #24 · 1 needs you'
+check "the main session marks a PR ready to merge" run_in "$BACKEND" mark 11 🟢
+check "which prints the table, those that need the owner first, a ✓ under each step done and the mark at the step the task is at, then the legend" \
+  test "$(cat "$WORK/out")" = "$(printf '%44s%s\n' '' 'plan    build   review  merge'
+    printf '%-44s%s\n' '#11 Task 11' '✓       ✓       ✓       🟢' '#13 Task 13' '✓       ⏳' '#15 Task 15' '⏳' \
+      '#19 Task 19' '✓       ✓       ⏳' '#23 Task 23, with a title longer than the' '⏳' '#24 Task 24' '✓       ⏳'
+    printf '\n%s\n' '🟢 PR ready to merge · 💬 your answer · 🛑 stalled · ⏳ running')"
+run_in "$BACKEND" bar
+check "the bar gives the same marks"           test "$(cat "$WORK/out")" = '🟢 #11 · ⏳ #13 #15 #19 #23 #24 · 1 needs you'
+transcript "$ISSUE11/backend"
+run_in "$BACKEND" bar
+check "a mark lapses once its session writes"  test "$(cat "$WORK/out")" = '⏳ #11 #13 #15 #19 #23 #24 · 0 need you'
+transcript "$ISSUE11/backend" session 200001010000
+task "$BACKEND" mark 11 🟢 >/dev/null
+check "a new mark replaces those given before" run_in "$BACKEND" mark 23 💬
+run_in "$BACKEND" bar
+check "and each mark is a group of its own"    test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #13 #15 #19 #24 · 2 need you'
+task "$BACKEND" mark 11 🟢 23 💬 >/dev/null
+run_in "$BACKEND" bar
+check "two marks given at once"                test "$(cat "$WORK/out")" = '🟢 #11 · 💬 #23 · ⏳ #13 #15 #19 #24 · 2 need you'
+pr_from feat/11-task-11 OPEN false "[$FAILED]"
+run_in "$BACKEND" bar
+check "a mark lapses once its PR changes, and the others stand" test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #13 #15 #19 #24 · 2 need you'
+refuses "a running mark is the task's state's to give" 'gives 🟢 or 💬, not ⏳' "$BACKEND" mark 15 ⏳
+refuses "a mark for an issue with no task"       'issue 42 has no task in progress' "$BACKEND" mark 42 🟢
+refuses "an issue with no mark"                  '^usage:'              "$BACKEND" mark 23 💬 15
+run_in "$BACKEND" bar
+check "a refused mark leaves the marks given before" test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #13 #15 #19 #24 · 2 need you'
+echo CLOSED >"$TASK_TEST_STATE/issue-13"
+run_in "$BACKEND" bar
+check "a task whose issue closed leaves the bar" test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #15 #19 #24 · 2 need you'
+run_in "$FRONTEND" bar
+check "where no task is in progress, the bar says only that nothing needs the owner" test "$(cat "$WORK/out")" = '0 need you'
+run_in "$FRONTEND" mark
+check "and the table prints nothing"           test ! -s "$WORK/out"
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"
