@@ -15,7 +15,7 @@ description: Use when committed and validated feature-branch work is ready for a
 
 1. Stop on `develop`, `staging`, or `main`; a dirty tree; or an empty diff from `origin/develop`.
 2. Require a current-session green `/gate` result for the current tree fingerprint. Stop if absent.
-3. Look for an open PR with the same head and base: step 6 updates it and creates no duplicate.
+3. Look for an open PR with the same head and base, so that no duplicate opens.
 4. Bring the branch up to date with `git fetch origin develop`, then
    `git merge --no-edit origin/develop`: a PR whose branch lacks `develop`'s newest commits opens
    with a failed `up-to-date` check. When the merge changes the tree or stops on a conflict, stop
@@ -25,7 +25,7 @@ description: Use when committed and validated feature-branch work is ready for a
 6. Read `git diff origin/develop...HEAD` and, when the branch is named `<type>/<n>-<slug>`, its
    task issue: `gh issue view <n> -R BorjaElizalde/template-agentic --json title,body,comments`. Write the
    PR's text as the writing rule in `.claude/rules/` says. Then run
-   `gh pr create --base develop --draft`, or `gh pr edit <n>` on the PR that step 3 found, with an
+   `gh pr create --base develop --draft`, or `gh pr edit <n>` on the open PR, with an
    imperative title (≤72 characters) and a body a person can follow without the diff open:
    - Open with why the PR exists: the problem it solves, or the need behind it.
    - Then say what it changes, in plain prose.

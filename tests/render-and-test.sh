@@ -105,8 +105,6 @@ expect "a gate_paths_ignore answer becomes the Gate workflow's paths-ignore, eac
 expect "the Branch protection job reports as branch-protection on a PR into staging or main, and as up-to-date otherwise" bash -c "
   [ \"\$(uvx --quiet yq -r '.jobs[\"branch-protection\"].name' '$BRANCH_PROTECTION')\" = \
     \"\\\${{ github.event_name == 'pull_request' && github.base_ref != 'develop' && 'branch-protection' || 'up-to-date' }}\" ]"
-# A stub gh: the open PRs' heads are a, b and d, b lacks two of develop's commits, d has its failed
-# status, statuses are logged.
 export UP_TO_DATE="$OUT/up-to-date"
 mkdir -p "$UP_TO_DATE/bin"
 for step in 1 2; do
@@ -224,8 +222,7 @@ help_lists_each_layer() {  # each target of make help, after the file it is list
     { printf 'FAIL make help listed:\n%s\n' "$owners"; return 1; }
 }
 expect "in the copy, bare make lists the targets of its Makefile, the stack fragment and this template's, each under its file" help_lists_each_layer
-# Stand-ins for the programs make claude runs. claude and tmux print their arguments, then each of
-# make's variables in their environment: make's own, and args and prompt from its command line.
+# Stand-ins for the programs make claude runs.
 SI="$OUT/stand-ins"
 mkdir -p "$SI/claude" "$SI/caffeinate" "$SI/tmux" "$SI/env"
 cat >"$SI/claude/claude" <<'EOF'
@@ -291,8 +288,7 @@ expect "bundle.sh refuses a stack template that has its own copy of a file it bu
   mkdir -p '$OUT/clash/template' && cp '$OUT/src/template/renovate.json' '$OUT/clash/template/' && ! bash '$OUT/src/bundle.sh' '$OUT/clash'"
 
 # This repository is a project of its own template: on a copy of the working tree, make render
-# (which the pre-commit hook runs on every commit that changes template/) must leave .claude/ and
-# .github/ as they are.
+# must leave .claude/ and .github/ as they are.
 mkdir -p "$OUT/self"
 (cd "$ROOT" && tar --exclude .git -cf - .) | tar -xf - -C "$OUT/self"
 harness_in_step() {

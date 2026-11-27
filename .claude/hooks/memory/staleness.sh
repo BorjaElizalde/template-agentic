@@ -2,8 +2,7 @@
 # From the agentic template: change the template, not this copy.
 # staleness.sh - deterministic memory-vs-code check.
 #
-# Scope is mechanical and exhaustive on purpose: does every cited path resolve, does every link
-# land, is anything untracked, are there secrets. Judging whether a memory is USEFUL - fluff,
+# Scope is mechanical and exhaustive on purpose. Judging whether a memory is USEFUL - fluff,
 # duplication, whether it earns its place - needs a reader: the memory rule in
 # .claude/rules/ states the test, and the owner reviews memory in the PR. A regex cannot.
 #
