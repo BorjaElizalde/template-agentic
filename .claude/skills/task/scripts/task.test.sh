@@ -2,8 +2,7 @@
 # From the agentic template: change the template, not this copy.
 # Regression suite for task.sh. Run from any checkout: bash .claude/skills/task/scripts/task.test.sh
 # Two clones of one throwaway origin, named backend and frontend, stand in for two repositories,
-# each with a real tmux server of its own on a private socket folder. A submodule of the origin, in
-# a parent repository, stands in for a project that is a submodule.
+# each with a real tmux server of its own on a private socket folder.
 # Stub sleep waits a tenth of a second, as a window's shell takes real time to start.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -541,8 +540,7 @@ refuses "a file that is not there posts no plan" 'No such file'         "$BACKEN
 check "not even an empty one"                  test ! -e "$TASK_TEST_STATE/comment-23000"
 
 echo "-- a project that is a git submodule: its main checkout is the folder that holds its files"
-# git keeps the submodule's data in the parent's .git/modules/api and lists that folder as its main
-# worktree, while the files sit in parent/service.
+# Named api, in parent/service, so the data folder's name differs from the files' folder's.
 PARENT="$WORK/parent"
 SUBMODULE="$PARENT/service"
 ISSUE24="$PARENT/worktrees/24-task-24"
