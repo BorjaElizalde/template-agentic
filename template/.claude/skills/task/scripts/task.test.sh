@@ -281,7 +281,7 @@ ISSUE25="$WORK/repos/worktrees/25-design-the-next-step"
 check "backend starts issue 25 as design"      run_in "$BACKEND" start 25 design
 check "on a design branch"                     test "$(branch_of "$ISSUE25/backend")" = design/25-design-the-next-step
 check "and the start names design mode"        grep -qxF '✓ session opened in design mode: #25 backend: Design the next step' "$WORK/out"
-check "in design mode: no question tool, no Stop hook, permission prompts denied" launches_in design
+check "in design mode: no question tool, none of the session's own Stop hooks, permission prompts denied" launches_in design
 check "and the project's own settings, its Stop hook among them" has_project_settings
 transcript "$ISSUE25/backend"
 sessions_exit
@@ -323,6 +323,11 @@ check "says why, and never that a session opened" bash -c "
   tail -n 1 '$WORK/out' | grep -q '^no session runs in .* 30 seconds after its launch: ' && ! grep -q '^✓ session' '$WORK/out'"
 check "and its window has closed"              closes backend '#26'
 rm "$TASK_TEST_STATE/no-start"
+printf '{bad\n' >"$LONG/.claude/settings.project.json"
+LAUNCHES=$(wc -l <"$TASK_TEST_STATE/launches")
+refuses "a start whose project settings are not JSON fails, and names the file" 'settings\.project\.json' "$LONG" start 26
+check "and launches nothing"                   test "$(wc -l <"$TASK_TEST_STATE/launches")" -eq "$LAUNCHES"
+git -C "$LONG" checkout -q -- .claude/settings.project.json
 
 echo "-- finish: refused while anything would be lost"
 refuses "an open issue does not finish"          'still open'           "$BACKEND" finish 42
