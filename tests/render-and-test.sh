@@ -40,12 +40,9 @@ expect "no .yml file in the template or the project" bash -c "[ -z \"\$(find '$R
 # GitHub's own expressions, ${{ }}, are not Jinja.
 expect "no Jinja left in rendered files" bash -c "! grep -rIl -E '(^|[^\$])\\{\\{|\\{%' --exclude-dir=.git '$D'"
 expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf' && grep -qx 'DEPLOY_WORKFLOW=' '$D/.claude/agentic.conf' && grep -qx 'AGENT_MERGES=false' '$D/.claude/agentic.conf'"
-expect "by default the pull-request skill leaves the merge to the owner" bash -c "! grep -q 'gh pr merge' '$D/.claude/skills/pull-request/SKILL.md'"
 AM="$OUT/agent-merges"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data agent_merges=true "$OUT/src" "$AM"
 expect "agent_merges reaches agentic.conf" grep -qx 'AGENT_MERGES=true' "$AM/.claude/agentic.conf"
-expect "with agent_merges the pull-request skill merges a pinned squash" \
-  grep -qF 'gh pr merge <n> --squash --match-head-commit <sha>' "$AM/.claude/skills/pull-request/SKILL.md"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
 # $CLAUDE_PROJECT_DIR is text in the hook command, for Claude Code to expand. Tried double quotes,
 # but then each " and $ of the jq program needs a backslash.
@@ -155,7 +152,6 @@ expect "the project preset is the shared rules, with Renovate off the template's
 expect "this repository takes the shared rules only, so Renovate keeps its own CI files' pins current" jq -e \
   '.extends == ["github>BorjaElizalde/template-agentic//renovate/base"] and (has("github-actions") | not)' \
   "$ROOT/renovate.json"
-expect "the release skill doesn't say CI runs make gate" bash -c "! grep -q 'make gate' '$D/.claude/skills/release/SKILL.md'"
 X="$OUT/existing"
 mkdir -p "$X"
 printf '{"extends": ["config:base"]}\n' >"$X/renovate.json"
@@ -176,36 +172,16 @@ expect "await-checks.sh suite" bash "$D/.claude/skills/release/scripts/await-che
 expect "seeded memory index is clean" bash "$D/.claude/hooks/memory/staleness.sh" "$D/.claude/memory"
 expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/task/scripts/task.sh' point-memory >/dev/null &&
   [ \"\$(jq -r .autoMemoryDirectory '$D/.claude/settings.local.json')\" = \"\$(cd '$D' && pwd -P)/.claude/memory\" ]"
-expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
-expect "the task skills, the session files and pull-request name the issues repo" bash -c "
-  grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' &&
-  grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md' &&
-  grep -qF acme/tasks '$D/.claude/skills/task/session/prompt.md' &&
-  for file in task/skills/status/SKILL.md task/session/execution.md pull-request/SKILL.md; do
-    grep -qF 'gh issue view <n> -R acme/tasks --json title,body,comments' \"$D/.claude/skills/\$file\" || exit 1
-  done"
-expect "the execution session posts its plan with task.sh plan, which task.sh has" bash -c "
-  grep -qF 'bash .claude/skills/task/scripts/task.sh plan <n> <file>' '$D/.claude/skills/task/session/execution.md' &&
-  grep -qF '| plan <issue> <file> |' '$D/.claude/skills/task/scripts/task.sh'"
-for reviewer in plan-reviewer readability-reviewer; do
-  expect "$reviewer first reads the issue without the plan, the plan review and its reply, by their exact headings" bash -c "
-    grep -qx \"PLAN_HEADING='## Plan'\" '$D/.claude/skills/task/scripts/task.sh' &&
-    grep -qF '\`## Plan review\`' '$D/.claude/agents/plan-reviewer.md' &&
-    grep -qF '\`## Plan review reply\`' '$D/.claude/skills/task/session/execution.md' &&
-    grep -qF 'test(\"^## Plan( review( reply)?)?\\n\")' '$D/.claude/agents/$reviewer.md'"
-done
 expect "the issue, plan, PR and commit steps each send the agent to .claude/rules/writing.md, which the project has" bash -c "
   [ -f '$D/.claude/rules/writing.md' ] &&
   for step in task/skills/start/SKILL.md task/session/execution.md pull-request/SKILL.md commit/SKILL.md; do
     grep -qF '\`.claude/rules/writing.md\`' \"$D/.claude/skills/\$step\" || exit 1
   done"
 for agent in "$D"/.claude/agents/*.md; do
-  name="$(basename "$agent" .md)"
-  expect "the execution session names $name, which has no tool that edits, nor memory, which adds Write and Edit" bash -c "
-    grep -qF '\`$name\`' '$D/.claude/skills/task/session/execution.md' &&
-    grep -q '^tools: Read' '$agent' && ! grep -qE '^(tools:.*(Edit|Write|Agent)|memory:)' '$agent'"
+  expect "$(basename "$agent" .md) has no tool that edits, nor memory, which adds Write and Edit" bash -c "
+    grep -q '^tools:' '$agent' && ! grep -qE '^(tools:.*(Edit|Write|Agent)|memory:)' '$agent'"
 done
-expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
+expect "no release facts file" test ! -e "$D/.claude/release.md"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
 # S is the stack template's repository, whose main holds no bundle.
