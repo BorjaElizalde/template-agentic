@@ -56,10 +56,9 @@ park() {
 PLAN_HEADING='## Plan'
 PLAN_AUTHOR='_The design this task builds. Its session chose it and keeps it current here; it is not a decision of the owner._'
 
-# The URLs of issue $1's plan comments, oldest first.
+# The URLs of the plan comments of the issue whose JSON is on stdin, oldest first.
 plan_urls() {
-	gh issue view "$1" -R "$ISSUES_REPO" --json comments |
-		jq -r --arg heading "$PLAN_HEADING" '.comments[] | select(.body | startswith($heading + "\n")) | .url'
+	jq -r --arg heading "$PLAN_HEADING" '.comments[] | select(.body | startswith($heading + "\n")) | .url'
 }
 
 # plan <issue> <file>: an issue holds one plan, so a run that finds the comment under PLAN_HEADING
@@ -70,7 +69,7 @@ plan() {
 	local text body url
 	text=$(cd "$CALLER" && cat "$2")
 	body=$PLAN_HEADING$'\n\n'$PLAN_AUTHOR$'\n\n'$text
-	url=$(plan_urls "$1" | tail -n 1)
+	url=$(gh issue view "$1" -R "$ISSUES_REPO" --json comments | plan_urls | tail -n 1)
 	if [ -n "$url" ]; then
 		gh api -X PATCH "repos/$ISSUES_REPO/issues/comments/${url##*-}" -f body="$body" >/dev/null
 	else
@@ -410,9 +409,11 @@ task_lines() {
 # sessions' last messages; a task's state gives the other two.
 MARK_JQ='
 	def rank: {"🟢": 0, "💬": 1, "🛑": 2, "⏳": 3}[.mark];
-	def tasks: split("\n")[:-1]
+	def tasks: split("\n")
 		| map(capture("^(?<issue>[0-9]+) (?<mark>[^ ]+) (?<steps>[0-9]) (?<title>.*)$") | .issue |= tonumber | .steps |= tonumber)
 		| sort_by(rank, .issue);
+	def need: map(select(.mark != "⏳")) | length;
+	def count(one; many): "\(.) \(if . == 1 then one else many end)";
 '
 LEGEND='🟢 PR ready to merge · 💬 your answer · 🛑 stalled · ⏳ running'
 
@@ -438,66 +439,79 @@ task_mark() {
 	if needs_attention "$(session_line "$2")" "$(transcript_age "$2")"; then echo 🛑; else echo ⏳; fi
 }
 
-# steps_done <issue> <branch> <PR line>: how many of the steps plan, build, review and merge the
-# task has done. A design task has no steps, so its mark sits in the first column.
+# steps_done <branch> <PR line> <issue JSON>: how many of the steps plan, build, review and merge
+# the task has done. A design task has no steps, so its mark sits in the first column.
 steps_done() {
-	case $2,$3 in
+	case $1,$2 in
 	design/*) echo 0 ;;
-	*,"no PR") if [ -n "$(plan_urls "$1")" ]; then echo 1; else echo 0; fi ;;
+	*,"no PR") if [ -n "$(plan_urls <<<"$3")" ]; then echo 1; else echo 0; fi ;;
 	*" draft,"*) echo 2 ;;
 	*) echo 3 ;;
 	esac
 }
 
 # One line per task whose issue is open: "<issue> <mark> <steps done> <title>". A merged PR closes
-# its issue, and its task then waits only for the cleanup.
+# its issue, and its task then waits only for the cleanup. A caller reads it with set -e inside the
+# command substitution: bash clears errexit there, and a read that fails would leave tasks out. So
+# each read of gh or claude is an assignment of its own, which errexit sees.
 open_tasks() {
 	local issue view worktree branch pr
 	SESSIONS=$(claude agents --json)
 	for issue in $(task_issues); do
-		view=$(issue_view "$issue")
-		[ "${view%% *}" = OPEN ] || continue
+		view=$(gh issue view "$issue" -R "$ISSUES_REPO" --json state,title,comments)
+		[ "$(jq -r .state <<<"$view")" = OPEN ] || continue
 		worktree=$(issue_worktree "$issue")
 		branch=$(git -C "$worktree" branch --show-current)
 		pr=$(pr_line "$branch")
-		echo "$issue $(task_mark "$issue" "$worktree" "$pr") $(steps_done "$issue" "$branch" "$pr") $(short_title "${view#* }")"
+		echo "$issue $(task_mark "$issue" "$worktree" "$pr") $(steps_done "$branch" "$pr" "$view") $(short_title "$(jq -r .title <<<"$view")")"
 	done
 }
 
 # The bar of the repository's tmux: each mark with its tasks, then how many tasks need the owner.
+# tmux shows only what the command prints, so a read that fails says so there.
 bar() {
-	open_tasks | jq -Rrs "$MARK_JQ"'
-		tasks | (map(select(.mark != "⏳")) | length) as $need
-		| [group_by(rank)[] | "\(.[0].mark) \(map("#\(.issue)") | join(" "))"]
-			+ ["\($need) \(if $need == 1 then "needs" else "need" end) you"]
+	local tasks
+	if ! tasks=$(set -e; open_tasks); then
+		echo "The bar could not read the tasks."
+		return
+	fi
+	printf '%s' "$tasks" | jq -Rrs "$MARK_JQ"'
+		tasks | [group_by(rank)[] | "\(.[0].mark) \(map("#\(.issue)") | join(" "))"]
+			+ ["\(need | count("needs"; "need")) you"]
 		| join(" · ")'
 }
 
-# The reply's table: a row per task, in the bar's order, with a ✓ under each step done and the mark
-# under the step the task is at. The legend follows it.
-table() {
-	open_tasks | jq -Rrs --arg legend "$LEGEND" "$MARK_JQ"'
-		def spaces($n): [range($n)] | map(" ") | join("");
-		tasks | select(. != []) | map(.label = "#\(.issue) \(.title)") | (map(.label | length) | max + 3) as $width
-		| spaces($width) + "plan    build   review  merge",
-			(.[] | .label + spaces($width - (.label | length)) + ([range(.steps)] | map("✓       ") | join("")) + .mark),
-			"", $legend'
+# The lines the reply takes from the marks: how many tasks need the owner; a table with a row per
+# task, in the bar's order, a ✓ under each step done and the mark under the step the task is at;
+# and the legend.
+reply_lines() {
+	local tasks
+	tasks=$(set -e; open_tasks)
+	printf '%s' "$tasks" | jq -Rrs --arg legend "$LEGEND" "$MARK_JQ"'
+		tasks | need as $need
+		| if $need == 0 then "Nothing needs you. \(length | count("task is"; "tasks are")) running."
+			else "\($need | count("thing needs"; "things need")) you." end,
+		(select(. != []) | map(.label = "#\(.issue) \(.title)") | (map(.label | length) | max + 3) as $width
+			| "", " " * $width + "plan    build   review  merge",
+				(.[] | .label + " " * ($width - (.label | length)) + "✓       " * .steps + .mark),
+				"", $legend)'
 }
 
 # mark [<issue> 🟢|💬]...: the marks the main session gives, which replace those it gave before.
 mark() {
-	local worktree given=
+	local worktree pr given=
 	SESSIONS=$(claude agents --json)
 	while [ $# -ge 2 ]; do
 		case $2 in 🟢 | 💬) ;; *) die "the main session gives 🟢 or 💬, not $2: a task's state gives 🛑 and ⏳" ;; esac
 		worktree=$(issue_worktree "$1") || die "issue $1 has no task in progress"
-		given+="$1 $2 $(task_state "$worktree" "$(pr_line "$(git -C "$worktree" branch --show-current)")")"$'\n'
+		pr=$(pr_line "$(git -C "$worktree" branch --show-current)")
+		given+="$1 $2 $(task_state "$worktree" "$pr")"$'\n'
 		shift 2
 	done
 	[ $# -eq 0 ] || die "$usage"
 	printf '%s' "$given" >"$MARKS_FILE"
 	refresh_bar
-	table
+	reply_lines
 }
 
 # Each terminal attached to the repository's tmux runs the bar's command again. Where no tmux runs,

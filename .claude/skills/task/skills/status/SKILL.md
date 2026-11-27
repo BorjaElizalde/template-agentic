@@ -32,8 +32,7 @@ allowed-tools: Bash(bash:*)
    mark.
 5. Reply in plain words: short sentences, the answer first, and no hashes, file paths or commands
    unless the owner needs one to act.
-   - Open with one line: how many tasks need the owner, which are the rows not marked ⏳, as
-     "2 things need you."
+   - Open with the first line that `mark` printed.
    - Then the table that `mark` printed, in a code block.
    - Then one line for each task that needs the owner, in the table's order: what to do, with your
      pick, the `Owner steps` or what the session's last message asks, and the PR or issue link.
@@ -41,5 +40,4 @@ allowed-tools: Bash(bash:*)
      cleanup finished since your last status reply, and each finish it refused, with why.
    - End with the legend, the last line that `mark` printed.
 
-   A reply the owner did not ask for, when no task needs them, is one line, as "Nothing needs you.
-   4 tasks are running."
+   A reply the owner did not ask for, when no task needs them, is only that first line.

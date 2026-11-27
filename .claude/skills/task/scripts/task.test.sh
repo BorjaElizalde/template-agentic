@@ -41,10 +41,10 @@ issue() {
   local blockers comments
   blockers=$(for m in $(cat "blocked-by-$1" 2>/dev/null); do echo "$m $(state "$m")"; done)
   comments=$(for f in "comment-$1"???; do [ ! -f "$f" ] || jq -Rs --arg url "$(comment_url "${f#comment-}")" '{url: $url, body: .}' "$f"; done | jq -s .)
-  jq -n --argjson number "$1" --arg title "$(title "$1")" --arg labels "$(cat "labels-$1" 2>/dev/null)" \
+  jq -n --argjson number "$1" --arg state "$(state "$1")" --arg title "$(title "$1")" --arg labels "$(cat "labels-$1" 2>/dev/null)" \
     --argjson comments "$comments" --arg blockers "$blockers" '
     def lines: split("\n") | map(select(. != ""));
-    {number: $number, title: $title, labels: ($labels | lines | map({name: .})),
+    {number: $number, state: $state, title: $title, labels: ($labels | lines | map({name: .})),
       blockedBy: {nodes: ($blockers | lines | map(split(" ") | {number: (.[0] | tonumber), state: .[1]}))},
       comments: $comments}'
 }
@@ -557,8 +557,9 @@ run_in "$BACKEND" bar
 check "a task that needs attention is stalled, every other one runs, and one stalled task needs the owner" \
   test "$(cat "$WORK/out")" = '🛑 #11 · ⏳ #13 #15 #19 #23 #24 · 1 needs you'
 check "the main session marks a PR ready to merge" run_in "$BACKEND" mark 11 🟢
-check "which prints the table, those that need the owner first, a ✓ under each step done and the mark at the step the task is at, then the legend" \
-  test "$(cat "$WORK/out")" = "$(printf '%44s%s\n' '' 'plan    build   review  merge'
+check "which prints how many tasks need the owner, the table, those that need the owner first, a ✓ under each step done and the mark at the step the task is at, then the legend" \
+  test "$(cat "$WORK/out")" = "$(printf '%s\n\n' '1 thing needs you.'
+    printf '%44s%s\n' '' 'plan    build   review  merge'
     printf '%-44s%s\n' '#11 Task 11' '✓       ✓       ✓       🟢' '#13 Task 13' '✓       ⏳' '#15 Task 15' '⏳' \
       '#19 Task 19' '✓       ✓       ⏳' '#23 Task 23, with a title longer than the' '⏳' '#24 Task 24' '✓       ⏳'
     printf '\n%s\n' '🟢 PR ready to merge · 💬 your answer · 🛑 stalled · ⏳ running')"
@@ -567,6 +568,8 @@ check "the bar gives the same marks"           test "$(cat "$WORK/out")" = '🟢
 transcript "$ISSUE11/backend"
 run_in "$BACKEND" bar
 check "a mark lapses once its session writes"  test "$(cat "$WORK/out")" = '⏳ #11 #13 #15 #19 #23 #24 · 0 need you'
+run_in "$BACKEND" mark
+check "and the reply then opens with nothing that needs the owner" test "$(head -n 1 "$WORK/out")" = 'Nothing needs you. 6 tasks are running.'
 transcript "$ISSUE11/backend" session 200001010000
 task "$BACKEND" mark 11 🟢 >/dev/null
 check "a new mark replaces those given before" run_in "$BACKEND" mark 23 💬
@@ -589,7 +592,12 @@ check "a task whose issue closed leaves the bar" test "$(cat "$WORK/out")" = '�
 run_in "$FRONTEND" bar
 check "where no task is in progress, the bar says only that nothing needs the owner" test "$(cat "$WORK/out")" = '0 need you'
 run_in "$FRONTEND" mark
-check "and the table prints nothing"           test ! -s "$WORK/out"
+check "and the reply says so, with no table"   test "$(cat "$WORK/out")" = 'Nothing needs you. 0 tasks are running.'
+touch "$TASK_TEST_STATE/gh-down"
+run_in "$BACKEND" bar
+check "a bar whose read of the tasks fails says so, and gives no count" test "$(cat "$WORK/out")" = 'The bar could not read the tasks.'
+check "a mark whose read fails fails, and prints no table" bash -c "! (cd '$BACKEND' && bash .claude/skills/task/scripts/task.sh mark) >'$WORK/out' 2>&1 && test ! -s '$WORK/out'"
+rm "$TASK_TEST_STATE/gh-down"
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"
