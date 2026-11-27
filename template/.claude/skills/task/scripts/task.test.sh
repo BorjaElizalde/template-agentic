@@ -179,7 +179,7 @@ launches_in() {
   jq -e '.hooks.PermissionRequest' <<<"$settings" && [ "$(launched_arg --disallowed-tools)" = AskUserQuestion ] &&
     [ "$(launched_arg --append-system-prompt)" = "$(cat "$SESSION/prompt.md" "$SESSION/$1.md")" ] &&
     jq -e --arg mode "$1" --slurpfile session "$SESSION/settings.json" \
-      'any(.hooks.Stop[]; IN($session[0].hooks.Stop[])) == ($mode == "execution")' <<<"$settings"
+      'any(.hooks.Stop[]?; IN($session[0].hooks.Stop[])) == ($mode == "execution")' <<<"$settings"
 }
 # The session last opened has the project's own settings too: its variable and its Stop hook.
 has_project_settings() {
@@ -323,6 +323,8 @@ check "says why, and never that a session opened" bash -c "
   tail -n 1 '$WORK/out' | grep -q '^no session runs in .* 30 seconds after its launch: ' && ! grep -q '^✓ session' '$WORK/out'"
 check "and its window has closed"              closes backend '#26'
 rm "$TASK_TEST_STATE/no-start"
+
+echo "-- start: refused while the project's own settings are not JSON"
 printf '{bad\n' >"$LONG/.claude/settings.project.json"
 LAUNCHES=$(wc -l <"$TASK_TEST_STATE/launches")
 refuses "a start whose project settings are not JSON fails, and names the file" 'settings\.project\.json' "$LONG" start 26
