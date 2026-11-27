@@ -40,13 +40,8 @@ what it holds; these rules say how to write it.
 - Leave out filler: no preamble, no summary of what the text already said, no praise of the
   change.
 - In instruction text, say each rule once, in the file that does its step. Name the rule's file
-  from each other file that needs the rule, with two exceptions, since each name is one more line
-  to update when the file changes:
-  - Where the rule's file already loads for the same files as the other file, leave out its name
-    and any line that only reminds the reader of the rule, since the reader already has it. A
-    rule file without `paths` loads in every session and in the project's subagents. A rule file
-    with `paths` loads when Claude reads, writes or edits a file that its `paths` match.
-  - An agent's definition names no specific file and no other agent, so that a change to a file
-    or to an agent changes no agent's definition. It may name a folder, such as `.claude/rules/`.
+  from another file only where it does not already load for the same files, and never from an
+  agent's definition. An agent's definition names no specific file and no other agent, only a
+  folder such as `.claude/rules/`.
 - A file that loads in every session holds only what a session must do before any skill loads.
 - In instruction text, read a script, a hook or a file before you state what it does.
