@@ -34,7 +34,7 @@ A stack template takes this template in four steps:
 ## What a stack template supplies
 
 A stack template's `template/` supplies each file that this template's files call but do not
-ship, such as the make fragment that defines `gate`. The file that calls it states its contract.
+ship, such as the make fragment that defines `gate`. The file it plugs into states its contract.
 The stack's own rules go in its `template/.claude/rules/`, and hold what this template's rules
 and skills leave to a stack.
 
