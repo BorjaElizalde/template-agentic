@@ -320,23 +320,13 @@ cleanup() {
 	done
 }
 
-# "PR #<n> <state>, <checks>" of the newest PR from branch $1, else "no PR". Its checks read as the
-# merge guard (.claude/hooks/bash-guard.sh) reads them. A failure outweighs a pending check, and a
-# pending check outweighs a gate not run, since it may be the gate running.
+# "PR #<n> <state>, <verdict on its checks>" of the newest PR from branch $1, else "no PR".
 pr_line() {
-	gh pr list --head "$1" --state all --json number,state,isDraft,statusCheckRollup | jq -r '
-		if length == 0 then "no PR" else .[0]
-		| [.statusCheckRollup // [] | group_by([.workflowName, .name, .context])[] | max_by(.startedAt)
-			| {gate: (.workflowName == "Gate" and (.name | startswith("gate / "))),
-				conclusion: (if .__typename == "StatusContext" then .state
-					elif .status == "COMPLETED" then .conclusion else "PENDING" end)}] as $c
-		| "PR #\(.number) \(if .isDraft then "draft" else .state | ascii_downcase end), "
-			+ if $c == [] then "no checks"
-			elif any($c[].conclusion; IN("SUCCESS", "NEUTRAL", "SKIPPED", "PENDING", "EXPECTED") | not) then "checks failed"
-			elif any($c[].conclusion; IN("PENDING", "EXPECTED")) then "checks pending"
-			elif any($c[]; .gate and .conclusion == "SUCCESS") then "checks passed"
-			else "gate not run" end
-		end'
+	gh pr list --head "$1" --state all --json number,state,isDraft,statusCheckRollup |
+		jq -r -L .claude/hooks 'import "pr-checks" as checks;
+			if length == 0 then "no PR" else .[0]
+			| "PR #\(.number) \(if .isDraft then "draft" else .state | ascii_downcase end), \(checks::verdict)"
+			end'
 }
 
 # The seconds since a session in folder $1 last wrote its transcript; nothing when none did.

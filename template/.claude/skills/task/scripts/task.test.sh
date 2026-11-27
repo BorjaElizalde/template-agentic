@@ -24,7 +24,7 @@ LISTED_PID=$(sleep 3600 >/dev/null 2>&1 & echo $!)
 trap 'kill "$LISTED_PID"; for socket in "$WORK"/tmux-*/*; do tmux -S "$socket" kill-server; done; rm -rf "$WORK"' EXIT
 pass=0; fail=0
 
-mkdir -p "$WORK/bin" "$TASK_TEST_STATE" "$WORK/seed/.claude/skills/task/scripts" "$WORK/repos"
+mkdir -p "$WORK/bin" "$TASK_TEST_STATE" "$WORK/seed/.claude/skills/task/scripts" "$WORK/seed/.claude/hooks" "$WORK/repos"
 cat >"$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 [ ! -f "$TASK_TEST_STATE/gh-down" ] || exit 1
@@ -147,6 +147,7 @@ export PATH="$WORK/bin:$PATH" SHELL="$WORK/bin/window-shell"
 echo CLOSED >"$TASK_TEST_STATE/issue-5"
 
 cp "$HERE/task.sh" "$WORK/seed/.claude/skills/task/scripts/"
+cp "$HERE/../../../hooks/pr-checks.jq" "$WORK/seed/.claude/hooks/"
 cp -R "$HERE/../session" "$WORK/seed/.claude/skills/task/"
 SESSION="$HERE/../session"
 printf 'ISSUES_REPO=acme/tasks\nWORKTREE_ROOT=../worktrees\n' >"$WORK/seed/.claude/agentic.conf"
@@ -427,15 +428,8 @@ echo CLOSED >"$TASK_TEST_STATE/issue-14"
 echo "$ISSUE11/backend $LISTED_PID idle" >"$TASK_TEST_STATE/running"
 transcript "$ISSUE11/backend" old 200001010000
 transcript "$ISSUE11/backend"
-PENDING='{"__typename": "CheckRun", "name": "gate", "status": "IN_PROGRESS", "conclusion": ""}'
-PASSED='{"__typename": "CheckRun", "name": "gate / checks", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SUCCESS"}'
-GATE_SKIPPED='{"__typename": "CheckRun", "name": "gate / checks", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SKIPPED"}'
-READ_DRAFT='{"__typename": "CheckRun", "name": "read-draft", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-01-01T00:00:10Z"}'
-READ_DRAFT_CANCELLED='{"__typename": "CheckRun", "name": "read-draft", "workflowName": "Gate", "status": "COMPLETED", "conclusion": "CANCELLED", "startedAt": "2026-01-01T00:00:00Z"}'
-OTHER_GATE='{"__typename": "CheckRun", "name": "gate", "workflowName": "Lint", "status": "COMPLETED", "conclusion": "SUCCESS"}'
-SKIPPED='{"__typename": "CheckRun", "name": "lint", "status": "COMPLETED", "conclusion": "SKIPPED"}'
+PENDING='{"__typename": "CheckRun", "name": "lint", "status": "IN_PROGRESS", "conclusion": ""}'
 FAILED='{"__typename": "CheckRun", "name": "test", "status": "COMPLETED", "conclusion": "FAILURE"}'
-NO_CONCLUSION='{"__typename": "CheckRun", "name": "gate", "status": "COMPLETED", "conclusion": ""}'
 CONTEXT='{"__typename": "StatusContext", "context": "ci", "state": "SUCCESS"}'
 pr_from feat/11-task-11 OPEN false "[$PENDING, $CONTEXT]"
 check "a look runs"                            run_in "$BACKEND" status
@@ -445,27 +439,9 @@ check "it finishes no task whose issue closed" test -d "$ISSUE14/backend"
 check "and lists it"                           test -n "$(status_line 14)"
 check "it opens with the In progress heading"  test "$(head -n 1 "$WORK/out")" = 'In progress:'
 check "under which is one line per task"       test "$(under 'In progress' | grep -c '^#[0-9]* Task [0-9]*: ')" -eq 4 -a "$(under 'In progress' | wc -l)" -eq 4
-pr_from feat/11-task-11 OPEN false "[$PENDING, $FAILED]"
+pr_from feat/11-task-11 OPEN true "[$FAILED, $CONTEXT]"
 run_in "$BACKEND" status
-check "a failed check outweighs a pending one" bash -c "grep -qF '#11 Task 11: session idle, PR #21 open, checks failed,' '$WORK/out'"
-pr_from feat/11-task-11 OPEN true "[$PASSED, $SKIPPED, $CONTEXT]"
-run_in "$BACKEND" status
-check "a draft whose checks passed or skipped" bash -c "grep -qF 'PR #21 draft, checks passed,' '$WORK/out'"
-pr_from feat/11-task-11 OPEN false "[$GATE_SKIPPED, $SKIPPED, $CONTEXT]"
-run_in "$BACKEND" status
-check "a PR whose gate skipped has not passed" bash -c "grep -qF 'PR #21 open, gate not run,' '$WORK/out'"
-pr_from feat/11-task-11 OPEN false "[$READ_DRAFT, $GATE_SKIPPED, $CONTEXT]"
-run_in "$BACKEND" status
-check "nor one whose gate skipped where the Gate workflow's read-draft passed" bash -c "grep -qF 'PR #21 open, gate not run,' '$WORK/out'"
-pr_from feat/11-task-11 OPEN false "[$READ_DRAFT, $READ_DRAFT_CANCELLED, $PASSED]"
-run_in "$BACKEND" status
-check "a check counts by its newest run, not by an earlier one cancelled" bash -c "grep -qF 'PR #21 open, checks passed,' '$WORK/out'"
-pr_from feat/11-task-11 OPEN false "[$OTHER_GATE, $CONTEXT]"
-run_in "$BACKEND" status
-check "nor one whose only passed gate is from another workflow" bash -c "grep -qF 'PR #21 open, gate not run,' '$WORK/out'"
-pr_from feat/11-task-11 OPEN false "[$PASSED, $NO_CONCLUSION]"
-run_in "$BACKEND" status
-check "a check completed with no conclusion has not passed" bash -c "grep -qF 'PR #21 open, checks failed,' '$WORK/out'"
+check "a draft, with the verdict on its checks" bash -c "grep -qF '#11 Task 11: session idle, PR #21 draft, checks failed,' '$WORK/out'"
 pr_from feat/11-task-11 MERGED false "[]"
 transcript "$ISSUE11/backend" session 200001010000
 run_in "$BACKEND" status
