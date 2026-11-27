@@ -1,6 +1,5 @@
 # From the agentic template: change the template, not this copy.
-# The verdict on a PR's checks, which the merge guard and the status line both give. A pending
-# check outweighs a gate not run, since it may be the gate running.
+# The verdict on a PR's checks. A pending check may be the gate, so it outweighs a gate not run.
 
 # Each check by its newest run, as in `gh pr checks`: the head keeps the checks of every run.
 def newest_runs:

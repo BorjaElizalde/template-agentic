@@ -29,7 +29,7 @@ Work in this order, so that the solution that was built does not shape what you 
    holds no code: prose, a prompt, data. Read each other file as it stands, from the function a
    caller enters down to the ones it calls. Read the code alone: pass over each comment and
    docstring, and open no document.
-4. Hold what you read against your list from step 2, then against each of the five properties.
+4. Hold what you read against your list, then against each of the five properties.
 
 ## Findings
 
@@ -45,7 +45,7 @@ Propose no rewrite and no other design.
 
 ## Output
 
-Open with the steps from step 2, as you wrote them before you read the code. Then one line per
+Open with the steps you wrote down before you read the code. Then one line per
 finding:
 
 - `path/file:NN` — <the property> — <what a reader can't do there>

@@ -1,24 +1,8 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
-# PreToolUse Bash guard — language-agnostic git/shell policy:
-#   * block rm -rf  / | ~ | $HOME
-#   * block git reset --hard onto origin|upstream main/staging/develop (protects local work)
-#   * block switching to an EXISTING branch (allow `-c/-b` new branch + file restore)
-#   * block direct push to a protected branch, forced or not
-#   * block merging a PR in any form but the two the skills write, and into a protected branch
-#     except the promotion hops develop→staging and staging→main as merge commits and, in a project
-#     that answered agent_merges, its own PR into develop as a squash pinned to a head whose every
-#     check has passed; block the API merge routes
-#   * block committing in the primary working tree / main checkout (any branch) — worktree workflow
-#   * block skipping the commit hooks: --no-verify, commit -n, SKIP=/HUSKY= env, core.hooksPath
-#   * check the command that bash -c, sh -c or eval runs, as if it were sent on its own
-# Protected branches: develop, staging, main. Nothing lands on them without the owner.
-# PR creation (gh pr create) is unrestricted — PRs may target any base branch.
+# Bash guard: the git and shell policy of the worktree workflow.
 # Pure bash 3.2 regex via [[ =~ ]] — NO grep (grep can be a ugrep shim, which
-# mis-parses flags like --force-with-lease). jq reads the command from the stdin payload; gh
-# looks up the base branch of a PR being merged.
-# Fails OPEN (exit 0) on an empty/unparseable command. A PR merge whose base cannot be looked up
-# is blocked.
+# mis-parses flags like --force-with-lease).
 # Every function here runs: any_segment calls each segment_* check by the name it is given, and the
 # checks call the rest. Tried one directive on each segment_* check, but their helpers stay flagged.
 # shellcheck disable=SC2329
@@ -26,8 +10,7 @@ set -u
 
 COMMAND="$(jq -r '.tool_input.command // empty' 2>/dev/null || true)"
 
-# The project's agent_merges answer, from the agentic.conf beside .claude/hooks. Read line by line,
-# never sourced, so the guard runs no code but its own.
+# agentic.conf is read line by line, never sourced, so the guard runs no code but its own.
 HERE="$(cd "$(dirname "$0")" && pwd)"
 AGENT_MERGES=false
 if [ -f "$HERE/../agentic.conf" ]; then
@@ -289,11 +272,11 @@ fi
 # beside the per-segment one.
 if any_segment segment_skips_hooks ||
   { [[ "$COMMAND" =~ $RE_COMMIT ]] && [[ "$COMMAND" =~ $RE_HOOK_ENV_EXPORT ]]; }; then
-  block "skipping the commit hooks (--no-verify, commit -n, SKIP=/HUSKY=, core.hooksPath). Fix what the hook reports; if a hook itself is broken, tell the user."
+  block "skipping the commit hooks. Fix what the hook reports; if a hook itself is broken, tell the user."
 fi
 
 # --- Block committing in the PRIMARY working tree (main checkout), on any branch ---
-# Complements worktree-guard.sh (Edit/Write): catches changes that reached the main
+# Complements worktree-guard.sh: catches changes that reached the main
 # checkout another way (hand-edits, stash pop, merge) OR a feature branch created in the
 # main checkout instead of a worktree. Linked worktrees are unaffected — git-dir equals
 # git-common-dir only in the primary checkout.
@@ -306,7 +289,7 @@ if [[ "$COMMAND" =~ $RE_COMMIT ]]; then
   CD="$(git -C "$DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
   if [ -n "$GD" ] && [ "$GD" = "$CD" ]; then
     CB="$(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-    block "committing in the main checkout (branch '$CB'). Feature work belongs in a linked worktree — start the task with /task:start (.claude/rules/agentic.md)."
+    block "committing in the main checkout (branch '$CB'). Feature work belongs in a linked worktree — start the task with /task:start (.claude/rules/)."
   fi
 fi
 
