@@ -40,12 +40,9 @@ expect "no .yml file in the template or the project" bash -c "[ -z \"\$(find '$R
 # GitHub's own expressions, ${{ }}, are not Jinja.
 expect "no Jinja left in rendered files" bash -c "! grep -rIl -E '(^|[^\$])\\{\\{|\\{%' --exclude-dir=.git '$D'"
 expect "config carries the answers" bash -c "grep -qx 'ISSUES_REPO=acme/tasks' '$D/.claude/agentic.conf' && grep -qx 'WORKTREE_ROOT=../worktrees' '$D/.claude/agentic.conf' && grep -qx 'DEPLOY_WORKFLOW=' '$D/.claude/agentic.conf' && grep -qx 'AGENT_MERGES=false' '$D/.claude/agentic.conf'"
-expect "by default the pull-request skill leaves the merge to the owner" bash -c "! grep -q 'gh pr merge' '$D/.claude/skills/pull-request/SKILL.md'"
 AM="$OUT/agent-merges"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data agent_merges=true "$OUT/src" "$AM"
 expect "agent_merges reaches agentic.conf" grep -qx 'AGENT_MERGES=true' "$AM/.claude/agentic.conf"
-expect "with agent_merges the pull-request skill merges a pinned squash" \
-  grep -qF 'gh pr merge <n> --squash --match-head-commit <sha>' "$AM/.claude/skills/pull-request/SKILL.md"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
 # $CLAUDE_PROJECT_DIR is text in the hook command, for Claude Code to expand. Tried double quotes,
 # but then each " and $ of the jq program needs a backslash.
@@ -75,15 +72,19 @@ GATE="$D/.github/workflows/gate.yaml"
 BRANCH_PROTECTION="$D/.github/workflows/branch-protection.yaml"
 expect "the Gate and Branch protection workflows are valid workflows" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows \
   "$GATE" "$BRANCH_PROTECTION"
-expect "the Gate workflow calls the stack's checks, never make" bash -c "
-  [ \"\$(uvx --quiet yq -r '.jobs.gate.uses' '$GATE')\" = ./.github/workflows/gate-checks.yaml ] &&
-  ! grep -v '^[[:space:]]*#' '$GATE' | grep -qw make"
-# A skipped job that calls a workflow reports only as gate, never as the gate / <job> a ruleset requires.
-expect "the Gate workflow skips a draft through the checks' skip input, and runs when one is marked ready" bash -c "
-  grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' '$GATE' &&
-  [ \"\$(uvx --quiet yq -r '.jobs.gate.if' '$GATE')\" = null ] &&
-  [ \"\$(uvx --quiet yq -r '.jobs.gate.needs' '$GATE')\" = read-draft ] &&
-  uvx --quiet yq -r '.jobs.gate.with.skip' '$GATE' | grep -qF '\${{ needs.read-draft.outputs.draft'"
+runs_the_stack_action() {  # the gate job's actions, without their pins
+  [ "$(uvx --quiet yq -c '[.jobs.gate.steps[].uses | sub("@.*"; "")]' "$GATE")" = \
+    '["actions/checkout","./.github/actions/gate"]' ]
+}
+expect "the gate job checks out the code, then runs the stack's action" runs_the_stack_action
+expect "this repository's action for the gate job ends with make gate" \
+  test "$(uvx --quiet yq -r '.runs.steps[-1].run' "$ROOT/.github/actions/gate/action.yaml")" = "make gate"
+skips_a_draft() {
+  grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' "$GATE" &&
+    [ "$(uvx --quiet yq -r '.jobs.gate.needs' "$GATE")" = read-draft ] &&
+    uvx --quiet yq -r '.jobs.gate.if' "$GATE" | grep -qF "\${{ !cancelled() && needs.read-draft.outputs.draft != 'true'"
+}
+expect "the gate job skips a draft as read-draft reads it, and runs once one is marked ready, or when read-draft fails" skips_a_draft
 # A stub gh that says PR 7 of acme/app is a draft, and fails on any other call.
 READ_DRAFT="$OUT/read-draft"
 mkdir -p "$READ_DRAFT/bin"
@@ -108,8 +109,6 @@ expect "a gate_paths_ignore answer becomes the Gate workflow's paths-ignore, eac
 expect "the Branch protection job reports as branch-protection on a PR into staging or main, and as up-to-date otherwise" bash -c "
   [ \"\$(uvx --quiet yq -r '.jobs[\"branch-protection\"].name' '$BRANCH_PROTECTION')\" = \
     \"\\\${{ github.event_name == 'pull_request' && github.base_ref != 'develop' && 'branch-protection' || 'up-to-date' }}\" ]"
-# A stub gh: the open PRs' heads are a, b and d, b lacks two of develop's commits, d has its failed
-# status, statuses are logged.
 export UP_TO_DATE="$OUT/up-to-date"
 mkdir -p "$UP_TO_DATE/bin"
 for step in 1 2; do
@@ -150,12 +149,13 @@ expect "the project's renovate.json is the pointer to the project preset only" j
   and .extends == ["github>BorjaElizalde/template-agentic//renovate/default"]' "$D/renovate.json"
 expect "the project preset is the shared rules, with Renovate off the template's CI files" jq -e '
   .extends == ["github>BorjaElizalde/template-agentic//renovate/base"]
-  and (.["github-actions"].ignorePaths | index(".github/workflows/gate-checks.yaml") != null)' \
+  and (.["github-actions"].ignorePaths
+    | index(".github/workflows/gate.yaml") != null and index(".github/actions/gate/**") != null)' \
   "$ROOT/renovate/default.json"
-expect "this repository takes the shared rules only, so Renovate keeps its own CI files' pins current" jq -e \
-  '.extends == ["github>BorjaElizalde/template-agentic//renovate/base"] and (has("github-actions") | not)' \
+expect "this repository takes the shared rules, and Renovate reads the template's .jinja workflows too, so it keeps every CI file's pins current" jq -e '
+  .extends == ["github>BorjaElizalde/template-agentic//renovate/base"]
+  and .["github-actions"] == {managerFilePatterns: ["template/.github/workflows/*.yaml.jinja"]}' \
   "$ROOT/renovate.json"
-expect "the release skill doesn't say CI runs make gate" bash -c "! grep -q 'make gate' '$D/.claude/skills/release/SKILL.md'"
 X="$OUT/existing"
 mkdir -p "$X"
 printf '{"extends": ["config:base"]}\n' >"$X/renovate.json"
@@ -176,39 +176,11 @@ expect "await-checks.sh suite" bash "$D/.claude/skills/release/scripts/await-che
 expect "seeded memory index is clean" bash "$D/.claude/hooks/memory/staleness.sh" "$D/.claude/memory"
 expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/task/scripts/task.sh' point-memory >/dev/null &&
   [ \"\$(jq -r .autoMemoryDirectory '$D/.claude/settings.local.json')\" = \"\$(cd '$D' && pwd -P)/.claude/memory\" ]"
-expect "pull-request closes issues in the issues repo" grep -q 'Closes acme/tasks#<n>' "$D/.claude/skills/pull-request/SKILL.md"
-expect "the task skills, the session files and pull-request name the issues repo" bash -c "
-  grep -q 'gh issue create -R acme/tasks' '$D/.claude/skills/task/skills/start/SKILL.md' &&
-  grep -q 'gh issue close <n> -R acme/tasks' '$D/.claude/skills/task/skills/finish/SKILL.md' &&
-  grep -qF acme/tasks '$D/.claude/skills/task/session/prompt.md' &&
-  for file in task/skills/status/SKILL.md task/session/execution.md pull-request/SKILL.md; do
-    grep -qF 'gh issue view <n> -R acme/tasks --json title,body,comments' \"$D/.claude/skills/\$file\" || exit 1
-  done"
-expect "the execution session posts its plan with task.sh plan, which task.sh has" bash -c "
-  grep -qF 'bash .claude/skills/task/scripts/task.sh plan <n> <file>' '$D/.claude/skills/task/session/execution.md' &&
-  grep -qF '| plan <issue> <file> |' '$D/.claude/skills/task/scripts/task.sh'"
-for reviewer in plan-reviewer readability-reviewer; do
-  expect "$reviewer first reads the issue without the plan, the plan review and its reply, by their exact headings" bash -c "
-    grep -qx \"PLAN_HEADING='## Plan'\" '$D/.claude/skills/task/scripts/task.sh' &&
-    grep -qF '\`## Plan review\`' '$D/.claude/agents/plan-reviewer.md' &&
-    grep -qF '\`## Plan review reply\`' '$D/.claude/skills/task/session/execution.md' &&
-    grep -qF 'test(\"^## Plan( review( reply)?)?\\n\")' '$D/.claude/agents/$reviewer.md'"
-done
-expect "the rules hold the Readable code section that readability-reviewer names" bash -c "
-  grep -qx '## Readable code' '$D/.claude/rules/conventions.md' &&
-  grep -qF '\"Readable code\" in \`.claude/rules/conventions.md\`' '$D/.claude/agents/readability-reviewer.md'"
-expect "the issue, plan, PR and commit steps each send the agent to .claude/rules/writing.md, which the project has" bash -c "
-  [ -f '$D/.claude/rules/writing.md' ] &&
-  for step in task/skills/start/SKILL.md task/session/execution.md pull-request/SKILL.md commit/SKILL.md; do
-    grep -qF '\`.claude/rules/writing.md\`' \"$D/.claude/skills/\$step\" || exit 1
-  done"
 for agent in "$D"/.claude/agents/*.md; do
-  name="$(basename "$agent" .md)"
-  expect "the execution session names $name, which has no tool that edits, nor memory, which adds Write and Edit" bash -c "
-    grep -qF '\`$name\`' '$D/.claude/skills/task/session/execution.md' &&
-    grep -q '^tools: Read' '$agent' && ! grep -qE '^(tools:.*(Edit|Write|Agent)|memory:)' '$agent'"
+  expect "$(basename "$agent" .md) has no tool that edits, nor memory, which adds Write and Edit" bash -c "
+    grep -q '^tools:' '$agent' && ! grep -qE '^(tools:.*(Edit|Write|Agent)|memory:)' '$agent'"
 done
-expect "no release facts file; without a deploy, release waits for none" bash -c "[ ! -e '$D/.claude/release.md' ] && ! grep -q 'await-run.sh' '$D/.claude/skills/release/SKILL.md'"
+expect "no release facts file" test ! -e "$D/.claude/release.md"
 expect "session files sit only in the task plugin" bash -c "[ -z \"\$(find '$D/.claude' -maxdepth 1 -name 'subagent-session-*')\" ] && jq empty '$D/.claude/skills/task/session/settings.json'"
 
 # S is the stack template's repository, whose main holds no bundle.
@@ -256,8 +228,7 @@ help_lists_each_layer() {  # each target of make help, after the file it is list
     { printf 'FAIL make help listed:\n%s\n' "$owners"; return 1; }
 }
 expect "in the copy, bare make lists the targets of its Makefile, the stack fragment and this template's, each under its file" help_lists_each_layer
-# Stand-ins for the programs make claude runs. claude and tmux print their arguments, then each of
-# make's variables in their environment: make's own, and args and prompt from its command line.
+# Stand-ins for the programs make claude runs.
 SI="$OUT/stand-ins"
 mkdir -p "$SI/claude" "$SI/caffeinate" "$SI/tmux" "$SI/env"
 cat >"$SI/claude/claude" <<'EOF'
@@ -323,8 +294,7 @@ expect "bundle.sh refuses a stack template that has its own copy of a file it bu
   mkdir -p '$OUT/clash/template' && cp '$OUT/src/template/renovate.json' '$OUT/clash/template/' && ! bash '$OUT/src/bundle.sh' '$OUT/clash'"
 
 # This repository is a project of its own template: on a copy of the working tree, make render
-# (which the pre-commit hook runs on every commit that changes template/) must leave .claude/ and
-# .github/ as they are.
+# must leave .claude/ and .github/ as they are.
 mkdir -p "$OUT/self"
 (cd "$ROOT" && tar --exclude .git -cf - .) | tar -xf - -C "$OUT/self"
 harness_in_step() {

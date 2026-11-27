@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Bundles this checkout of template-agentic into a stack template's tree that holds no earlier
-# bundle: this template's files into its template/, and this template's copier.yaml to the
-# agentic/copier.yaml its copier.yaml includes. release.sh runs it; run from a clone at the version:
+# bundle. Run from a clone at the version:
 #   bash bundle.sh <stack-template>
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
