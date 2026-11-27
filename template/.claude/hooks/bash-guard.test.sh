@@ -8,14 +8,14 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 pass=0; fail=0
 
-run() {  # run <name> <workflow> <status> <conclusion> [<started at>]: a check, in the shape gh prints
+check_run() {  # check_run <name> <workflow> <status> <conclusion> [<started at>]
   printf '{"__typename":"CheckRun","name":"%s","workflowName":"%s","status":"%s","conclusion":"%s","startedAt":"%s"}' \
     "$1" "$2" "$3" "$4" "${5:-}"
 }
-ctx() { printf '{"__typename":"StatusContext","context":"%s","state":"%s"}' "$1" "$2"; }
+status_context() { printf '{"__typename":"StatusContext","context":"%s","state":"%s"}' "$1" "$2"; }
 GATE_NAME='gate / checks'
-GATE="$(run "$GATE_NAME" Gate COMPLETED SUCCESS)"
-FAILED="$(run test Test COMPLETED FAILURE)"
+GATE="$(check_run "$GATE_NAME" Gate COMPLETED SUCCESS)"
+FAILED="$(check_run test Test COMPLETED FAILURE)"
 
 # A stub gh answers the guard's PR lookup, `gh pr view [<pr>] [--repo <r>] --json ...`, with the
 # PR's JSON in the shape gh prints. The PR's repository is the --repo it names, else the origin of
@@ -173,20 +173,20 @@ t 0 "local merge into a feature branch" 'git merge origin/develop'
 t 2 "without agent_merges, a green pinned squash is still the owner's" "gh pr merge 11 --squash --match-head-commit $H"
 
 echo "-- the verdict on a PR's checks, which the merge guard and the status line both give"
-verdict_is "checks passed" "every check passed, skipped or neutral, the gate among them" "$(run read-draft Gate COMPLETED SUCCESS),$GATE,$(run docs Docs COMPLETED SKIPPED),$(ctx legacy/ci SUCCESS)"
-verdict_is "checks pending" "the gate still running" "$(run "$GATE_NAME" Gate IN_PROGRESS '')"
-verdict_is "gate not run" "no gate among the checks" "$(run lint Lint COMPLETED SUCCESS)"
+verdict_is "checks passed" "every check passed, skipped or neutral, the gate among them" "$(check_run read-draft Gate COMPLETED SUCCESS),$GATE,$(check_run docs Docs COMPLETED SKIPPED),$(status_context legacy/ci SUCCESS)"
+verdict_is "checks pending" "the gate still running" "$(check_run "$GATE_NAME" Gate IN_PROGRESS '')"
+verdict_is "gate not run" "no gate among the checks" "$(check_run lint Lint COMPLETED SUCCESS)"
 verdict_is "checks failed" "a check failed" "$GATE,$FAILED"
-verdict_is "checks failed" "a failed check outweighs a pending one" "$(run lint Lint IN_PROGRESS ''),$FAILED"
-verdict_is "checks pending" "a status still pending" "$GATE,$(ctx legacy/ci PENDING)"
+verdict_is "checks failed" "a failed check outweighs a pending one" "$(check_run lint Lint IN_PROGRESS ''),$FAILED"
+verdict_is "checks pending" "a status still pending" "$GATE,$(status_context legacy/ci PENDING)"
 verdict_is "no checks" "no checks at all" ""
 # An empty conclusion is not a pass, even on a check that says it completed.
-verdict_is "checks failed" "a check completed with no conclusion" "$GATE,$(run test Test COMPLETED '')"
-verdict_is "checks failed" "a failed up-to-date status, though the checks passed" "$GATE,$(run up-to-date 'Branch protection' COMPLETED SUCCESS),$(ctx up-to-date FAILURE)"
-verdict_is "gate not run" "the gate's check name from another workflow" "$(run "$GATE_NAME" Lint COMPLETED SUCCESS)"
-verdict_is "gate not run" "the gate skipped" "$(run "$GATE_NAME" Gate COMPLETED SKIPPED)"
-verdict_is "gate not run" "the gate skipped, read-draft passed" "$(run read-draft Gate COMPLETED SUCCESS),$(run "$GATE_NAME" Gate COMPLETED SKIPPED)"
-verdict_is "checks passed" "a check counts by its newest run, not by an earlier one cancelled" "$(run read-draft Gate COMPLETED SUCCESS 2026-01-01T00:00:10Z),$(run read-draft Gate COMPLETED CANCELLED 2026-01-01T00:00:00Z),$GATE"
+verdict_is "checks failed" "a check completed with no conclusion" "$GATE,$(check_run test Test COMPLETED '')"
+verdict_is "checks failed" "a failed up-to-date status, though the checks passed" "$GATE,$(check_run up-to-date 'Branch protection' COMPLETED SUCCESS),$(status_context up-to-date FAILURE)"
+verdict_is "gate not run" "the gate's check name from another workflow" "$(check_run "$GATE_NAME" Lint COMPLETED SUCCESS)"
+verdict_is "gate not run" "the gate skipped" "$(check_run "$GATE_NAME" Gate COMPLETED SKIPPED)"
+verdict_is "gate not run" "the gate skipped, read-draft passed" "$(check_run read-draft Gate COMPLETED SUCCESS),$(check_run "$GATE_NAME" Gate COMPLETED SKIPPED)"
+verdict_is "checks passed" "a check counts by its newest run, not by an earlier one cancelled" "$(check_run read-draft Gate COMPLETED SUCCESS 2026-01-01T00:00:10Z),$(check_run read-draft Gate COMPLETED CANCELLED 2026-01-01T00:00:00Z),$GATE"
 
 echo "-- agent_merges: the agent's own PR into develop, squashed, pinned to a head whose checks passed"
 t_on 0 "own green PR, squash, pinned head"   "gh pr merge 11 --squash --match-head-commit $H"
