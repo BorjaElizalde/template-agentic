@@ -4,6 +4,7 @@
 # The stack layer supplies registry.jq beside this script, the one plug-in point:
 #   kind($path)              -> the file's kind, or null when no practice applies
 #   practices($ctx; $kind)   -> a stream of {level, text} from its practice modules
+# A level is stop, which refuses the edit, or remind, which adds a note to its result.
 # No practice asks the owner: an unattended session counts a permission prompt as a refusal.
 # Messages are short fixed text. jq only, no grep: grep can be a ugrep shim.
 set -u
