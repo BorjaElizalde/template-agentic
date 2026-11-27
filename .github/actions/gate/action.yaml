@@ -1,5 +1,3 @@
-# This repository's gate on GitHub's runner, which the Gate workflow's gate job runs after it checks
-# out the code.
 name: Gate
 description: Install uv and tmux, then run this repository's make gate.
 runs:

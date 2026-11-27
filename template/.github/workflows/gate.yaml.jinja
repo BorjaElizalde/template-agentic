@@ -60,6 +60,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      # The stack supplies this action: it installs what the stack's make gate needs, then runs it.
+      # The stack supplies this action: it installs what its make gate needs, then runs make gate.
       - uses: ./.github/actions/gate
 {% endraw -%}

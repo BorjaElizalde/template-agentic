@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "The preset for a project made from the templates: the shared rules, and Renovate's github-actions manager kept off the templates' CI files, whose action pins arrive in the template's update PR. The gate-checks.yaml and stack-gate entries cover a project that has not yet taken the release with the gate action.",
+  "description": "The preset for a project made from the templates: the shared rules, and Renovate's github-actions manager kept off the templates' CI files, whose action pins arrive in the template's update PR. The gate-checks.yaml and stack-gate entries cover a project on an older release.",
   "extends": ["github>BorjaElizalde/template-agentic//renovate/base"],
   "github-actions": {
     "ignorePaths": [".github/workflows/gate.yaml", ".github/actions/gate/**", ".github/workflows/gate-checks.yaml", ".github/actions/stack-gate/**"]

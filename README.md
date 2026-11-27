@@ -22,13 +22,8 @@ changed. A stack template takes this template in four steps:
    ```
 
    The copy writes `.copier-answers.agentic.yaml`, which records the version to bundle and which
-   Renovate's Copier manager moves in an update PR. It also brings the `Branch protection` workflow
-   and the `Gate` workflow, whose `gate` job runs the action `.github/actions/gate/action.yaml`.
-   So put that action at the stack template's root too, with the contract below, for the stack
-   template's own `make gate`. Make its `renovate.json` extend `renovate/base`, with
-   `"github-actions": {"ignorePaths": [".github/workflows/gate.yaml"]}`, so that Renovate updates
-   the pins of the stack template's own CI files, and the pins of its copy of the `Gate` workflow
-   arrive in this template's update PR.
+   Renovate's Copier manager moves in an update PR. It also brings the `Branch protection` and
+   `Gate` workflows. Make its `renovate.json` extend `renovate/base`.
 2. Release from the `Build` workflow on each merge to `main`: in the checkout of
    `main`, with a git identity and `contents: write`, clone this repository at the recorded
    version and run `bash <clone>/release.sh <tag>`, which pushes the tag. `GITHUB_TOKEN` may push
@@ -40,7 +35,7 @@ changed. A stack template takes this template in four steps:
    template does not use, except `gate_paths_ignore`. They come after this template's questions,
    so they and its files may read this template's answers. Add no answers-file template: the
    bundle brings `{{ _copier_conf.answers_file }}.jinja`. Give `gate_paths_ignore` a default:
-   the files that the stack's `make gate` never reads, each pattern mapped to its reason.
+   the files that the stack's checks never read, each pattern mapped to its reason.
 4. Start the validator of a question that has no default with
    `{% if 'issues_repo' not in _copier_answers %}`, whose message says to copy a release tag. It
    stops a copy of a branch.
@@ -51,13 +46,12 @@ A stack template supplies these files in its `template/`, so that each project g
 
 | File | Contract |
 |---|---|
-| `.github/actions/gate/action.yaml` | The composite action that installs, on GitHub's `ubuntu-latest` runner, the tools that the stack's `make gate` runs, then runs `make gate`. The `Gate` workflow's `gate` job checks out the code, then runs this action, on every PR into `develop` or `staging` except a draft and the promotion of `develop`. The job's check reports as `gate`. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit or Write, with the hook payload on stdin. |
 
 The stack template seeds the project's `Makefile`, which includes only the stack's make fragment.
-That fragment defines `gate`, the project's full validation, which `/gate` runs locally and the
-`Gate` workflow runs on each PR, and must include this template's:
+That fragment defines `gate`, the project's full validation, which `/gate` runs, and must include
+this template's:
 
 ```make
 include .claude/agentic.mk
