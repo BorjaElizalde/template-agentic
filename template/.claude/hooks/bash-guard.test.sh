@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # From the agentic template: change the template, not this copy.
-# Table-driven regression suite for bash-guard.sh and pr-checks.jq (the copies sitting next to this
-# file). Run from any repo checkout: bash .claude/hooks/bash-guard.test.sh
+# Table-driven regression suite for bash-guard.sh (the copy sitting next to this file).
+# Run from any repo checkout: bash .claude/hooks/bash-guard.test.sh
 # Exit 2 = guard blocked, 0 = guard allowed. Every case documents a policy decision or a class
 # that once regressed or bypassed.
 set -u
@@ -98,7 +98,7 @@ says() {  # says <phrase> <desc> <command>: the opt-in guard blocks, naming <phr
   if [[ "$out" == *"$1"* ]]; then pass=$((pass+1)); echo "PASS (says) $2"
   else fail=$((fail+1)); echo "FAIL (want '$1') $2 :: $out"; fi
 }
-verdict_is() {  # verdict_is <verdict> <desc> <checks>: pr-checks.jq's verdict on a PR with those checks
+verdict_is() {  # verdict_is <verdict> <desc> <checks>: the verdict on a PR with those checks
   local got
   got="$(jq -r -L "$HERE" 'import "pr-checks" as checks; checks::verdict' <<<"{\"statusCheckRollup\": [$3]}")"
   if [ "$got" = "$1" ]; then pass=$((pass+1)); echo "PASS ($got) $2"

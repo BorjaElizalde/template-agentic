@@ -39,9 +39,9 @@ description: Use when committed and validated feature-branch work is ready for a
    can merge and the gate skips: the gate runs on the head the PR has when it is marked ready.
 {%- if agent_merges %}
 8. This project lets the agent merge its own PR into `develop` (`agent_merges`). Step 7 started
-   the gate. Wait until `gh pr checks <n> --json workflow,name,bucket` lists a `Gate` check other
-   than `read-draft`, not skipped, or a failed or cancelled check, since `gh pr checks <n> --watch`
-   ends once no listed check is pending, and the gate appears only after `read-draft`.
+   the gate. Wait until `gh pr checks <n> --json workflow,name,bucket` lists a `Gate` check that
+   is not skipped and not `read-draft`, or a failed or cancelled check. `gh pr checks <n> --watch`
+   alone ends once no listed check is pending, and the gate appears only after `read-draft`.
    Then wait for the PR's checks with `gh pr checks <n> --watch`; on a failed or cancelled check,
    stop and report it. A failed `up-to-date` says that `develop` moved on meanwhile: fetch and
    merge it as in step 4, pass the gate on the result, push, and wait for the checks again. When

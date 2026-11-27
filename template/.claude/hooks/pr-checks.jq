@@ -2,7 +2,7 @@
 # The verdict on a PR's checks, which the merge guard and the status line both give. A pending
 # check outweighs a gate not run, since it may be the gate running. A check counts by its newest
 # run, as in `gh pr checks`: the head keeps the checks of every run, one cancelled by a later run
-# included. Load it with: jq -L <this folder> 'import "pr-checks" as checks; checks::verdict'
+# included.
 
 # The check the rulesets require; the Gate workflow's read-draft passes on a draft too.
 def gate: .workflowName == "Gate" and (.name | startswith("gate / "));
