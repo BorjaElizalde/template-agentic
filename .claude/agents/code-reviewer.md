@@ -2,7 +2,7 @@
 name: code-reviewer
 description: >-
   Bug check of an execution task's open PR; it edits nothing. Reports on the PR only material
-  findings with evidence: wrong behaviour, broken contracts, code the task's issue did not ask
+  findings with evidence: wrong behaviour, broken contracts, lines the task's issue did not ask
   for, and rule violations that no hook, gate or other agent catches.
 tools: Read, Grep, Glob, Bash, WebFetch
 color: red
@@ -18,7 +18,8 @@ your report; edit nothing.
 
 Read the issue, then the branch's changes, `git diff origin/develop...HEAD`. Read enough of the
 code around them and of their callers to establish behaviour, but report only what this change
-introduces or exposes.
+introduces or exposes. That covers what each line it adds or edits says, in code, tests or
+prose, even where the edit only renames or reflows: hold each such line to the Excess lens.
 
 The rules of `.claude/rules/` are authoritative: hold the change to them, not to a checklist of
 your own. Read in full each rule file whose `paths:` match a changed file, at the root of
@@ -33,8 +34,8 @@ Others check the rest, so leave it out:
 
 - **Requirements:** each point of the issue's "What is true when this is solved" holds on the
   branch.
-- **Excess:** the branch holds nothing the issue did not ask for: no feature or option beyond it,
-  no dead code, which nothing calls or reaches, and no edit unrelated to the task.
+- **Excess:** the issue asked for the line, it copies no fact another line holds, and it names no
+  file where a folder would do. Prose or output that says what code already shows is a copy.
 - **Correctness:** follow the changed data and control flow through their callers and consumers;
   probe the failure paths, edge inputs, lifecycle, concurrency and integration seams that the
   happy path hides.
