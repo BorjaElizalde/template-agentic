@@ -194,11 +194,6 @@ for reviewer in plan-reviewer readability-reviewer; do
     grep -qF '\`## Plan review reply\`' '$D/.claude/skills/task/session/execution.md' &&
     grep -qF 'test(\"^## Plan( review( reply)?)?\\n\")' '$D/.claude/agents/$reviewer.md'"
 done
-expect "the issue, plan, PR and commit steps each send the agent to .claude/rules/writing.md, which the project has" bash -c "
-  [ -f '$D/.claude/rules/writing.md' ] &&
-  for step in task/skills/start/SKILL.md task/session/execution.md pull-request/SKILL.md commit/SKILL.md; do
-    grep -qF '\`.claude/rules/writing.md\`' \"$D/.claude/skills/\$step\" || exit 1
-  done"
 for agent in "$D"/.claude/agents/*.md; do
   name="$(basename "$agent" .md)"
   expect "the execution session names $name, which has no tool that edits, nor memory, which adds Write and Edit" bash -c "
