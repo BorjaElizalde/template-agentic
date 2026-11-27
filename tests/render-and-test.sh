@@ -44,7 +44,7 @@ AM="$OUT/agent-merges"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data agent_merges=true "$OUT/src" "$AM"
 expect "agent_merges reaches agentic.conf" grep -qx 'AGENT_MERGES=true' "$AM/.claude/agentic.conf"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
-expect "settings.project.json, which make claude and task.sh load, is JSON" jq empty "$D/.claude/settings.project.json"
+expect "settings.project.json is JSON" jq empty "$D/.claude/settings.project.json"
 # $CLAUDE_PROJECT_DIR is text in the hook command, for Claude Code to expand. Tried double quotes,
 # but then each " and $ of the jq program needs a backslash.
 # shellcheck disable=SC2016

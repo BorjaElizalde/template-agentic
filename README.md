@@ -38,9 +38,8 @@ ship, such as the make fragment that defines `gate`. The file it plugs into stat
 The stack's own rules go in its `template/.claude/rules/`, and hold what this template's rules
 and skills leave to a stack.
 
-Claude Code reads one project settings file by itself, `.claude/settings.json`, so this template
-renders it for every stack. A new stack adds its permissions and environment to it in this
-repository, each line one that changes nothing in the other stacks, as the `pip` deny changes
-nothing outside Python. A project's own settings go in `.claude/settings.project.json`: this
-template seeds it once, and `make claude` and `task.sh` pass it to Claude Code with `--settings`.
-A session started some other way runs without them.
+Claude Code reads one project settings file, `.claude/settings.json`, so this template renders it
+for every stack. A new stack adds its permissions and environment to it in this repository, each
+line one that changes nothing in the other stacks, as the `pip` deny changes nothing outside
+Python. A project's own settings go in `.claude/settings.project.json`, which this template seeds
+once and its launchers load.
