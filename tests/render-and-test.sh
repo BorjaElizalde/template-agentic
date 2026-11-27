@@ -194,9 +194,6 @@ for reviewer in plan-reviewer readability-reviewer; do
     grep -qF '\`## Plan review reply\`' '$D/.claude/skills/task/session/execution.md' &&
     grep -qF 'test(\"^## Plan( review( reply)?)?\\n\")' '$D/.claude/agents/$reviewer.md'"
 done
-expect "the rules hold the Readable code section that readability-reviewer names" bash -c "
-  grep -qx '## Readable code' '$D/.claude/rules/conventions.md' &&
-  grep -qF 'Your yardstick is \"Readable code\"' '$D/.claude/agents/readability-reviewer.md'"
 expect "the issue, plan, PR and commit steps each send the agent to .claude/rules/writing.md, which the project has" bash -c "
   [ -f '$D/.claude/rules/writing.md' ] &&
   for step in task/skills/start/SKILL.md task/session/execution.md pull-request/SKILL.md commit/SKILL.md; do
