@@ -23,9 +23,9 @@ changed. A stack template takes this template in four steps:
 
    The copy writes `.copier-answers.agentic.yaml`, which records the version to bundle and which
    Renovate's Copier manager moves in an update PR. It also brings the `Branch protection` workflow
-   and the `Gate` workflow, whose `gate` job runs the stack template's own `make gate`. So put
-   what that `make gate` needs on the runner in `.github/actions/gate-setup/action.yaml` at its
-   root, with the contract below. Make its `renovate.json` extend `renovate/base`, with
+   and the `Gate` workflow, whose `gate` job runs the action `.github/actions/gate/action.yaml`.
+   So put that action at the stack template's root too, with the contract below, for the stack
+   template's own `make gate`. Make its `renovate.json` extend `renovate/base`, with
    `"github-actions": {"ignorePaths": [".github/workflows/gate.yaml"]}`, so that Renovate updates
    the pins of the stack template's own CI files, and the pins of its copy of the `Gate` workflow
    arrive in this template's update PR.
@@ -51,7 +51,7 @@ A stack template supplies these files in its `template/`, so that each project g
 
 | File | Contract |
 |---|---|
-| `.github/actions/gate-setup/action.yaml` | The composite action that installs, on GitHub's `ubuntu-latest` runner, the tools that the stack's `make gate` runs. The `Gate` workflow's `gate` job checks out the code, runs this action, then runs `make gate`, on every PR into `develop` or `staging` except a draft and the promotion of `develop`. Its check reports as `gate`. |
+| `.github/actions/gate/action.yaml` | The composite action that installs, on GitHub's `ubuntu-latest` runner, the tools that the stack's `make gate` runs, then runs `make gate`. The `Gate` workflow's `gate` job checks out the code, then runs this action, on every PR into `develop` or `staging` except a draft and the promotion of `develop`. The job's check reports as `gate`. |
 | `.claude/hooks/practices/registry.jq` | `kind($path)` returns the file's kind or `null`; `practices($ctx; $kind)` streams `{level, text}`, with level `stop` or `remind`, from the stack's practice modules beside it. `lib.jq` provides `edit_context`, the text helpers, and the reason form a skipped check gives (`reason_form`, `reason_steps`). |
 | `.claude/hooks/stack/format.sh` | Runs after every Edit or Write, with the hook payload on stdin. |
 

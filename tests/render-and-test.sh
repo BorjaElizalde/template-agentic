@@ -75,11 +75,13 @@ GATE="$D/.github/workflows/gate.yaml"
 BRANCH_PROTECTION="$D/.github/workflows/branch-protection.yaml"
 expect "the Gate and Branch protection workflows are valid workflows" uvx --quiet check-jsonschema --builtin-schema vendor.github-workflows \
   "$GATE" "$BRANCH_PROTECTION"
-runs_make_gate() {  # the gate job's steps, each as its action without the pin, or as its command
-  [ "$(uvx --quiet yq -c '[.jobs.gate.steps[] | .uses // .run | sub("@.*"; "")]' "$GATE")" = \
-    '["actions/checkout","./.github/actions/gate-setup","make gate"]' ]
+runs_the_gate_action() {  # the gate job's actions, without their pins
+  [ "$(uvx --quiet yq -c '[.jobs.gate.steps[].uses | sub("@.*"; "")]' "$GATE")" = \
+    '["actions/checkout","./.github/actions/gate"]' ]
 }
-expect "the gate job checks out the code, runs the stack's gate-setup action, then runs make gate" runs_make_gate
+expect "the gate job checks out the code, then runs the stack's gate action" runs_the_gate_action
+expect "this repository's gate action ends with make gate" \
+  test "$(uvx --quiet yq -r '.runs.steps[-1].run' "$ROOT/.github/actions/gate/action.yaml")" = "make gate"
 skips_a_draft() {
   grep -qx '    types: \[opened, synchronize, reopened, ready_for_review\]' "$GATE" &&
     [ "$(uvx --quiet yq -r '.jobs.gate.needs' "$GATE")" = read-draft ] &&
@@ -153,7 +155,7 @@ expect "the project's renovate.json is the pointer to the project preset only" j
 expect "the project preset is the shared rules, with Renovate off the template's CI files" jq -e '
   .extends == ["github>BorjaElizalde/template-agentic//renovate/base"]
   and (.["github-actions"].ignorePaths
-    | index(".github/workflows/gate.yaml") != null and index(".github/actions/gate-setup/**") != null)' \
+    | index(".github/workflows/gate.yaml") != null and index(".github/actions/gate/**") != null)' \
   "$ROOT/renovate/default.json"
 expect "this repository takes the shared rules, and Renovate reads the template's .jinja workflows too, so it keeps every CI file's pins current" jq -e '
   .extends == ["github>BorjaElizalde/template-agentic//renovate/base"]

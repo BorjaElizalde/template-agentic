@@ -51,6 +51,5 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      # The stack supplies this action: it installs the tools that the stack's make gate runs.
-      - uses: ./.github/actions/gate-setup
-      - run: make gate
+      # The stack supplies this action: it installs what the stack's make gate needs, then runs it.
+      - uses: ./.github/actions/gate

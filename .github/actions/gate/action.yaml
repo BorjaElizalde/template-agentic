@@ -1,7 +1,7 @@
-# What this repository's make gate needs on the runner, which the Gate workflow's gate job installs
-# before it runs make gate.
-name: Gate setup
-description: Install uv and tmux, which this repository's make gate runs.
+# This repository's gate on GitHub's runner, which the Gate workflow's gate job runs after it checks
+# out the code.
+name: Gate
+description: Install uv and tmux, then run this repository's make gate.
 runs:
   using: composite
   steps:
@@ -10,3 +10,5 @@ runs:
     - name: Install tmux
       shell: bash
       run: sudo apt-get update -q && sudo apt-get install -y -q tmux
+    - run: make gate
+      shell: bash
