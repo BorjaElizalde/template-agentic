@@ -13,7 +13,7 @@ check_run() {  # check_run <name> <workflow> <status> <conclusion> [<started at>
     "$1" "$2" "$3" "$4" "${5:-}"
 }
 status_context() { printf '{"__typename":"StatusContext","context":"%s","state":"%s"}' "$1" "$2"; }
-GATE_NAME='gate / checks'
+GATE_NAME=gate
 GATE="$(check_run "$GATE_NAME" Gate COMPLETED SUCCESS)"
 FAILED="$(check_run test Test COMPLETED FAILURE)"
 

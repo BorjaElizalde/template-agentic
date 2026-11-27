@@ -6,7 +6,7 @@ def newest_runs:
   [.statusCheckRollup // [] | group_by([.workflowName, .name, .context])[] | max_by(.startedAt)];
 
 # The check the rulesets require; the Gate workflow's read-draft passes on a draft too.
-def gate: .workflowName == "Gate" and (.name | startswith("gate / "));
+def gate: .workflowName == "Gate" and .name == "gate";
 
 def conclusion:
   if .__typename == "StatusContext" then .state
