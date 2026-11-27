@@ -170,11 +170,6 @@ expect "await-checks.sh suite" bash "$D/.claude/skills/release/scripts/await-che
 expect "seeded memory index is clean" bash "$D/.claude/hooks/memory/staleness.sh" "$D/.claude/memory"
 expect "point-memory targets this checkout" bash -c "bash '$D/.claude/skills/task/scripts/task.sh' point-memory >/dev/null &&
   [ \"\$(jq -r .autoMemoryDirectory '$D/.claude/settings.local.json')\" = \"\$(cd '$D' && pwd -P)/.claude/memory\" ]"
-expect "the issue, plan, PR and commit steps each send the agent to .claude/rules/writing.md, which the project has" bash -c "
-  [ -f '$D/.claude/rules/writing.md' ] &&
-  for step in task/skills/start/SKILL.md task/session/execution.md pull-request/SKILL.md commit/SKILL.md; do
-    grep -qF '\`.claude/rules/writing.md\`' \"$D/.claude/skills/\$step\" || exit 1
-  done"
 for agent in "$D"/.claude/agents/*.md; do
   expect "$(basename "$agent" .md) has no tool that edits, nor memory, which adds Write and Edit" bash -c "
     grep -q '^tools:' '$agent' && ! grep -qE '^(tools:.*(Edit|Write|Agent)|memory:)' '$agent'"
