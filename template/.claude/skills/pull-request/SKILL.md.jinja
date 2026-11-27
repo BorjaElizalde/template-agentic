@@ -39,18 +39,18 @@ description: Use when committed and validated feature-branch work is ready for a
    can merge and the gate skips: the gate runs on the head the PR has when it is marked ready.
 {%- if agent_merges %}
 8. This project lets the agent merge its own PR into `develop` (`agent_merges`). Step 7 started
-   the gate. Wait until `gh pr checks <n>` lists a `gate` check that is not skipped, or a failed
-   or cancelled check, since `gh pr checks <n> --watch` ends once no listed check is pending, and
-   the `gate` check appears only after the Gate workflow's `read-draft` check.
+   the gate. Wait until `gh pr checks <n> --json workflow,name,bucket` lists a `Gate` check that
+   is not skipped and not `read-draft`, or a failed or cancelled check. `gh pr checks <n> --watch`
+   alone ends once no listed check is pending, and the gate appears only after `read-draft`.
    Then wait for the PR's checks with `gh pr checks <n> --watch`; on a failed or cancelled check,
    stop and report it. A failed `up-to-date` says that `develop` moved on meanwhile: fetch and
    merge it as in step 4, pass the gate on the result, push, and wait for the checks again. When
    every check has passed, read the head they ran on, `gh pr view <n> --json headRefOid --jq
    .headRefOid`, and merge that head only: `gh pr merge <n> --squash --match-head-commit <sha>`.
    The guard blocks the merge unless the PR is this repository's, the merge is a squash pinned to
-   the current head, and every check on it has passed with the `Gate` workflow's `gate` check
-   among them. A PR that changes only files on the `paths-ignore` list in
-   `.github/workflows/gate.yaml` gets no Gate run: leave its merge to the owner.
+   the current head, and every check on it has passed with the gate among them. A PR that changes
+   only files on the `paths-ignore` list in `.github/workflows/gate.yaml` gets no Gate run: leave
+   its merge to the owner.
 9. Return the PR URL and the merge result.
 {%- else %}
 8. Return the PR URL.

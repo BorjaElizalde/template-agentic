@@ -67,23 +67,11 @@ RE_GH_URL='github\.com[:/]+([^/]+/[^/]+)$'
 RE_WRAPPER='(^|[[:space:]])((ba)?sh[[:space:]]+-c|eval)[[:space:]]+'
 
 # One PR lookup answers every merge question: "<base> <head> <head sha> <owner/name> <verdict>".
-# The verdict is green when every check on the head has passed (succeeded, or was neutral or
-# skipped) and the Gate workflow's gate check succeeded, as the rulesets require. Its read-draft
-# check does not count, since it passes on a draft too. A check counts by its newest run, as in
-# `gh pr checks`: the head keeps the checks of every run, a run cancelled by a later one included.
-# A CheckRun counts only once COMPLETED; a StatusContext reads its state.
-# $c and $repo are jq's variables. Tried double quotes, but then every " and $ of the program
-# needs a backslash.
-# shellcheck disable=SC2016
-JQ_PR='[.statusCheckRollup // [] | group_by([.workflowName, .name, .context])[] | max_by(.startedAt)
-    | if .__typename == "StatusContext" then {gate: false, conclusion: .state}
-    else {gate: (.workflowName == "Gate" and .name == "gate"),
-      conclusion: (if .status == "COMPLETED" then .conclusion else "PENDING" end)} end] as $c
-  | (.url | capture("github\\.com/(?<r>[^/]+/[^/]+)/pull/").r | ascii_downcase) as $repo
-  | (if any($c[]; .gate and .conclusion == "SUCCESS") | not then "no-passed-gate"
-     elif all($c[]; .conclusion == "SUCCESS" or .conclusion == "NEUTRAL" or .conclusion == "SKIPPED") then "green"
-     else "a-check-not-passed" end) as $verdict
-  | [.baseRefName, .headRefName, .headRefOid, $repo, $verdict] | join(" ")'
+# The verdict goes last, since its words hold spaces.
+JQ_PR='import "pr-checks" as checks;
+  [.baseRefName, .headRefName, .headRefOid,
+    (.url | capture("github\\.com/(?<r>[^/]+/[^/]+)/pull/").r | ascii_downcase), checks::verdict]
+  | join(" ")'
 
 block() { echo "Blocked: $1" >&2; exit 2; }
 
@@ -137,8 +125,8 @@ agent_may_merge() {
     MERGE_WHY="merging into develop as a merge commit: develop takes squash merges."
   elif [ "$match" != "$oid" ]; then
     MERGE_WHY="merging into develop without pinning the head the checks ran on: pass --match-head-commit $oid, the PR's head, so a later push cannot land unchecked."
-  elif [ "$verdict" != green ]; then
-    MERGE_WHY="merging into develop before every check on $oid has passed with the Gate workflow's gate check among them ($verdict). Wait with 'gh pr checks <n> --watch', then merge."
+  elif [ "$verdict" != "checks passed" ]; then
+    MERGE_WHY="merging into develop while the checks on $oid read '$verdict', not 'checks passed'. Wait with 'gh pr checks <n> --watch', then merge."
   else
     return 0
   fi
@@ -162,7 +150,7 @@ segment_merges_protected() {
     return 0
   fi
   out="$(cd "$DIR" 2>/dev/null && gh pr view "$pr" --json baseRefName,headRefName,headRefOid,url,statusCheckRollup \
-    2>/dev/null | jq -r "$JQ_PR" 2>/dev/null)" || out=""
+    2>/dev/null | jq -r -L "$HERE" "$JQ_PR" 2>/dev/null)" || out=""
   read -r base head oid prrepo verdict <<<"$out"
   if [ -z "$base" ]; then
     MERGE_WHY="merging a PR whose base branch could not be looked up; it may be develop, staging or main. Leave the merge to the owner."
