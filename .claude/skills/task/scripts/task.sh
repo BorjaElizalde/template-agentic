@@ -451,18 +451,18 @@ steps_done() {
 }
 
 # One line per task whose issue is open: "<issue> <mark> <steps done> <title>". A merged PR closes
-# its issue, and its task then waits only for the cleanup. A caller reads it with set -e inside the
-# command substitution: bash clears errexit there, and a read that fails would leave tasks out. So
-# each read of gh or claude is an assignment of its own, which errexit sees.
+# its issue, and its task then waits only for the cleanup. bash runs a command substitution without
+# errexit, and ignores errexit in a function whose caller tests it, so each read of gh or claude
+# returns its own failure: else a read that fails would leave tasks out.
 open_tasks() {
 	local issue view worktree branch pr
-	SESSIONS=$(claude agents --json)
+	SESSIONS=$(claude agents --json) || return
 	for issue in $(task_issues); do
-		view=$(gh issue view "$issue" -R "$ISSUES_REPO" --json state,title,comments)
+		view=$(gh issue view "$issue" -R "$ISSUES_REPO" --json state,title,comments) || return
 		[ "$(jq -r .state <<<"$view")" = OPEN ] || continue
 		worktree=$(issue_worktree "$issue")
 		branch=$(git -C "$worktree" branch --show-current)
-		pr=$(pr_line "$branch")
+		pr=$(pr_line "$branch") || return
 		echo "$issue $(task_mark "$issue" "$worktree" "$pr") $(steps_done "$branch" "$pr" "$view") $(short_title "$(jq -r .title <<<"$view")")"
 	done
 }
@@ -471,7 +471,7 @@ open_tasks() {
 # tmux shows only what the command prints, so a read that fails says so there.
 bar() {
 	local tasks
-	if ! tasks=$(set -e; open_tasks); then
+	if ! tasks=$(open_tasks); then
 		echo "The bar could not read the tasks."
 		return
 	fi
@@ -486,7 +486,7 @@ bar() {
 # is at; and the legend.
 reply() {
 	local tasks
-	tasks=$(set -e; open_tasks)
+	tasks=$(open_tasks)
 	printf '%s' "$tasks" | jq -Rrs --arg legend "$LEGEND" "$MARK_JQ"'
 		def cell: . + " " * (8 - length);
 		def table: map(.label = "#\(.issue) \(.title)") | (map(.label | length) | max + 3) as $width
