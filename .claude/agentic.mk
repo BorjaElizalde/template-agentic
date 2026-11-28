@@ -11,9 +11,10 @@ CLAUDE_FLAGS ?= --remote-control
 TMUX_SOCKET := $(notdir $(CURDIR))
 # tmux reads a dot in a session name as a target's separator, and -A looks the name up as a target.
 TMUX_SESSION := $(subst .,_,$(TMUX_SOCKET))
-# The main session's command. The shell reads prompt, which make exports; -- stops a flag like
-# --remote-control [name] taking it.
-MAIN_SESSION = $(KEEP_AWAKE) claude $(CLAUDE_FLAGS) $(args) $${prompt:+-- "$$prompt"}
+# The main session's command. Claude Code reads the template's .claude/settings.json by itself,
+# and the project's own settings only through --settings. The shell reads prompt, which make
+# exports; -- stops a flag like --remote-control [name] taking it.
+MAIN_SESSION = $(KEEP_AWAKE) claude --settings .claude/settings.project.json $(CLAUDE_FLAGS) $(args) $${prompt:+-- "$$prompt"}
 # The variables GNU make adds to a recipe's environment: its own, and those its command line sets.
 MAKE_VARS = MAKEFLAGS MAKELEVEL MFLAGS MAKEOVERRIDES MAKE_TERMOUT MAKE_TERMERR \
   $(foreach v,$(.VARIABLES),$(if $(findstring command line,$(origin $v)),$v))
