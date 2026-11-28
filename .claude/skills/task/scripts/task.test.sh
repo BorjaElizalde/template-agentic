@@ -541,17 +541,19 @@ check "lists the backlog, with no In progress heading" bash -c "
 rm "$TASK_TEST_STATE/claude-down"
 
 echo "-- status: pulls origin/develop into the main checkout, and loses none of its files"
-pr_adds() {  # pr_adds <file> <line>: a PR that adds that line to that file merges into origin's develop
-  echo "$2" >>"$WORK/seed/$1" && git -C "$WORK/seed" add -A && commit "$WORK/seed" &&
-    git -C "$WORK/seed" push -q "$WORK/origin.git" develop
+merge_pr() {  # a PR with every change in the seed merges into origin's develop
+  git -C "$WORK/seed" add -A && commit "$WORK/seed" && git -C "$WORK/seed" push -q "$WORK/origin.git" develop
 }
+pr_adds() { echo "$2" >>"$WORK/seed/$1" && merge_pr; }  # pr_adds <file> <line>: a PR that adds that line to that file merges
 at_origin() { test "$(git -C "$BACKEND" rev-parse HEAD)" = "$(git -C "$WORK/origin.git" rev-parse develop)"; }  # backend's main checkout is at origin's develop
 says_behind() {  # says_behind <commits> <text>...: the last status said the main checkout lacks them, with each text
   local text
   grep -q "^The main checkout lacks origin/develop's newest commits ($1): " "$WORK/out" || return 1
   for text in "${@:2}"; do grep -qF -- "$text" "$WORK/out" || return 1; done
 }
-pr_adds .claude/skills/task/scripts/task.sh '# A later version.'
+# The PR's line comes second in task.sh: a file written in place would break the bash that runs it.
+{ head -n 1 "$HERE/task.sh"; echo '# A later version.'; tail -n +2 "$HERE/task.sh"; } >"$WORK/seed/.claude/skills/task/scripts/task.sh"
+merge_pr
 echo notes >"$BACKEND/notes.md"
 echo '# The owner changed this.' >>"$BACKEND/.claude/agentic.conf"
 check "a status after a PR that changes task.sh itself merged" run_in "$BACKEND" status
@@ -578,9 +580,16 @@ run_in "$BACKEND" status
 check "an uncommitted change to a file a PR changes holds both PRs back, and is named" says_behind 2 'would be overwritten by merge' agentic.conf
 check "and stays as it was"                    test "$(tail -n 1 "$BACKEND/.claude/agentic.conf")" = '# The owner changed this.'
 git -C "$BACKEND" restore .claude/agentic.conf
+echo .env >>"$BACKEND/.git/info/exclude"
+echo secret >"$BACKEND/.env"
+pr_adds .env 'The key of the PR.'
+run_in "$BACKEND" status
+check "a file that git ignores holds a PR back too, and is named" says_behind 3 'would be overwritten by merge' .env
+check "and stays as it was"                    test "$(cat "$BACKEND/.env")" = secret
+rm "$BACKEND/.env"
 git -C "$BACKEND" switch -q -c side
 run_in "$BACKEND" status
-check "on another branch, the status names it" says_behind 2 'it is on side, not on develop'
+check "on another branch, the status names it" says_behind 3 'it is on side, not on develop'
 check "and moves neither that branch nor develop" test "$(git -C "$BACKEND" rev-parse side)$(git -C "$BACKEND" rev-parse develop)" = "$HELD$HELD"
 git -C "$BACKEND" switch -q develop
 git -C "$BACKEND" branch -q -D side

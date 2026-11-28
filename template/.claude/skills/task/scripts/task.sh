@@ -418,7 +418,7 @@ task_lines() {
 	done
 }
 
-# A fast-forward loses no file: git refuses to overwrite an uncommitted or an untracked one.
+# The merge's options make git refuse to overwrite any uncommitted, untracked or ignored file.
 pull_develop() {
 	local missing branch refusal
 	git fetch origin develop -q
@@ -427,7 +427,7 @@ pull_develop() {
 	branch=$(git branch --show-current)
 	# On another branch, the merge would move that branch to develop.
 	if [ "$branch" = develop ]; then
-		refusal=$(git merge --ff-only -q origin/develop 2>&1) && return
+		refusal=$(git merge --ff-only --no-overwrite-ignore --no-autostash -q origin/develop 2>&1) && return
 	else
 		refusal="it is on ${branch:-no branch}, not on develop"
 	fi
