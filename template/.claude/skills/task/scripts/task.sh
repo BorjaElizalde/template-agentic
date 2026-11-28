@@ -8,10 +8,13 @@ usage="usage: task.sh start <issue> [type] | finish <issue> | park <issue> <reas
 CALLER=$(pwd -P)
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 CHECKOUT=$(pwd -P)
-# Worktree paths resolve from the main checkout, the first entry git lists, even when this runs in
-# a worktree. Its folder name names this repository's worktree inside each issue's folder, so a
-# cross-repository task's worktrees sit side by side.
-MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+# Worktree paths resolve from the main checkout, even when this runs in a worktree. Its folder name
+# names this repository's worktree inside each issue's folder, so a cross-repository task's
+# worktrees sit side by side. git lists a submodule's git data folder as its main worktree, and only
+# that folder's core.worktree names the main checkout; a normal repository's .git names none.
+COMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir)
+MAIN=$(git -C "$COMMON_DIR" rev-parse --show-toplevel 2>/dev/null) ||
+	MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
 REPO_NAME=$(basename "$MAIN")
 cd "$MAIN"
 # The render's answers: KEY=VALUE lines, with no code in them to check. Tried pointing shellcheck
@@ -124,7 +127,7 @@ session_line() {
 }
 
 # autoMemoryDirectory takes only an absolute or ~/ path, so the main checkout's gitignored local
-# settings point Claude at its committed store: a worktree's session reads those, not its own.
+# settings point its own session at its committed store; a task session gets it at launch.
 point_memory() {
 	local checkout=$1 settings=$1/.claude/settings.local.json
 	[ -f "$settings" ] || printf '{}\n' >"$settings"
@@ -142,12 +145,13 @@ launch_command() {
 	if orchestrator=$(jq -re --argjson pid "${CLAUDE_PID:-0}" 'first(.[] | select(.pid == $pid) | .name)' <<<"$SESSIONS"); then
 		first+=" Your orchestrator, the session that started this task, is \`$orchestrator\`."
 	fi
-	settings=$files/settings.json
 	# Every session has its permission prompts denied, and AskUserQuestion goes through one, so no
 	# session gets the tool. An execution session's Stop hook sends it back to work when it ends its
-	# turn on a question. A design session asks the owner, so it drops the hook: claude --settings
-	# takes one file or JSON string, so it gets the settings less the hook as JSON.
-	if [ "$3" = design ]; then settings=$(jq -c 'del(.hooks.Stop)' "$settings"); fi
+	# turn on a question. A design session asks the owner, so it drops the hook. In a submodule's
+	# worktree, Claude Code reads the worktree's local settings, not the main checkout's, so the
+	# memory store goes here. claude --settings takes one file or JSON string, so they go as JSON.
+	settings=$(jq -c --arg memory "$MAIN/.claude/memory" --arg mode "$3" \
+		'.autoMemoryDirectory = $memory | if $mode == "design" then del(.hooks.Stop) else . end' "$files/settings.json")
 	# claude takes one appended system prompt, so the command joins the words both modes share and
 	# the mode's own. The first prompt comes after -n: --disallowed-tools takes every value up to the
 	# next option.
