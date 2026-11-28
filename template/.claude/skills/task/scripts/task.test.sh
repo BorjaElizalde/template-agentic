@@ -417,7 +417,7 @@ check "which stays"                            test -d "$ISSUE10/backend"
 run_in "$BACKEND" cleanup
 check "until a cleanup from the main checkout" test ! -e "$ISSUE10"
 
-echo "-- status: every task in one view, and it only reads"
+echo "-- status: every task in one view, and it finishes none"
 ISSUE11="$WORK/repos/worktrees/11-task-11"
 ISSUE13="$WORK/repos/worktrees/13-task-13"
 ISSUE14="$WORK/repos/worktrees/14-task-14"
@@ -539,6 +539,57 @@ check "a look where there is no task worktree, with claude down" run_in "$FRONTE
 check "lists the backlog, with no In progress heading" bash -c "
   ! grep -q '^In progress:' '$WORK/out' && grep -qx '#24 Task 24' '$WORK/out'"
 rm "$TASK_TEST_STATE/claude-down"
+
+echo "-- status: pulls origin/develop into the main checkout, and loses none of its files"
+pr_adds() {  # pr_adds <file> <line>: a PR that adds that line to that file merges into origin's develop
+  echo "$2" >>"$WORK/seed/$1" && git -C "$WORK/seed" add -A && commit "$WORK/seed" &&
+    git -C "$WORK/seed" push -q "$WORK/origin.git" develop
+}
+at_origin() { test "$(git -C "$BACKEND" rev-parse HEAD)" = "$(git -C "$WORK/origin.git" rev-parse develop)"; }  # backend's main checkout is at origin's develop
+says_behind() {  # says_behind <commits> <text>...: the last status said the main checkout lacks them, with each text
+  local text
+  grep -q "^The main checkout lacks origin/develop's newest commits ($1): " "$WORK/out" || return 1
+  for text in "${@:2}"; do grep -qF -- "$text" "$WORK/out" || return 1; done
+}
+pr_adds .claude/skills/task/scripts/task.sh '# A later version.'
+echo notes >"$BACKEND/notes.md"
+echo '# The owner changed this.' >>"$BACKEND/.claude/agentic.conf"
+check "a status after a PR that changes task.sh itself merged" run_in "$BACKEND" status
+check "brings the main checkout to origin/develop" at_origin
+check "keeps an untracked file, and an uncommitted change to a file the PR leaves alone" bash -c "
+  test \"\$(cat '$BACKEND/notes.md')\" = notes && test \"\$(tail -n 1 '$BACKEND/.claude/agentic.conf')\" = '# The owner changed this.'"
+check "and says nothing of the checkout"       bash -c "! grep -q 'main checkout' '$WORK/out'"
+pr_adds README.md 'A second PR.'
+BRANCH11="$(git -C "$ISSUE11/backend" rev-parse HEAD)"
+check "a status from a task's worktree"        run_in "$ISSUE11/backend" status
+check "pulls the main checkout"                at_origin
+check "and leaves the task's branch where it was" test "$(git -C "$ISSUE11/backend" rev-parse HEAD)" = "$BRANCH11"
+
+echo "-- status: says that the main checkout is behind, and why, when it can't pull"
+HELD="$(git -C "$BACKEND" rev-parse HEAD)"
+pr_adds notes.md 'The notes of the PR.'
+check "a status where an untracked file is in a PR's way" run_in "$BACKEND" status
+check "says how many commits the checkout lacks, with git's reason and the file" says_behind 1 'would be overwritten by merge' notes.md
+check "after the tasks and the backlog"        bash -c "grep -q '^#24 ' '$WORK/out' && ! sed -n '/^The main checkout lacks/,\$p' '$WORK/out' | grep -q '^#'"
+check "and leaves the checkout and the file as they were" test "$(git -C "$BACKEND" rev-parse HEAD)" = "$HELD" -a "$(cat "$BACKEND/notes.md")" = notes
+rm "$BACKEND/notes.md"
+pr_adds .claude/agentic.conf '# The PR changed this.'
+run_in "$BACKEND" status
+check "an uncommitted change to a file a PR changes holds both PRs back, and is named" says_behind 2 'would be overwritten by merge' agentic.conf
+check "and stays as it was"                    test "$(tail -n 1 "$BACKEND/.claude/agentic.conf")" = '# The owner changed this.'
+git -C "$BACKEND" restore .claude/agentic.conf
+git -C "$BACKEND" switch -q -c side
+run_in "$BACKEND" status
+check "on another branch, the status names it" says_behind 2 'it is on side, not on develop'
+check "and moves neither that branch nor develop" test "$(git -C "$BACKEND" rev-parse side)$(git -C "$BACKEND" rev-parse develop)" = "$HELD$HELD"
+git -C "$BACKEND" switch -q develop
+git -C "$BACKEND" branch -q -D side
+git -C "$BACKEND" remote set-url origin "$WORK/none.git"
+check "a status that can't reach origin fails" bash -c "! (cd '$BACKEND' && bash .claude/skills/task/scripts/task.sh status) >'$WORK/out' 2>&1"
+check "with git's reason, after the tasks"     bash -c "grep -q '^#11 ' '$WORK/out' && grep -q '^fatal: ' '$WORK/out'"
+git -C "$BACKEND" remote set-url origin "$WORK/origin.git"
+run_in "$BACKEND" status
+check "with each cause gone, the next status pulls" at_origin
 
 echo "-- plan: a task's design, the one pinned comment of its issue"
 # The heading of the owner's comment only starts like a plan's.

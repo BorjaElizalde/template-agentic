@@ -37,7 +37,9 @@ allowed-tools: Bash(bash:*)
    - Then one line for each task that needs the owner, in the table's order: what to do, with your
      pick, the `Owner steps` or what the session's last message asks, and the PR or issue link.
    - Then one line: how many backlog issues are ready, blocked and parked, then each task the
-     cleanup finished since your last status reply, and each finish it refused, with why.
+     cleanup finished since your last status reply, and each finish it refused, with why. When
+     `status` printed that the main checkout lacks commits of `origin/develop`, add that it is
+     behind, and why.
    - End with the legend, the last line that `reply` printed.
 
    A reply the owner did not ask for, when no task needs them, is only that first line.
