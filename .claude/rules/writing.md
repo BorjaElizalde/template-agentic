@@ -38,7 +38,11 @@ what it holds; these rules say how to write it.
   know. When a claim rests on judgment rather than a check, say what it rests on: "I think",
   "in the runs I read".
 - Leave out filler: no preamble, no summary of what the text already said, no praise of the
-  change.
+  change, and no sentence that only says a part of the text or a step of the task did not apply,
+  or that nothing differs. The body of a real PR ended with two: "The change follows the plan on
+  the issue. No review agent ran, because the change is a bug fix."
+- Write each paragraph and each list item of an issue, a comment or a PR body on one line,
+  however long: GitHub shows a line end inside one as a line break.
 - In instruction text, say each rule once, in the file that does its step. Where a rule does not
   already load, point to it by its subject and folder, as "the writing rule in `.claude/rules/`".
   Name a specific file only in a command that runs it, and do not restate what it does. An

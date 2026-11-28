@@ -533,7 +533,7 @@ check "as a comment that holds the heading Plan, then the file's text, and nothi
   test "$(cat "$TASK_TEST_STATE/comment-24001")" = "$(printf '## Plan\n\nBuild one thing.')"
 check "the issue's pinned comment"             test "$(cat "$TASK_TEST_STATE/pinned-24")" = 24001
 rm "$TASK_TEST_STATE/pinned-24"
-printf 'Build another thing.\n\n### Changes\n\n- Another thing: the first one failed.\n' >"$WORK/plan.md"
+printf 'Build another thing.\n\nIt adds no setting.\n' >"$WORK/plan.md"
 check "a plan posted again"                    task "$BACKEND" plan 24 "$WORK/plan.md"
 check "replaces the text of that comment, under the same heading" \
   test "$(cat "$TASK_TEST_STATE/comment-24001")" = "$(printf '## Plan\n\n%s' "$(cat "$WORK/plan.md")")"
