@@ -176,6 +176,7 @@ sessions_exit() {  # every running session exits, and its window closes; each re
 }
 launched() { jq -e -Rs 'split("\u0000")[:-1] | '"$1" "$TASK_TEST_STATE/launched"; }  # launched <jq filter>: over the last launch's arguments
 launched_arg() { launched ".[index(\"$1\") + 1]" | jq -r .; }  # the value the launch gave option $1
+session_memory() { launched_arg --settings | jq -r .autoMemoryDirectory; }  # the memory store of the session last opened
 # launches_in execution|design: the session last opened launches in that mode.
 launches_in() {
   local settings
@@ -226,6 +227,7 @@ check "the worktree is <root>/<n>-<slug>/backend" test -d "$ISSUE42/backend"
 check "its branch is feat/<n>-<slug>"          test "$(branch_of "$ISSUE42/backend")" = feat/42-add-a-retry-limit-setting-to-the-upload
 check "it branches off origin/develop"         git -C "$ISSUE42/backend" merge-base --is-ancestor origin/develop HEAD
 check "the main checkout's memory points at it" test "$(memory_of "$BACKEND")" = "$BACKEND/.claude/memory"
+check "and so does its session's"              test "$(session_memory)" = "$BACKEND/.claude/memory"
 check "its session opens with the issue name"  test "$(sessions '#42 backend: Add a retry_limit setting to the upload')" -eq 1
 check "and the start names its mode"           grep -qxF '✓ session opened in execution mode: #42 backend: Add a retry_limit setting to the upload' "$WORK/out"
 check "with a first prompt that reads its issue" bash -c "tail -n 1 '$TASK_TEST_STATE/launches' | grep -qF 'gh issue view 42 -R acme/tasks --json title,body,comments'"
@@ -617,6 +619,44 @@ run_in "$BACKEND" bar
 check "a bar whose read of the tasks fails says so, and gives no count" test "$(cat "$WORK/out")" = 'The bar could not read the tasks.'
 check "and a reply whose read fails fails, and prints nothing" bash -c "! (cd '$BACKEND' && bash .claude/skills/task/scripts/task.sh reply) >'$WORK/out' 2>&1 && test ! -s '$WORK/out'"
 rm "$TASK_TEST_STATE/gh-down"
+
+echo "-- a project that is a git submodule: its main checkout is the folder that holds its files"
+# Named api, in parent/service, so the data folder's name differs from the files' folder's.
+PARENT="$WORK/parent"
+SUBMODULE="$PARENT/service"
+ISSUE24="$PARENT/worktrees/24-task-24"
+ISSUE23="$PARENT/worktrees/23-task-23-with-a-title-longer-than-the"
+git init -q -b develop "$PARENT"
+git -C "$PARENT" -c protocol.file.allow=always submodule add -q --name api "$WORK/origin.git" service
+git -C "$PARENT" -c user.name=t -c user.email=t@t commit -qm parent
+tmux_main "$SUBMODULE"
+check "a submodule's main checkout starts issue 24" run_in "$SUBMODULE" start 24
+check "the worktree is <root>/<n>-<slug>/service, the root resolved from the submodule's files" test -d "$ISSUE24/service"
+check "a worktree of the submodule's repository, with its files at the root" bash -c "
+  test \"\$(git -C '$ISSUE24/service' rev-parse --path-format=absolute --git-common-dir)\" = '$PARENT/.git/modules/api' &&
+  test -f '$ISSUE24/service/.claude/agentic.conf'"
+check "on branch feat/<n>-<slug>"                 test "$(branch_of "$ISSUE24/service")" = feat/24-task-24
+check "in window #24 of the tmux named after the files' folder" has_window service '#24'
+check "its session's memory is the main checkout's store" test "$(session_memory)" = "$SUBMODULE/.claude/memory"
+check "a start inside the submodule's worktree"  task "$ISSUE24/service" start 23
+check "resolves from the main checkout"           test -d "$ISSUE23/service"
+SUBMODULE_TASKS="$(printf '#23 Task 23, with a title longer than the: session busy, no PR, no transcript\n#24 Task 24: session busy, no PR, no transcript')"
+check "a look from the main checkout"             run_in "$SUBMODULE" status
+check "lists its tasks"                           test "$(under 'In progress')" = "$SUBMODULE_TASKS"
+run_in "$ISSUE24/service" status
+check "and so does a look from a task's worktree" test "$(under 'In progress')" = "$SUBMODULE_TASKS"
+check "a session start in its main checkout"      run_in "$SUBMODULE" on-session-start
+check "names /task:status"                        test "$(cat "$WORK/out")" = 'In your first reply, report the status to the owner through /task:status.'
+check "a session start in its task worktree"      run_in "$ISSUE24/service" on-session-start
+check "says nothing"                              test ! -s "$WORK/out"
+echo CLOSED >"$TASK_TEST_STATE/issue-24"
+check "a closed task finishes from the main checkout" task "$SUBMODULE" finish 24
+check "its session ended, and its window closed"  closes service '#24'
+check "its worktree is gone"                      test ! -e "$ISSUE24"
+check "and its branch"                            bash -c "! git -C '$SUBMODULE' rev-parse -q --verify feat/24-task-24"
+echo CLOSED >"$TASK_TEST_STATE/issue-23"
+check "a cleanup from the main checkout"          run_in "$SUBMODULE" cleanup
+check "finishes the other"                        grep -qxF '✓ issue 23 finished: session closed, worktree removed, branches removed: feat/23-task-23-with-a-title-longer-than-the' "$WORK/out"
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"

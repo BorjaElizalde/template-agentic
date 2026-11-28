@@ -8,10 +8,13 @@ usage="usage: task.sh start <issue> [type] | finish <issue> | park <issue> <reas
 CALLER=$(pwd -P)
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 CHECKOUT=$(pwd -P)
-# Worktree paths resolve from the main checkout, the first entry git lists, even when this runs in
-# a worktree. Its folder name names this repository's worktree inside each issue's folder, so a
-# cross-repository task's worktrees sit side by side.
-MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+# Worktree paths resolve from the main checkout, even when this runs in a worktree. Its folder name
+# names this repository's worktree inside each issue's folder, so a cross-repository task's
+# worktrees sit side by side. git lists a submodule's git data folder as its main worktree, and only
+# that folder's core.worktree names the main checkout; a normal repository's .git names none.
+COMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir)
+MAIN=$(git -C "$COMMON_DIR" rev-parse --show-toplevel 2>/dev/null) ||
+	MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
 REPO_NAME=$(basename "$MAIN")
 cd "$MAIN"
 # The render's answers: KEY=VALUE lines, with no code in them to check. Tried pointing shellcheck
@@ -124,7 +127,7 @@ session_line() {
 }
 
 # autoMemoryDirectory takes only an absolute or ~/ path, so the main checkout's gitignored local
-# settings point Claude at its committed store: a worktree's session reads those, not its own.
+# settings point its own session at its committed store; a task session gets it at launch.
 point_memory() {
 	local checkout=$1 settings=$1/.claude/settings.local.json
 	[ -f "$settings" ] || printf '{}\n' >"$settings"
@@ -133,14 +136,16 @@ point_memory() {
 }
 
 # The settings of a session in mode $1. An execution session's Stop hook sends it back to work when
-# it ends its turn on a question; a design session asks the owner, so it drops the hook. claude
-# --settings takes one file or JSON string, so the project's own settings join these the way
-# Claude Code joins its settings files: lists add up, and the project's other values win.
+# it ends its turn on a question; a design session asks the owner, so it drops the hook. In a
+# submodule's worktree, Claude Code reads the worktree's local settings, not the main checkout's,
+# so the memory store goes here. claude --settings takes one file or JSON string, so the project's
+# own settings join these the way Claude Code joins its settings files: lists add up, and the
+# project's other values win.
 session_settings() {
-	jq -c --arg mode "$1" --slurpfile project "$MAIN/.claude/settings.project.json" '
+	jq -c --arg mode "$1" --arg memory "$MAIN/.claude/memory" --slurpfile project "$MAIN/.claude/settings.project.json" '
 		def merge($other): reduce ($other | to_entries[]) as {key: $key, value: $value} (.;
 			.[$key] |= if type == "object" then merge($value) elif type == "array" then . + $value else $value end);
-		if $mode == "design" then del(.hooks.Stop) end | merge($project[0])' "$MAIN/.claude/skills/task/session/settings.json"
+		.autoMemoryDirectory = $memory | if $mode == "design" then del(.hooks.Stop) end | merge($project[0])' "$MAIN/.claude/skills/task/session/settings.json"
 }
 
 # launch_command <name> <issue> <mode> [--continue]: the command that runs a task's session.
