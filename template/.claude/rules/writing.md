@@ -41,7 +41,7 @@ what it holds; these rules say how to write it.
   change, and no sentence that only says a part of the text or a step of the task did not apply,
   or that nothing differs. The body of a real PR ended with two: "The change follows the plan on
   the issue. No review agent ran, because the change is a bug fix."
-- Write each paragraph and each list item of an issue, a comment or a PR body on one line,
+- Write each paragraph and each list item of an issue, a plan, a comment or a PR body on one line,
   however long: GitHub shows a line end inside one as a line break.
 - In instruction text, say each rule once, in the file that does its step. Where a rule does not
   already load, point to it by its subject and folder, as "the writing rule in `.claude/rules/`".
