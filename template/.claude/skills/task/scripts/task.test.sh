@@ -529,14 +529,14 @@ OWNERS="$(printf '## Planning, in the words of the owner\n\nA note.')"
 printf '%s' "$OWNERS" >"$TASK_TEST_STATE/comment-24000"
 printf 'Build one thing.\n' >"$ISSUE11/backend/plan.md"
 check "a session posts its plan, from a path relative to its folder" run_in "$ISSUE11/backend" plan 24 plan.md
-check "as a comment headed Plan, which says whose words it holds, then the file's text" test "$(cat "$TASK_TEST_STATE/comment-24001")" = \
-  "$(printf '%s\n\n%s\n\n%s' '## Plan' '_The design this task builds. Its session chose it and keeps it current here; it is not a decision of the owner._' 'Build one thing.')"
+check "as a comment that holds the heading Plan, then the file's text, and nothing else" \
+  test "$(cat "$TASK_TEST_STATE/comment-24001")" = "$(printf '## Plan\n\nBuild one thing.')"
 check "the issue's pinned comment"             test "$(cat "$TASK_TEST_STATE/pinned-24")" = 24001
 rm "$TASK_TEST_STATE/pinned-24"
 printf 'Build another thing.\n\n### Changes\n\n- Another thing: the first one failed.\n' >"$WORK/plan.md"
 check "a plan posted again"                    task "$BACKEND" plan 24 "$WORK/plan.md"
-check "replaces the text of that comment"      grep -qx -- '- Another thing: the first one failed.' "$TASK_TEST_STATE/comment-24001"
-check "under the same two lines"               test "$(head -n 1 "$TASK_TEST_STATE/comment-24001")" = '## Plan'
+check "replaces the text of that comment, under the same heading" \
+  test "$(cat "$TASK_TEST_STATE/comment-24001")" = "$(printf '## Plan\n\n%s' "$(cat "$WORK/plan.md")")"
 check "adds no second comment"                 test ! -e "$TASK_TEST_STATE/comment-24002"
 check "and pins it again, where the pin was lost" test "$(cat "$TASK_TEST_STATE/pinned-24")" = 24001
 check "the owner's comment stays as it was"    test "$(cat "$TASK_TEST_STATE/comment-24000")" = "$OWNERS"
