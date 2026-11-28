@@ -132,6 +132,19 @@ point_memory() {
 	mv "$settings.tmp" "$settings"
 }
 
+# The settings of a session in mode $1. An execution session's Stop hook sends it back to work when
+# it ends its turn on a question; a design session asks the owner, so it drops the hook. In a
+# submodule's worktree, Claude Code reads the worktree's local settings, not the main checkout's,
+# so the memory store goes here. claude --settings takes one file or JSON string, so the project's
+# own settings join these the way Claude Code joins its settings files: lists add up, and the
+# project's other values win.
+session_settings() {
+	jq -c --arg mode "$1" --arg memory "$MAIN/.claude/memory" --slurpfile project "$MAIN/.claude/settings.project.json" '
+		def merge($other): reduce ($other | to_entries[]) as {key: $key, value: $value} (.;
+			.[$key] |= if type == "object" then merge($value) elif type == "array" then . + $value else $value end);
+		.autoMemoryDirectory = $memory | if $mode == "design" then del(.hooks.Stop) end | merge($project[0])' "$MAIN/.claude/skills/task/session/settings.json"
+}
+
 # launch_command <name> <issue> <mode> [--continue]: the command that runs a task's session.
 launch_command() {
 	# A session opened without a first prompt waits at an empty input, so this one sends it to its
@@ -142,16 +155,12 @@ launch_command() {
 	if orchestrator=$(jq -re --argjson pid "${CLAUDE_PID:-0}" 'first(.[] | select(.pid == $pid) | .name)' <<<"$SESSIONS"); then
 		first+=" Your orchestrator, the session that started this task, is \`$orchestrator\`."
 	fi
+	# Its own line, so that a failed join stops the start: claude ignores an empty --settings.
+	settings=$(session_settings "$3")
 	# Every session has its permission prompts denied, and AskUserQuestion goes through one, so no
-	# session gets the tool. An execution session's Stop hook sends it back to work when it ends its
-	# turn on a question. A design session asks the owner, so it drops the hook. In a submodule's
-	# worktree, Claude Code reads the worktree's local settings, not the main checkout's, so the
-	# memory store goes here. claude --settings takes one file or JSON string, so they go as JSON.
-	settings=$(jq -c --arg memory "$MAIN/.claude/memory" --arg mode "$3" \
-		'.autoMemoryDirectory = $memory | if $mode == "design" then del(.hooks.Stop) else . end' "$files/settings.json")
-	# claude takes one appended system prompt, so the command joins the words both modes share and
-	# the mode's own. The first prompt comes after -n: --disallowed-tools takes every value up to the
-	# next option.
+	# session gets the tool. claude takes one appended system prompt, so the command joins the words
+	# both modes share and the mode's own. The first prompt comes after -n: --disallowed-tools takes
+	# every value up to the next option.
 	command="exec claude ${4:+$4 }--settings $(printf %q "$settings")"
 	command+=" --append-system-prompt \"\$(cat $(printf %q "$files/prompt.md") $(printf %q "$files/$3.md"))\""
 	command+=" --disallowed-tools AskUserQuestion -n $(printf %q "$1") $(printf %q "$first")"

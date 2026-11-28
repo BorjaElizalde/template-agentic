@@ -135,6 +135,9 @@ cp -R "$HERE/../session" "$WORK/seed/.claude/skills/task/"
 SESSION="$HERE/../session"
 printf 'ISSUES_REPO=acme/tasks\nWORKTREE_ROOT=../worktrees\n' >"$WORK/seed/.claude/agentic.conf"
 printf 'settings.local.json\n' >"$WORK/seed/.claude/.gitignore"
+# The project's own settings: a variable, and a Stop hook beside the execution session's.
+printf '{"env": {"PROJECT_VARIABLE": "set"}, "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "echo project stop"}]}]}}\n' \
+  >"$WORK/seed/.claude/settings.project.json"
 git init -q -b develop "$WORK/seed"
 git -C "$WORK/seed" add -A
 git -C "$WORK/seed" -c user.name=t -c user.email=t@t commit -qm seed
@@ -178,10 +181,15 @@ session_memory() { launched_arg --settings | jq -r .autoMemoryDirectory; }  # th
 launches_in() {
   local settings
   settings="$(launched_arg --settings)"
-  [ ! -f "$settings" ] || settings="$(cat "$settings")"
   jq -e '.hooks.PermissionRequest' <<<"$settings" && [ "$(launched_arg --disallowed-tools)" = AskUserQuestion ] &&
     [ "$(launched_arg --append-system-prompt)" = "$(cat "$SESSION/prompt.md" "$SESSION/$1.md")" ] &&
-    jq -e --arg mode "$1" '.hooks | has("Stop") == ($mode == "execution")' <<<"$settings"
+    jq -e --arg mode "$1" --slurpfile session "$SESSION/settings.json" \
+      'any(.hooks.Stop[]?; IN($session[0].hooks.Stop[])) == ($mode == "execution")' <<<"$settings"
+}
+# The session last opened has the project's own settings too: its variable and its Stop hook.
+has_project_settings() {
+  launched_arg --settings |
+    jq -e '.env.PROJECT_VARIABLE == "set" and any(.hooks.Stop[].hooks[]; .command == "echo project stop")'
 }
 # The session last opened runs claude interactively, as its window's only process.
 interactive() {
@@ -229,6 +237,7 @@ check "in window #42 of backend's tmux"        has_window backend '#42'
 check "behind the main window, still in view"  in_view backend
 check "with the folder hooks of its window's shell run in its worktree" test "$(cat "$TASK_TEST_STATE/hook-folder")" = "$ISSUE42/backend"
 check "in execution mode: no question tool, a Stop hook, permission prompts denied" launches_in execution
+check "and the project's own settings beside the session's" has_project_settings
 sessions_exit
 check "starting again resumes, creates nothing" task "$BACKEND" start 42
 check "the session opens a second time"        test "$(sessions '#42 backend:')" -eq 2
@@ -278,7 +287,8 @@ ISSUE25="$WORK/repos/worktrees/25-design-the-next-step"
 check "backend starts issue 25 as design"      run_in "$BACKEND" start 25 design
 check "on a design branch"                     test "$(branch_of "$ISSUE25/backend")" = design/25-design-the-next-step
 check "and the start names design mode"        grep -qxF '✓ session opened in design mode: #25 backend: Design the next step' "$WORK/out"
-check "in design mode: no question tool, no Stop hook, permission prompts denied" launches_in design
+check "in design mode: no question tool, none of the session's own Stop hooks, permission prompts denied" launches_in design
+check "and the project's own settings, its Stop hook among them" has_project_settings
 transcript "$ISSUE25/backend"
 sessions_exit
 check "a start with no type"                   run_in "$BACKEND" start 25
@@ -319,6 +329,13 @@ check "says why, and never that a session opened" bash -c "
   tail -n 1 '$WORK/out' | grep -q '^no session runs in .* 30 seconds after its launch: ' && ! grep -q '^✓ session' '$WORK/out'"
 check "and its window has closed"              closes backend '#26'
 rm "$TASK_TEST_STATE/no-start"
+
+echo "-- start: refused while the project's own settings are not JSON"
+printf '{bad\n' >"$LONG/.claude/settings.project.json"
+LAUNCHES=$(wc -l <"$TASK_TEST_STATE/launches")
+refuses "a start whose project settings are not JSON fails, and names the file" 'settings\.project\.json' "$LONG" start 26
+check "and launches nothing"                   test "$(wc -l <"$TASK_TEST_STATE/launches")" -eq "$LAUNCHES"
+git -C "$LONG" checkout -q -- .claude/settings.project.json
 
 echo "-- finish: refused while anything would be lost"
 refuses "an open issue does not finish"          'still open'           "$BACKEND" finish 42
