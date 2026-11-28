@@ -15,8 +15,8 @@ steps below, and return what it finished and each refusal.
    PRs with `gh pr list --state all --search "{{ issues_repo }}#<n>"`.
 2. An open issue closes only once its result is delivered: a merged PR that names it, or, for a
    research or a design task, a result comment on the issue. Close it with
-   `gh issue close <n> -R {{ issues_repo }} --comment "<where the result is>"`. When the result is
-   not delivered, stop and say what is missing.
+   `gh issue close <n> -R {{ issues_repo }}`. When the result is not delivered, stop and say what
+   is missing.
 3. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/task.sh" finish <n>`. On a refusal, report it and
    stop: never force a removal, and leave moving the work to the task's own session.
 4. Return what was closed and removed.

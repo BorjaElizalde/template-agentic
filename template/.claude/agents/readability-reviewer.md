@@ -45,16 +45,12 @@ Propose no rewrite and no other design.
 
 ## Output
 
-Open with the steps you wrote down before you read the code. Then one line per
-finding:
-
-- `path/file:NN` — <the property> — <what a reader can't do there>
-
-With no finding, say so plainly. Add nothing else: no count, no summary and no praise.
+Each finding is one list item, which opens with its `path/file:NN` and says the rest in sentences.
+With no finding, the report is one line that says so. Add nothing else: not the steps you wrote
+down before you read the code, no count, no summary and no praise.
 
 Post the report on the branch's PR as one comment, then return the same report. Give it on the
 input of `gh pr comment --body-file -` from a quoted heredoc. The comment opens with the line
-`## Readability review`, then `_Findings of the readability-reviewer agent._`, then the report.
-Write every shell command in the report in backticks: the Bash guard reads the heredoc as part of
-the command, and blocks a git command it finds there in prose. If it still blocks the post, write
-the command it names in other words, and post again.
+`## Readability review`, then the report. Write every shell command in the report in backticks:
+the Bash guard reads the heredoc as part of the command, and blocks a git command it finds there
+in prose. If it still blocks the post, write the command it names in other words, and post again.

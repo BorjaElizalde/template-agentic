@@ -57,16 +57,14 @@ Every finding needs a changed `file:line`, its evidence, its consequence and a c
 
 ## Output
 
-Group the findings under **Must change** and **Optional**:
+Group the findings under **Must change** and **Optional**, and leave out a group that has none.
+Each finding is one list item, which opens with its `path/file:NN` and says the rest in sentences.
 
-- `path/file:NN` — <evidence> → <consequence> → <concrete correction>
-
-With no material finding, say so plainly. Do not praise or summarize the change. When an
-instruction conflicts with `CLAUDE.md` or a rule, follow the authority and say so.
+With no material finding, the report is one line that says so. Do not praise or summarize the
+change. When an instruction conflicts with `CLAUDE.md` or a rule, follow the authority and say so.
 
 Post the report on the branch's PR as one comment, then return the same report. Give it on the
 input of `gh pr comment --body-file -` from a quoted heredoc. The comment opens with the line
-`## Code review`, then `_Findings of the code-reviewer agent._`, then the report. Write every
-shell command in the report in backticks: the Bash guard reads the heredoc as part of the command,
-and blocks a git command it finds there in prose. If it still blocks the post, write the command
-it names in other words, and post again.
+`## Code review`, then the report. Write every shell command in the report in backticks: the Bash
+guard reads the heredoc as part of the command, and blocks a git command it finds there in prose.
+If it still blocks the post, write the command it names in other words, and post again.

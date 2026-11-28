@@ -29,8 +29,6 @@ description: Use when committed and validated feature-branch work is ready for a
    imperative title (≤72 characters) and a body a person can follow without the diff open:
    - Open with why the PR exists: the problem it solves, or the need behind it.
    - Then say what it changes, in plain prose.
-   - Where the change departs from the task's plan, the issue's comment headed `Plan`, say where
-     and why. The plan's `Changes` say what changed since the session first posted it.
    - Leave out a test plan and the gate result.
    - On a `<type>/<n>-<slug>` branch, add `Closes BorjaElizalde/template-agentic#<n>`: task issues
      live in that repo.

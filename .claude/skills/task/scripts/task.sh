@@ -54,10 +54,7 @@ park() {
 	echo "✓ issue $1 parked: $2"
 }
 
-# The two lines that open an issue's plan comment. The second says whose words they are: the
-# session posts under the owner's account.
 PLAN_HEADING='## Plan'
-PLAN_AUTHOR='_The design this task builds. Its session chose it and keeps it current here; it is not a decision of the owner._'
 
 # The URLs of the plan comments of the issue whose JSON is on stdin, oldest first.
 plan_urls() {
@@ -71,7 +68,7 @@ plan_urls() {
 plan() {
 	local text body url
 	text=$(cd "$CALLER" && cat "$2")
-	body=$PLAN_HEADING$'\n\n'$PLAN_AUTHOR$'\n\n'$text
+	body=$PLAN_HEADING$'\n\n'$text
 	url=$(gh issue view "$1" -R "$ISSUES_REPO" --json comments | plan_urls | tail -n 1)
 	if [ -n "$url" ]; then
 		gh api -X PATCH "repos/$ISSUES_REPO/issues/comments/${url##*-}" -f body="$body" >/dev/null

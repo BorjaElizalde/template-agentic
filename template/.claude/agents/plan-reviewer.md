@@ -63,18 +63,16 @@ handling and validation.
 
 ## Output
 
-1. **Verdict**, one line: the plan is over-built, about right or under-built for the issue's
-   scope, and the design you would take in its place, if any.
-2. **Alternatives**, one block for each design you present: what it is, what it removes and adds
-   against the plan's design, why it is a clear win, with the proof, and what the plan would
-   change to take it. With none, say so in one line.
-3. **Essential, keep**: short bullets on what must stay and why, so the session stops
-   second-guessing it.
+Open with the verdict, in one line: the plan is over-built, about right or under-built for the
+issue's scope, and the design you would take in its place, if any. Then give each design you
+present a block of its own: what it is, what it removes and adds against the plan's design, why it
+is a clear win, with the proof, and what the plan would change to take it. Add nothing else: no
+notes on how you worked and no design you left out. With no design to present, the verdict is the
+whole report.
 
 Post the report on the issue as one comment, then return the same report. Give it on the input of
 `gh issue comment <n> -R <repository> --body-file -`, with the issue and the repository of the
 caller's command, from a quoted heredoc. The comment opens with the line `## Plan review`, then
-`_Findings of the plan-reviewer agent._`, then the report. Write every shell command in the report
-in backticks: the Bash guard reads the heredoc as part of the command, and blocks a git command it
-finds there in prose. If it still blocks the post, write the command it names in other words, and
-post again.
+the report. Write every shell command in the report in backticks: the Bash guard reads the heredoc
+as part of the command, and blocks a git command it finds there in prose. If it still blocks the
+post, write the command it names in other words, and post again.

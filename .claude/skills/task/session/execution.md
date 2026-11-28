@@ -17,8 +17,7 @@ to a file as the writing rule in `.claude/rules/` says, for a reader who has the
 the code:
 
 - what you will build, and where;
-- each thing it adds, such as a file, a command, a setting or a name, with the reason the issue
-  needs it;
+- each thing it adds, such as a file, a command, a setting or a name, with its reason;
 - each choice between designs: the one you took, and why;
 - for a bug fix, the test that reproduces the bug and the failure it gave, or why no test can
   reproduce the bug.
@@ -44,8 +43,7 @@ Before you build, spawn the `plan-reviewer` agent on the issue's plan. It only r
 on its designs, and you alone change the plan. Take a design it presents unless a reason stands
 against it, and post the plan again before you build any code. Then build: no person answers a
 plan. Each time the design changes, by that review or during the build, post the plan with the
-same command: the design as it stands and, under `Changes`, every change since the first plan,
-each with its reason.
+same command: it holds the design as it stands, and no record of an earlier one.
 
 Open that PR with `/pull-request` once the work is done, and stop before the step that marks it
 ready: it stays a draft, which nobody can merge, until the steps below end. Then run them:
