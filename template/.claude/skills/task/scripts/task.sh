@@ -3,7 +3,7 @@
 # The task lifecycle: one issue, one worktree, one session.
 set -euo pipefail
 
-usage="usage: task.sh start <issue> [type] | finish <issue> | park <issue> <reason> | plan <issue> <file> | cleanup | status | on-session-start | point-memory"
+usage="usage: task.sh start <issue> [type] | finish <issue> | park <issue> <reason> | plan <issue> <file> | cleanup | status | mark [<issue> 🟢|💬]... | reply | bar | on-session-start | point-memory"
 
 CALLER=$(pwd -P)
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -56,16 +56,21 @@ park() {
 PLAN_HEADING='## Plan'
 PLAN_AUTHOR='_The design this task builds. Its session chose it and keeps it current here; it is not a decision of the owner._'
 
+# The URLs of the plan comments of the issue whose JSON is on stdin, oldest first.
+plan_urls() {
+	jq -r --arg heading "$PLAN_HEADING" '.comments[] | select(.body | startswith($heading + "\n")) | .url'
+}
+
 # plan <issue> <file>: an issue holds one plan, so a run that finds the comment under PLAN_HEADING
 # gives it the file's text and posts none. Every run pins it: GitHub keeps one pinned comment per
 # issue, and a pin on a pinned comment changes nothing. A comment's URL ends in the id the REST API
 # knows it by.
 plan() {
-	local text body comments url
+	local text body url
 	text=$(cd "$CALLER" && cat "$2")
 	body=$PLAN_HEADING$'\n\n'$PLAN_AUTHOR$'\n\n'$text
-	comments=$(gh issue view "$1" -R "$ISSUES_REPO" --json comments)
-	if url=$(jq -re --arg heading "$PLAN_HEADING" '[.comments[] | select(.body | startswith($heading + "\n")) | .url] | last // empty' <<<"$comments"); then
+	url=$(gh issue view "$1" -R "$ISSUES_REPO" --json comments | plan_urls | tail -n 1)
+	if [ -n "$url" ]; then
 		gh api -X PATCH "repos/$ISSUES_REPO/issues/comments/${url##*-}" -f body="$body" >/dev/null
 	else
 		url=$(gh issue comment "$1" -R "$ISSUES_REPO" --body "$body")
@@ -324,15 +329,21 @@ pr_line() {
 			end'
 }
 
-transcript_age() {
+# The time a session in folder $1 last wrote, in seconds since the epoch.
+last_write() {
 	local transcript newest=
 	# Any file is newer than no file. In a folder with no transcript, the pattern stays as it is and
 	# names no file.
 	for transcript in "$(transcript_dir "$1")"/*.jsonl; do
 		if [ "$transcript" -nt "$newest" ]; then newest=$transcript; fi
 	done
-	[ -n "$newest" ] || return 0
-	echo $(($(date +%s) - $(date -r "$newest" +%s)))
+	[ -z "$newest" ] || date -r "$newest" +%s
+}
+
+transcript_age() {
+	local written
+	written=$(last_write "$1")
+	[ -z "$written" ] || echo $(($(date +%s) - written))
 }
 
 active_line() {
@@ -400,6 +411,127 @@ task_lines() {
 	done
 }
 
+# The marks, in the order the bar and the table list them: a PR ready for the owner to merge, a
+# session that waits for the owner's answer, a task stalled, whose next move is the main session's,
+# and a task running. The main session gives the first two from its reading of the issues and the
+# sessions' last messages; a task's state gives the other two.
+MARK_JQ='
+	def rank: {"🟢": 0, "💬": 1, "🛑": 2, "⏳": 3}[.mark];
+	def tasks: split("\n")
+		| map(capture("^(?<issue>[0-9]+) (?<mark>[^ ]+) (?<steps>[0-9]) (?<title>.*)$") | .issue |= tonumber | .steps |= tonumber)
+		| sort_by(rank, .issue);
+	def need: map(select(.mark != "⏳")) | length;
+	def number_with(one; many): "\(.) \(if . == 1 then one else many end)";
+'
+LEGEND='🟢 PR ready to merge · 💬 your answer · 🛑 stalled · ⏳ running'
+
+# The marks the main session gave, one line each: "<issue> <mark> <state>".
+MARKS_FILE=$(git rev-parse --absolute-git-dir)/task-marks
+
+# task_state <worktree> <PR line>: what a mark the main session gives holds for.
+task_state() {
+	echo "$(session_line "$1"), $2, $(last_write "$1")"
+}
+
+# task_mark <issue> <worktree> <PR line>: the mark the main session gave, while the task's state is
+# the one it was given in; else 🛑 while the task needs attention, else ⏳.
+task_mark() {
+	local state mark
+	state=$(task_state "$2" "$3")
+	for mark in 🟢 💬; do
+		if grep -qsxF "$1 $mark $state" "$MARKS_FILE"; then
+			echo "$mark"
+			return
+		fi
+	done
+	if needs_attention "$(session_line "$2")" "$(transcript_age "$2")"; then echo 🛑; else echo ⏳; fi
+}
+
+# steps_done <branch> <PR line> <issue JSON>: how many of the steps plan, build, review and merge
+# the task has done. A design task has no steps, so its mark sits in the first column.
+steps_done() {
+	case $1,$2 in
+	design/*) echo 0 ;;
+	*,"no PR") if [ -n "$(plan_urls <<<"$3")" ]; then echo 1; else echo 0; fi ;;
+	*" draft,"*) echo 2 ;;
+	*) echo 3 ;;
+	esac
+}
+
+# One line per task whose issue is open: "<issue> <mark> <steps done> <title>". A merged PR closes
+# its issue, and its task then waits only for the cleanup. bash runs a command substitution without
+# errexit, and ignores errexit in a function whose caller tests it, so each read of gh or claude
+# returns its own failure: else a read that fails would leave tasks out.
+open_tasks() {
+	local issue view worktree branch pr
+	SESSIONS=$(claude agents --json) || return
+	for issue in $(task_issues); do
+		view=$(gh issue view "$issue" -R "$ISSUES_REPO" --json state,title,comments) || return
+		[ "$(jq -r .state <<<"$view")" = OPEN ] || continue
+		worktree=$(issue_worktree "$issue")
+		branch=$(git -C "$worktree" branch --show-current)
+		pr=$(pr_line "$branch") || return
+		echo "$issue $(task_mark "$issue" "$worktree" "$pr") $(steps_done "$branch" "$pr" "$view") $(short_title "$(jq -r .title <<<"$view")")"
+	done
+}
+
+# The bar of the repository's tmux: each mark with its tasks, then how many tasks need the owner.
+# tmux shows only what the command prints, so a read that fails says so there.
+bar() {
+	local tasks
+	if ! tasks=$(open_tasks); then
+		echo "The bar could not read the tasks."
+		return
+	fi
+	printf '%s' "$tasks" | jq -Rrs "$MARK_JQ"'
+		tasks | [group_by(rank)[] | "\(.[0].mark) \(map("#\(.issue)") | join(" "))"]
+			+ ["\(need | number_with("needs"; "need")) you"]
+		| join(" · ")'
+}
+
+# The lines the status reply takes from the marks: how many tasks need the owner; the table, a row
+# per task in the bar's order, with a ✓ under each step done and the mark under the step the task
+# is at; and the legend.
+reply() {
+	local tasks
+	tasks=$(open_tasks)
+	printf '%s' "$tasks" | jq -Rrs --arg legend "$LEGEND" "$MARK_JQ"'
+		def cell: . + " " * (8 - length);
+		def table: map(.label = "#\(.issue) \(.title)") | (map(.label | length) | max + 3) as $width
+			| " " * $width + (["plan", "build", "review", "merge"] | map(cell) | join("") | sub(" +$"; "")),
+				(.[] | .label + " " * ($width - (.label | length)) + ("✓" | cell) * .steps + .mark);
+		tasks | need as $need
+		| if $need == 0 then "Nothing needs you. \(length | number_with("task is"; "tasks are")) running."
+			else "\($need | number_with("thing needs"; "things need")) you." end,
+			(select(. != []) | "", table, "", $legend)'
+}
+
+# mark [<issue> 🟢|💬]...: the marks the main session gives, which replace those it gave before.
+# The bar shows them at once.
+mark() {
+	local worktree pr given=
+	SESSIONS=$(claude agents --json)
+	while [ $# -ge 2 ]; do
+		case $2 in 🟢 | 💬) ;; *) die "the main session gives 🟢 or 💬, not $2: a task's state gives 🛑 and ⏳" ;; esac
+		worktree=$(issue_worktree "$1") || die "issue $1 has no task in progress"
+		pr=$(pr_line "$(git -C "$worktree" branch --show-current)")
+		given+="$1 $2 $(task_state "$worktree" "$pr")"$'\n'
+		shift 2
+	done
+	[ $# -eq 0 ] || die "$usage"
+	printf '%s' "$given" >"$MARKS_FILE"
+	refresh_bar
+}
+
+# Each terminal attached to the repository's tmux runs the bar's command again. Where no tmux runs,
+# no bar shows.
+refresh_bar() {
+	local client
+	for client in $(tmux -L "$REPO_NAME" list-clients -F '#{client_name}' 2>/dev/null); do
+		tmux -L "$REPO_NAME" refresh-client -S -t "$client"
+	done
+}
+
 # A hook can't call a skill, only add to the context. It says nothing in a task worktree, so task
 # sessions start untouched.
 on_session_start() {
@@ -416,6 +548,9 @@ park) [ $# -ge 3 ] || die "$usage"; park "$2" "$3" ;;
 plan) [ $# -ge 3 ] || die "$usage"; plan "$2" "$3" ;;
 cleanup) cleanup ;;
 status) status ;;
+mark) shift; mark "$@" ;;
+reply) reply ;;
+bar) bar ;;
 on-session-start) on_session_start ;;
 point-memory) point_memory "$CHECKOUT" && echo "✓ auto memory points at $CHECKOUT/.claude/memory" ;;
 *) die "$usage" ;;

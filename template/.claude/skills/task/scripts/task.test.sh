@@ -41,10 +41,10 @@ issue() {
   local blockers comments
   blockers=$(for m in $(cat "blocked-by-$1" 2>/dev/null); do echo "$m $(state "$m")"; done)
   comments=$(for f in "comment-$1"???; do [ ! -f "$f" ] || jq -Rs --arg url "$(comment_url "${f#comment-}")" '{url: $url, body: .}' "$f"; done | jq -s .)
-  jq -n --argjson number "$1" --arg title "$(title "$1")" --arg labels "$(cat "labels-$1" 2>/dev/null)" \
+  jq -n --argjson number "$1" --arg state "$(state "$1")" --arg title "$(title "$1")" --arg labels "$(cat "labels-$1" 2>/dev/null)" \
     --argjson comments "$comments" --arg blockers "$blockers" '
     def lines: split("\n") | map(select(. != ""));
-    {number: $number, title: $title, labels: ($labels | lines | map({name: .})),
+    {number: $number, state: $state, title: $title, labels: ($labels | lines | map({name: .})),
       blockedBy: {nodes: ($blockers | lines | map(split(" ") | {number: (.[0] | tonumber), state: .[1]}))},
       comments: $comments}'
 }
@@ -164,6 +164,10 @@ closes() {  # closes <repository> <window>: that window of the repository's tmux
     sleep
   done
   return 1
+}
+listed_as() {  # listed_as <folder> <status>: the session that runs in that folder is listed with that status
+  awk -v folder="$1" -v status="$2" '$1 == folder { $3 = status } 1' "$TASK_TEST_STATE/running" >"$WORK/running" &&
+    mv "$WORK/running" "$TASK_TEST_STATE/running"
 }
 sessions_exit() {  # every running session exits, and its window closes; each repository's main window stays
   local socket
@@ -553,6 +557,66 @@ check "and pins it again, where the pin was lost" test "$(cat "$TASK_TEST_STATE/
 check "the owner's comment stays as it was"    test "$(cat "$TASK_TEST_STATE/comment-24000")" = "$OWNERS"
 refuses "a file that is not there posts no plan" 'No such file'         "$BACKEND" plan 23 "$WORK/none.md"
 check "not even an empty one"                  test ! -e "$TASK_TEST_STATE/comment-23000"
+
+echo "-- bar and mark: each task under its mark, those that need the owner first"
+# By now 11, 13, 15 and 19 have a task worktree in backend, and issue 24 has a plan.
+check "backend starts issue 23 in design mode" task "$BACKEND" start 23 design
+check "and issue 24 as research"               task "$BACKEND" start 24 research
+listed_as "$ISSUE11/backend" idle
+transcript "$ISSUE11/backend" session 200001010000
+transcript "$ISSUE13/backend"
+check "a plan posted on issue 13"              task "$BACKEND" plan 13 "$WORK/plan.md"
+PASSED='{"__typename": "CheckRun", "workflowName": "Gate", "name": "gate", "status": "COMPLETED", "conclusion": "SUCCESS"}'
+pr_from feat/11-task-11 OPEN false "[$PASSED]"
+pr_from feat/19-task-19 OPEN true "[$PENDING]"
+pr_from design/23-task-23-with-a-title-longer-than-the OPEN false "[$PASSED]"
+run_in "$BACKEND" bar
+check "a task that needs attention is stalled, every other one runs, and one stalled task needs the owner" \
+  test "$(cat "$WORK/out")" = '🛑 #11 · ⏳ #13 #15 #19 #23 #24 · 1 needs you'
+check "the main session marks a PR ready to merge" run_in "$BACKEND" mark 11 🟢
+check "and prints nothing"                     test ! -s "$WORK/out"
+run_in "$BACKEND" reply
+check "the reply's lines: how many tasks need the owner, then the table, those that need the owner first, a ✓ under each step done and the mark at the step the task is at, then the legend" \
+  test "$(cat "$WORK/out")" = "$(printf '%s\n\n' '1 thing needs you.'
+    printf '%44s%s\n' '' 'plan    build   review  merge'
+    printf '%-44s%s\n' '#11 Task 11' '✓       ✓       ✓       🟢' '#13 Task 13' '✓       ⏳' '#15 Task 15' '⏳' \
+      '#19 Task 19' '✓       ✓       ⏳' '#23 Task 23, with a title longer than the' '⏳' '#24 Task 24' '✓       ⏳'
+    printf '\n%s\n' '🟢 PR ready to merge · 💬 your answer · 🛑 stalled · ⏳ running')"
+run_in "$BACKEND" bar
+check "the bar gives the same marks"           test "$(cat "$WORK/out")" = '🟢 #11 · ⏳ #13 #15 #19 #23 #24 · 1 needs you'
+transcript "$ISSUE11/backend"
+run_in "$BACKEND" bar
+check "a mark lapses once its session writes"  test "$(cat "$WORK/out")" = '⏳ #11 #13 #15 #19 #23 #24 · 0 need you'
+run_in "$BACKEND" reply
+check "and the reply then opens with nothing that needs the owner" test "$(head -n 1 "$WORK/out")" = 'Nothing needs you. 6 tasks are running.'
+transcript "$ISSUE11/backend" session 200001010000
+task "$BACKEND" mark 11 🟢 >/dev/null
+check "a new mark replaces those given before" run_in "$BACKEND" mark 23 💬
+run_in "$BACKEND" bar
+check "and each mark is a group of its own"    test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #13 #15 #19 #24 · 2 need you'
+task "$BACKEND" mark 11 🟢 23 💬 >/dev/null
+run_in "$BACKEND" bar
+check "two marks given at once"                test "$(cat "$WORK/out")" = '🟢 #11 · 💬 #23 · ⏳ #13 #15 #19 #24 · 2 need you'
+pr_from feat/11-task-11 OPEN false "[$FAILED]"
+run_in "$BACKEND" bar
+check "a mark lapses once its PR changes, and the others stand" test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #13 #15 #19 #24 · 2 need you'
+refuses "a running mark is the task's state's to give" 'gives 🟢 or 💬, not ⏳' "$BACKEND" mark 15 ⏳
+refuses "a mark for an issue with no task"       'issue 42 has no task in progress' "$BACKEND" mark 42 🟢
+refuses "an issue with no mark"                  '^usage:'              "$BACKEND" mark 23 💬 15
+run_in "$BACKEND" bar
+check "a refused mark leaves the marks given before" test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #13 #15 #19 #24 · 2 need you'
+echo CLOSED >"$TASK_TEST_STATE/issue-13"
+run_in "$BACKEND" bar
+check "a task whose issue closed leaves the bar" test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #15 #19 #24 · 2 need you'
+run_in "$FRONTEND" bar
+check "where no task is in progress, the bar says only that nothing needs the owner" test "$(cat "$WORK/out")" = '0 need you'
+run_in "$FRONTEND" reply
+check "and the reply says so, with no table"   test "$(cat "$WORK/out")" = 'Nothing needs you. 0 tasks are running.'
+touch "$TASK_TEST_STATE/gh-down"
+run_in "$BACKEND" bar
+check "a bar whose read of the tasks fails says so, and gives no count" test "$(cat "$WORK/out")" = 'The bar could not read the tasks.'
+check "and a reply whose read fails fails, and prints nothing" bash -c "! (cd '$BACKEND' && bash .claude/skills/task/scripts/task.sh reply) >'$WORK/out' 2>&1 && test ! -s '$WORK/out'"
+rm "$TASK_TEST_STATE/gh-down"
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"

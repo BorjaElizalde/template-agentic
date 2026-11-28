@@ -280,11 +280,13 @@ loads_tmux_conf() {  # the project's tmux.conf, loaded twice into a tmux server 
   tmux -S "$socket" -f /dev/null new-session -d \; source-file "$D/.claude/tmux.conf" \; source-file "$D/.claude/tmux.conf" &&
     [ "$(tmux -S "$socket" show -sv extended-keys)" = on ] &&
     [ "$(tmux -S "$socket" show -sv terminal-features | grep -cxF 'xterm*:extkeys')" -eq 1 ] &&
-    [ "$(tmux -S "$socket" show -sv escape-time)" -eq 10 ] || ok=1
+    [ "$(tmux -S "$socket" show -sv escape-time)" -eq 10 ] &&
+    [ "$(tmux -S "$socket" show -gv 'status-format[0]')" = \
+      ' #(while :; do bash #{q:session_path}/.claude/skills/task/scripts/task.sh bar; sleep 300; done)' ] || ok=1
   tmux -S "$socket" kill-server
   return "$ok"
 }
-expect "tmux.conf turns extended keys on, for xterm terminals once however often it loads, and passes Esc on at once" loads_tmux_conf
+expect "tmux.conf turns extended keys on, for xterm terminals once however often it loads, passes Esc on at once, and gives the status line to the bar of the tasks, read every 5 minutes" loads_tmux_conf
 git -C "$B" init -q
 commit "$B" copy
 jq '.env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH = "2"' "$B/.claude/settings.project.json" >"$OUT/settings.project.json"
