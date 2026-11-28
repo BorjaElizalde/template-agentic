@@ -371,6 +371,8 @@ status() {
 		task_lines
 	fi
 	backlog_lines
+	# Last: a fetch that fails ends the status, with the tasks and the backlog already printed.
+	pull_develop
 }
 
 # A line keeps the whole title, so the reply can say what the issue is: the backlog never goes
@@ -414,6 +416,22 @@ task_lines() {
 		if needs_attention "$session" "$age"; then mark=", needs attention"; fi
 		echo "#$issue $(short_title "${view#* }"): $mode$session, $pr, $(active_line "$age")$mark"
 	done
+}
+
+# The merge's options make git refuse to overwrite any uncommitted, untracked or ignored file.
+pull_develop() {
+	local missing branch refusal
+	git fetch origin develop -q
+	missing=$(git rev-list --count HEAD..origin/develop)
+	[ "$missing" -gt 0 ] || return 0
+	branch=$(git branch --show-current)
+	# On another branch, the merge would move that branch to develop.
+	if [ "$branch" = develop ]; then
+		refusal=$(git merge --ff-only --no-overwrite-ignore --no-autostash -q origin/develop 2>&1) && return
+	else
+		refusal="it is on ${branch:-no branch}, not on develop"
+	fi
+	echo "The main checkout lacks origin/develop's newest commits ($missing): $refusal"
 }
 
 # The marks, in the order the bar and the table list them: a PR ready for the owner to merge, a
