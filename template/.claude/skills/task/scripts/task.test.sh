@@ -41,10 +41,10 @@ issue() {
   local blockers comments
   blockers=$(for m in $(cat "blocked-by-$1" 2>/dev/null); do echo "$m $(state "$m")"; done)
   comments=$(for f in "comment-$1"???; do [ ! -f "$f" ] || jq -Rs --arg url "$(comment_url "${f#comment-}")" '{url: $url, body: .}' "$f"; done | jq -s .)
-  jq -n --argjson number "$1" --arg title "$(title "$1")" --arg labels "$(cat "labels-$1" 2>/dev/null)" \
+  jq -n --argjson number "$1" --arg state "$(state "$1")" --arg title "$(title "$1")" --arg labels "$(cat "labels-$1" 2>/dev/null)" \
     --argjson comments "$comments" --arg blockers "$blockers" '
     def lines: split("\n") | map(select(. != ""));
-    {number: $number, title: $title, labels: ($labels | lines | map({name: .})),
+    {number: $number, state: $state, title: $title, labels: ($labels | lines | map({name: .})),
       blockedBy: {nodes: ($blockers | lines | map(split(" ") | {number: (.[0] | tonumber), state: .[1]}))},
       comments: $comments}'
 }
@@ -135,6 +135,9 @@ cp -R "$HERE/../session" "$WORK/seed/.claude/skills/task/"
 SESSION="$HERE/../session"
 printf 'ISSUES_REPO=acme/tasks\nWORKTREE_ROOT=../worktrees\n' >"$WORK/seed/.claude/agentic.conf"
 printf 'settings.local.json\n' >"$WORK/seed/.claude/.gitignore"
+# The project's own settings: a variable, and a Stop hook beside the execution session's.
+printf '{"env": {"PROJECT_VARIABLE": "set"}, "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "echo project stop"}]}]}}\n' \
+  >"$WORK/seed/.claude/settings.project.json"
 git init -q -b develop "$WORK/seed"
 git -C "$WORK/seed" add -A
 git -C "$WORK/seed" -c user.name=t -c user.email=t@t commit -qm seed
@@ -162,6 +165,10 @@ closes() {  # closes <repository> <window>: that window of the repository's tmux
   done
   return 1
 }
+listed_as() {  # listed_as <folder> <status>: the session that runs in that folder is listed with that status
+  awk -v folder="$1" -v status="$2" '$1 == folder { $3 = status } 1' "$TASK_TEST_STATE/running" >"$WORK/running" &&
+    mv "$WORK/running" "$TASK_TEST_STATE/running"
+}
 sessions_exit() {  # every running session exits, and its window closes; each repository's main window stays
   local socket
   for socket in "$WORK"/tmux-*/*; do tmux -S "$socket" kill-window -a -t main; done
@@ -169,14 +176,20 @@ sessions_exit() {  # every running session exits, and its window closes; each re
 }
 launched() { jq -e -Rs 'split("\u0000")[:-1] | '"$1" "$TASK_TEST_STATE/launched"; }  # launched <jq filter>: over the last launch's arguments
 launched_arg() { launched ".[index(\"$1\") + 1]" | jq -r .; }  # the value the launch gave option $1
+session_memory() { launched_arg --settings | jq -r .autoMemoryDirectory; }  # the memory store of the session last opened
 # launches_in execution|design: the session last opened launches in that mode.
 launches_in() {
   local settings
   settings="$(launched_arg --settings)"
-  [ ! -f "$settings" ] || settings="$(cat "$settings")"
   jq -e '.hooks.PermissionRequest' <<<"$settings" && [ "$(launched_arg --disallowed-tools)" = AskUserQuestion ] &&
     [ "$(launched_arg --append-system-prompt)" = "$(cat "$SESSION/prompt.md" "$SESSION/$1.md")" ] &&
-    jq -e --arg mode "$1" '.hooks | has("Stop") == ($mode == "execution")' <<<"$settings"
+    jq -e --arg mode "$1" --slurpfile session "$SESSION/settings.json" \
+      'any(.hooks.Stop[]?; IN($session[0].hooks.Stop[])) == ($mode == "execution")' <<<"$settings"
+}
+# The session last opened has the project's own settings too: its variable and its Stop hook.
+has_project_settings() {
+  launched_arg --settings |
+    jq -e '.env.PROJECT_VARIABLE == "set" and any(.hooks.Stop[].hooks[]; .command == "echo project stop")'
 }
 # The session last opened runs claude interactively, as its window's only process.
 interactive() {
@@ -214,6 +227,7 @@ check "the worktree is <root>/<n>-<slug>/backend" test -d "$ISSUE42/backend"
 check "its branch is feat/<n>-<slug>"          test "$(branch_of "$ISSUE42/backend")" = feat/42-add-a-retry-limit-setting-to-the-upload
 check "it branches off origin/develop"         git -C "$ISSUE42/backend" merge-base --is-ancestor origin/develop HEAD
 check "the main checkout's memory points at it" test "$(memory_of "$BACKEND")" = "$BACKEND/.claude/memory"
+check "and so does its session's"              test "$(session_memory)" = "$BACKEND/.claude/memory"
 check "its session opens with the issue name"  test "$(sessions '#42 backend: Add a retry_limit setting to the upload')" -eq 1
 check "and the start names its mode"           grep -qxF '✓ session opened in execution mode: #42 backend: Add a retry_limit setting to the upload' "$WORK/out"
 check "with a first prompt that reads its issue" bash -c "tail -n 1 '$TASK_TEST_STATE/launches' | grep -qF 'gh issue view 42 -R acme/tasks --json title,body,comments'"
@@ -223,6 +237,7 @@ check "in window #42 of backend's tmux"        has_window backend '#42'
 check "behind the main window, still in view"  in_view backend
 check "with the folder hooks of its window's shell run in its worktree" test "$(cat "$TASK_TEST_STATE/hook-folder")" = "$ISSUE42/backend"
 check "in execution mode: no question tool, a Stop hook, permission prompts denied" launches_in execution
+check "and the project's own settings beside the session's" has_project_settings
 sessions_exit
 check "starting again resumes, creates nothing" task "$BACKEND" start 42
 check "the session opens a second time"        test "$(sessions '#42 backend:')" -eq 2
@@ -272,7 +287,8 @@ ISSUE25="$WORK/repos/worktrees/25-design-the-next-step"
 check "backend starts issue 25 as design"      run_in "$BACKEND" start 25 design
 check "on a design branch"                     test "$(branch_of "$ISSUE25/backend")" = design/25-design-the-next-step
 check "and the start names design mode"        grep -qxF '✓ session opened in design mode: #25 backend: Design the next step' "$WORK/out"
-check "in design mode: no question tool, no Stop hook, permission prompts denied" launches_in design
+check "in design mode: no question tool, none of the session's own Stop hooks, permission prompts denied" launches_in design
+check "and the project's own settings, its Stop hook among them" has_project_settings
 transcript "$ISSUE25/backend"
 sessions_exit
 check "a start with no type"                   run_in "$BACKEND" start 25
@@ -313,6 +329,13 @@ check "says why, and never that a session opened" bash -c "
   tail -n 1 '$WORK/out' | grep -q '^no session runs in .* 30 seconds after its launch: ' && ! grep -q '^✓ session' '$WORK/out'"
 check "and its window has closed"              closes backend '#26'
 rm "$TASK_TEST_STATE/no-start"
+
+echo "-- start: refused while the project's own settings are not JSON"
+printf '{bad\n' >"$LONG/.claude/settings.project.json"
+LAUNCHES=$(wc -l <"$TASK_TEST_STATE/launches")
+refuses "a start whose project settings are not JSON fails, and names the file" 'settings\.project\.json' "$LONG" start 26
+check "and launches nothing"                   test "$(wc -l <"$TASK_TEST_STATE/launches")" -eq "$LAUNCHES"
+git -C "$LONG" checkout -q -- .claude/settings.project.json
 
 echo "-- finish: refused while anything would be lost"
 refuses "an open issue does not finish"          'still open'           "$BACKEND" finish 42
@@ -536,6 +559,104 @@ check "and pins it again, where the pin was lost" test "$(cat "$TASK_TEST_STATE/
 check "the owner's comment stays as it was"    test "$(cat "$TASK_TEST_STATE/comment-24000")" = "$OWNERS"
 refuses "a file that is not there posts no plan" 'No such file'         "$BACKEND" plan 23 "$WORK/none.md"
 check "not even an empty one"                  test ! -e "$TASK_TEST_STATE/comment-23000"
+
+echo "-- bar and mark: each task under its mark, those that need the owner first"
+# By now 11, 13, 15 and 19 have a task worktree in backend, and issue 24 has a plan.
+check "backend starts issue 23 in design mode" task "$BACKEND" start 23 design
+check "and issue 24 as research"               task "$BACKEND" start 24 research
+listed_as "$ISSUE11/backend" idle
+transcript "$ISSUE11/backend" session 200001010000
+transcript "$ISSUE13/backend"
+check "a plan posted on issue 13"              task "$BACKEND" plan 13 "$WORK/plan.md"
+PASSED='{"__typename": "CheckRun", "workflowName": "Gate", "name": "gate", "status": "COMPLETED", "conclusion": "SUCCESS"}'
+pr_from feat/11-task-11 OPEN false "[$PASSED]"
+pr_from feat/19-task-19 OPEN true "[$PENDING]"
+pr_from design/23-task-23-with-a-title-longer-than-the OPEN false "[$PASSED]"
+run_in "$BACKEND" bar
+check "a task that needs attention is stalled, every other one runs, and one stalled task needs the owner" \
+  test "$(cat "$WORK/out")" = '🛑 #11 · ⏳ #13 #15 #19 #23 #24 · 1 needs you'
+check "the main session marks a PR ready to merge" run_in "$BACKEND" mark 11 🟢
+check "and prints nothing"                     test ! -s "$WORK/out"
+run_in "$BACKEND" reply
+check "the reply's lines: how many tasks need the owner, then the table, those that need the owner first, a ✓ under each step done and the mark at the step the task is at, then the legend" \
+  test "$(cat "$WORK/out")" = "$(printf '%s\n\n' '1 thing needs you.'
+    printf '%44s%s\n' '' 'plan    build   review  merge'
+    printf '%-44s%s\n' '#11 Task 11' '✓       ✓       ✓       🟢' '#13 Task 13' '✓       ⏳' '#15 Task 15' '⏳' \
+      '#19 Task 19' '✓       ✓       ⏳' '#23 Task 23, with a title longer than the' '⏳' '#24 Task 24' '✓       ⏳'
+    printf '\n%s\n' '🟢 PR ready to merge · 💬 your answer · 🛑 stalled · ⏳ running')"
+run_in "$BACKEND" bar
+check "the bar gives the same marks"           test "$(cat "$WORK/out")" = '🟢 #11 · ⏳ #13 #15 #19 #23 #24 · 1 needs you'
+transcript "$ISSUE11/backend"
+run_in "$BACKEND" bar
+check "a mark lapses once its session writes"  test "$(cat "$WORK/out")" = '⏳ #11 #13 #15 #19 #23 #24 · 0 need you'
+run_in "$BACKEND" reply
+check "and the reply then opens with nothing that needs the owner" test "$(head -n 1 "$WORK/out")" = 'Nothing needs you. 6 tasks are running.'
+transcript "$ISSUE11/backend" session 200001010000
+task "$BACKEND" mark 11 🟢 >/dev/null
+check "a new mark replaces those given before" run_in "$BACKEND" mark 23 💬
+run_in "$BACKEND" bar
+check "and each mark is a group of its own"    test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #13 #15 #19 #24 · 2 need you'
+task "$BACKEND" mark 11 🟢 23 💬 >/dev/null
+run_in "$BACKEND" bar
+check "two marks given at once"                test "$(cat "$WORK/out")" = '🟢 #11 · 💬 #23 · ⏳ #13 #15 #19 #24 · 2 need you'
+pr_from feat/11-task-11 OPEN false "[$FAILED]"
+run_in "$BACKEND" bar
+check "a mark lapses once its PR changes, and the others stand" test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #13 #15 #19 #24 · 2 need you'
+refuses "a running mark is the task's state's to give" 'gives 🟢 or 💬, not ⏳' "$BACKEND" mark 15 ⏳
+refuses "a mark for an issue with no task"       'issue 42 has no task in progress' "$BACKEND" mark 42 🟢
+refuses "an issue with no mark"                  '^usage:'              "$BACKEND" mark 23 💬 15
+run_in "$BACKEND" bar
+check "a refused mark leaves the marks given before" test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #13 #15 #19 #24 · 2 need you'
+echo CLOSED >"$TASK_TEST_STATE/issue-13"
+run_in "$BACKEND" bar
+check "a task whose issue closed leaves the bar" test "$(cat "$WORK/out")" = '💬 #23 · 🛑 #11 · ⏳ #15 #19 #24 · 2 need you'
+run_in "$FRONTEND" bar
+check "where no task is in progress, the bar says only that nothing needs the owner" test "$(cat "$WORK/out")" = '0 need you'
+run_in "$FRONTEND" reply
+check "and the reply says so, with no table"   test "$(cat "$WORK/out")" = 'Nothing needs you. 0 tasks are running.'
+touch "$TASK_TEST_STATE/gh-down"
+run_in "$BACKEND" bar
+check "a bar whose read of the tasks fails says so, and gives no count" test "$(cat "$WORK/out")" = 'The bar could not read the tasks.'
+check "and a reply whose read fails fails, and prints nothing" bash -c "! (cd '$BACKEND' && bash .claude/skills/task/scripts/task.sh reply) >'$WORK/out' 2>&1 && test ! -s '$WORK/out'"
+rm "$TASK_TEST_STATE/gh-down"
+
+echo "-- a project that is a git submodule: its main checkout is the folder that holds its files"
+# Named api, in parent/service, so the data folder's name differs from the files' folder's.
+PARENT="$WORK/parent"
+SUBMODULE="$PARENT/service"
+ISSUE24="$PARENT/worktrees/24-task-24"
+ISSUE23="$PARENT/worktrees/23-task-23-with-a-title-longer-than-the"
+git init -q -b develop "$PARENT"
+git -C "$PARENT" -c protocol.file.allow=always submodule add -q --name api "$WORK/origin.git" service
+git -C "$PARENT" -c user.name=t -c user.email=t@t commit -qm parent
+tmux_main "$SUBMODULE"
+check "a submodule's main checkout starts issue 24" run_in "$SUBMODULE" start 24
+check "the worktree is <root>/<n>-<slug>/service, the root resolved from the submodule's files" test -d "$ISSUE24/service"
+check "a worktree of the submodule's repository, with its files at the root" bash -c "
+  test \"\$(git -C '$ISSUE24/service' rev-parse --path-format=absolute --git-common-dir)\" = '$PARENT/.git/modules/api' &&
+  test -f '$ISSUE24/service/.claude/agentic.conf'"
+check "on branch feat/<n>-<slug>"                 test "$(branch_of "$ISSUE24/service")" = feat/24-task-24
+check "in window #24 of the tmux named after the files' folder" has_window service '#24'
+check "its session's memory is the main checkout's store" test "$(session_memory)" = "$SUBMODULE/.claude/memory"
+check "a start inside the submodule's worktree"  task "$ISSUE24/service" start 23
+check "resolves from the main checkout"           test -d "$ISSUE23/service"
+SUBMODULE_TASKS="$(printf '#23 Task 23, with a title longer than the: session busy, no PR, no transcript\n#24 Task 24: session busy, no PR, no transcript')"
+check "a look from the main checkout"             run_in "$SUBMODULE" status
+check "lists its tasks"                           test "$(under 'In progress')" = "$SUBMODULE_TASKS"
+run_in "$ISSUE24/service" status
+check "and so does a look from a task's worktree" test "$(under 'In progress')" = "$SUBMODULE_TASKS"
+check "a session start in its main checkout"      run_in "$SUBMODULE" on-session-start
+check "names /task:status"                        test "$(cat "$WORK/out")" = 'In your first reply, report the status to the owner through /task:status.'
+check "a session start in its task worktree"      run_in "$ISSUE24/service" on-session-start
+check "says nothing"                              test ! -s "$WORK/out"
+echo CLOSED >"$TASK_TEST_STATE/issue-24"
+check "a closed task finishes from the main checkout" task "$SUBMODULE" finish 24
+check "its session ended, and its window closed"  closes service '#24'
+check "its worktree is gone"                      test ! -e "$ISSUE24"
+check "and its branch"                            bash -c "! git -C '$SUBMODULE' rev-parse -q --verify feat/24-task-24"
+echo CLOSED >"$TASK_TEST_STATE/issue-23"
+check "a cleanup from the main checkout"          run_in "$SUBMODULE" cleanup
+check "finishes the other"                        grep -qxF '✓ issue 23 finished: session closed, worktree removed, branches removed: feat/23-task-23-with-a-title-longer-than-the' "$WORK/out"
 
 echo "-- usage"
 refuses "no command is refused"                  '^usage:'              "$BACKEND"

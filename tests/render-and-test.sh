@@ -44,6 +44,7 @@ AM="$OUT/agent-merges"
 uvx --quiet copier copy --quiet --defaults --data issues_repo=acme/tasks --data agent_merges=true "$OUT/src" "$AM"
 expect "agent_merges reaches agentic.conf" grep -qx 'AGENT_MERGES=true' "$AM/.claude/agentic.conf"
 expect "settings.json is JSON" jq empty "$D/.claude/settings.json"
+expect "settings.project.json is JSON" jq empty "$D/.claude/settings.project.json"
 # $CLAUDE_PROJECT_DIR is text in the hook command, for Claude Code to expand. Tried double quotes,
 # but then each " and $ of the jq program needs a backslash.
 # shellcheck disable=SC2016
@@ -199,6 +200,7 @@ cp -R "$OUT/src" "$NEXT"
 printf 'probe\n' >"$NEXT/template/update-probe.txt"
 rm "$NEXT/template/.claude/skills/commit/SKILL.md"
 printf '{}\n' >"$NEXT/template/renovate.json"
+printf '{}\n' >"$NEXT/template/.claude/settings.project.json"
 printf 'gate:\n\t@echo v2\n' >"$S/template/Makefile"
 commit "$S" 'Change the seeded Makefile'
 build v2 "$NEXT"
@@ -259,14 +261,14 @@ make_claude() {  # make_claude <TMUX> <PATH> <expected output> <make arguments..
     { printf 'FAIL make claude ran:\n%s\n' "$out"; return 1; }
 }
 IN_ITS_TMUX=/tmp/tmux-1000/my.app,1,0  # TMUX in a window of the project's own tmux server
-expect "inside its own tmux, make claude keeps the machine awake and gives claude its flag, args and the prompt as one argument, and none of make's variables" make_claude \
+expect "inside its own tmux, make claude keeps the machine awake and gives claude the project's own settings, its flag, args and the prompt as one argument, and none of make's variables" make_claude \
   "$IN_ITS_TMUX" "$SI/caffeinate:$SI/claude:$PATH" \
-  "$(printf '%s\n' 'caffeinate -is' --remote-control --continue -- '/loop check the board; then stop')" \
+  "$(printf '%s\n' 'caffeinate -is' --settings .claude/settings.project.json --remote-control --continue -- '/loop check the board; then stop')" \
   args=--continue 'prompt=/loop check the board; then stop'
 expect "with no caffeinate and no prompt, make claude starts claude alone, with no empty argument" make_claude \
-  "$IN_ITS_TMUX" "$SI/env:$SI/claude" --remote-control
+  "$IN_ITS_TMUX" "$SI/env:$SI/claude" "$(printf '%s\n' --settings .claude/settings.project.json --remote-control)"
 STARTS_ITS_TMUX="$(printf '%s\n' tmux -L my.app source-file .claude/tmux.conf ';' new-session -A -s my_app -n main \
-  caffeinate -is claude --remote-control --continue -- '/loop check the board; then stop')"
+  caffeinate -is claude --settings .claude/settings.project.json --remote-control --continue -- '/loop check the board; then stop')"
 expect "outside tmux, make claude starts the repository's tmux, named after its folder, with tmux.conf and none of make's variables, and claude kept awake in its main window, or attaches to it" \
   make_claude '' "$SI/tmux:$SI/caffeinate:$SI/claude:$PATH" "$STARTS_ITS_TMUX" \
   args=--continue 'prompt=/loop check the board; then stop'
@@ -278,14 +280,21 @@ loads_tmux_conf() {  # the project's tmux.conf, loaded twice into a tmux server 
   tmux -S "$socket" -f /dev/null new-session -d \; source-file "$D/.claude/tmux.conf" \; source-file "$D/.claude/tmux.conf" &&
     [ "$(tmux -S "$socket" show -sv extended-keys)" = on ] &&
     [ "$(tmux -S "$socket" show -sv terminal-features | grep -cxF 'xterm*:extkeys')" -eq 1 ] &&
-    [ "$(tmux -S "$socket" show -sv escape-time)" -eq 10 ] || ok=1
+    [ "$(tmux -S "$socket" show -sv escape-time)" -eq 10 ] &&
+    [ "$(tmux -S "$socket" show -gv 'status-format[0]')" = \
+      ' #(while :; do bash #{q:session_path}/.claude/skills/task/scripts/task.sh bar; sleep 300; done)' ] || ok=1
   tmux -S "$socket" kill-server
   return "$ok"
 }
-expect "tmux.conf turns extended keys on, for xterm terminals once however often it loads, and passes Esc on at once" loads_tmux_conf
+expect "tmux.conf turns extended keys on, for xterm terminals once however often it loads, passes Esc on at once, and gives the status line to the bar of the tasks, read every 5 minutes" loads_tmux_conf
 git -C "$B" init -q
 commit "$B" copy
+jq '.env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH = "2"' "$B/.claude/settings.project.json" >"$OUT/settings.project.json"
+mv "$OUT/settings.project.json" "$B/.claude/settings.project.json"
+commit "$B" 'Add a setting of the project'
 (cd "$B" && uvx --quiet copier update --quiet --defaults -a .copier-answers.stack.yaml --vcs-ref v2)
+expect "the update keeps the project's own settings, though the release changes their seed" \
+  jq -e '.env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH == "2"' "$B/.claude/settings.project.json"
 expect "copier update across a bundled release delivers this template's change, without --trust" bash -c "
   [ -f '$B/update-probe.txt' ] && [ ! -e '$B/.claude/skills/commit/SKILL.md' ] && grep -qx '_commit: v2' '$B/.copier-answers.stack.yaml'"
 expect "the update keeps the files both layers seed once" bash -c "
